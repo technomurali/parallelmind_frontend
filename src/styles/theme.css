@@ -1,0 +1,10 @@
+/* Global theme styles */
+
+:root {
+  --primary-color: #646cff;
+  --secondary-color: #535bf2;
+  --background: #242424;
+  --text: rgba(255, 255, 255, 0.87);
+}
+
+/* Add your theme variables and styles here */

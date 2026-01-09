@@ -1,0 +1,20 @@
+/**
+ * root-folder.json
+ * 
+ * Central JSON file tracking all nodes, folders, and files in the mind map.
+ * This is the master structure file that maintains the hierarchical organization
+ * of the entire mind map. It serves as the single source of truth for the
+ * application's data structure.
+ * 
+ * Structure:
+ * - id: Unique identifier for the node/folder
+ * - name: Display name
+ * - type: Either "file" or "folder"
+ * - children: Array of child nodes (for folders) or empty array (for files)
+ */
+{
+  "id": "root",
+  "name": "Root",
+  "type": "folder",
+  "children": []
+}
