@@ -11,8 +11,7 @@
  * Uses Zustand for lightweight state management.
  */
 
-// TODO: Install Zustand: npm install zustand
-// import { create } from 'zustand';
+import { create } from 'zustand';
 // import { MindMapNode, Edge } from '../types/nodeTypes';
 
 /**
@@ -47,8 +46,8 @@ export interface MindMapState {
   settings: AppSettings;
 
   // UI state
-  leftPanelOpen: boolean;
-  rightPanelOpen: boolean;
+  leftPanelWidth: number;
+  rightPanelWidth: number;
   settingsOpen: boolean;
 }
 
@@ -61,8 +60,8 @@ export interface MindMapActions {
   selectNode: (nodeId: string | null) => void;
   selectEdge: (edgeId: string | null) => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
-  toggleLeftPanel: () => void;
-  toggleRightPanel: () => void;
+  setLeftPanelWidth: (width: number) => void;
+  setRightPanelWidth: (width: number) => void;
   toggleSettings: () => void;
 }
 
@@ -79,75 +78,45 @@ export type MindMapStore = MindMapState & MindMapActions;
  * const { nodes, setNodes, selectedNodeId } = useMindMapStore();
  * ```
  */
-export const useMindMapStore = (): MindMapStore => {
-  // TODO: Implement Zustand store
-  // Example implementation:
-  /*
-  return create<MindMapStore>((set) => ({
-    nodes: [],
-    edges: [],
-    selectedNodeId: null,
-    selectedEdgeId: null,
-    settings: {
-      theme: 'dark',
-      font: 'system-ui',
-      fontSize: 14,
-      llmModel: 'gpt-4',
-      llmProvider: 'openai',
-      appearance: {
-        nodeSize: 200,
-        edgeStyle: 'default',
-        showMinimap: true,
-      },
-    },
-    leftPanelOpen: true,
-    rightPanelOpen: true,
-    settingsOpen: false,
-    setNodes: (nodes) => set({ nodes }),
-    setEdges: (edges) => set({ edges }),
-    selectNode: (nodeId) => set({ selectedNodeId: nodeId }),
-    selectEdge: (edgeId) => set({ selectedEdgeId: edgeId }),
-    updateSettings: (newSettings) =>
-      set((state) => ({
-        settings: { ...state.settings, ...newSettings },
-      })),
-    toggleLeftPanel: () =>
-      set((state) => ({ leftPanelOpen: !state.leftPanelOpen })),
-    toggleRightPanel: () =>
-      set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
-    toggleSettings: () =>
-      set((state) => ({ settingsOpen: !state.settingsOpen })),
-  }));
-  */
+export const useMindMapStore = create<MindMapStore>((set) => ({
+  // ReactFlow data
+  nodes: [],
+  edges: [],
 
-  // Placeholder implementation
-  return {
-    nodes: [],
-    edges: [],
-    selectedNodeId: null,
-    selectedEdgeId: null,
-    settings: {
-      theme: 'dark',
-      font: 'system-ui',
-      fontSize: 14,
-      llmModel: 'gpt-4',
-      llmProvider: 'openai',
-      appearance: {
-        nodeSize: 200,
-        edgeStyle: 'default',
-        showMinimap: true,
-      },
+  // Selection state
+  selectedNodeId: null,
+  selectedEdgeId: null,
+
+  // Application settings
+  settings: {
+    theme: 'dark',
+    font: 'system-ui',
+    fontSize: 14,
+    llmModel: 'gpt-4',
+    llmProvider: 'openai',
+    appearance: {
+      nodeSize: 200,
+      edgeStyle: 'default',
+      showMinimap: true,
     },
-    leftPanelOpen: true,
-    rightPanelOpen: true,
-    settingsOpen: false,
-    setNodes: () => {},
-    setEdges: () => {},
-    selectNode: () => {},
-    selectEdge: () => {},
-    updateSettings: () => {},
-    toggleLeftPanel: () => {},
-    toggleRightPanel: () => {},
-    toggleSettings: () => {},
-  };
-};
+  },
+
+  // UI state
+  leftPanelWidth: 280,
+  rightPanelWidth: 360,
+  settingsOpen: false,
+
+  // Actions
+  setNodes: (nodes) => set({ nodes }),
+  setEdges: (edges) => set({ edges }),
+  selectNode: (nodeId) => set({ selectedNodeId: nodeId }),
+  selectEdge: (edgeId) => set({ selectedEdgeId: edgeId }),
+  updateSettings: (newSettings) =>
+    set((state) => ({
+      settings: { ...state.settings, ...newSettings },
+    })),
+  setLeftPanelWidth: (width) => set({ leftPanelWidth: width }),
+  setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
+  toggleSettings: () =>
+    set((state) => ({ settingsOpen: !state.settingsOpen })),
+}));

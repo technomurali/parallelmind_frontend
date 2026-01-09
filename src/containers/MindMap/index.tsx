@@ -1,5 +1,16 @@
-// Main MindMap container component
+import ReactFlow, { Background } from 'reactflow';
+import 'reactflow/dist/style.css';
+import { uiText } from '../../constants/uiText';
 
+// Main MindMap container component
 export default function MindMap() {
-  return <div>MindMap Container</div>;
+  return (
+    <main className="pm-center" aria-label={uiText.ariaLabels.mindMapCanvas}>
+      <div className="pm-canvas">
+        <ReactFlow nodes={[]} edges={[]} fitView>
+          <Background />
+        </ReactFlow>
+      </div>
+    </main>
+  );
 }

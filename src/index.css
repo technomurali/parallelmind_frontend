@@ -1,14 +1,16 @@
 /* Global styles - moved from style.css */
 @import './styles/theme.css';
 
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+html,
+body,
+#app {
+  height: 100%;
+}
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+:root {
+  font-family: var(--font-family);
+  color: var(--text);
+  background-color: var(--background);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -18,14 +20,8 @@
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
 }
 
 #app {
   width: 100%;
-  margin: 0 auto;
-  text-align: center;
 }

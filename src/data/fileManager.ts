@@ -31,7 +31,7 @@ export class FileManager {
    * @param parentId - ID of the parent folder
    * @param node - FileNode to create
    */
-  create(parentId: string, node: FileNode): void {
+  create(_parentId: string, _node: FileNode): void {
     // TODO: Implement file/folder creation
   }
 
@@ -40,7 +40,7 @@ export class FileManager {
    * @param id - ID of the node to read
    * @returns FileNode or null if not found
    */
-  read(id: string): FileNode | null {
+  read(_id: string): FileNode | null {
     // TODO: Implement file/folder reading
     return null;
   }
@@ -50,7 +50,7 @@ export class FileManager {
    * @param id - ID of the node to update
    * @param updates - Partial FileNode with updates
    */
-  update(id: string, updates: Partial<FileNode>): void {
+  update(_id: string, _updates: Partial<FileNode>): void {
     // TODO: Implement file/folder updates
   }
 
@@ -58,7 +58,7 @@ export class FileManager {
    * Deletes a file or folder
    * @param id - ID of the node to delete
    */
-  delete(id: string): void {
+  delete(_id: string): void {
     // TODO: Implement file/folder deletion
   }
 

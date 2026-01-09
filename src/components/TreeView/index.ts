@@ -1,2 +1,2 @@
-// TreeView component exports
-export {};
+export { TreeView } from './TreeView';
+export type { TreeViewProps } from './TreeView';

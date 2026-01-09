@@ -40,7 +40,7 @@ export class LLMProviderService {
    * @param prompt - The input prompt to send to the LLM
    * @returns Promise resolving to the LLM's response text
    */
-  async generate(prompt: string): Promise<string> {
+  async generate(_prompt: string): Promise<string> {
     // TODO: Implement LLM integration based on provider
     switch (this.config.provider) {
       case 'openai':

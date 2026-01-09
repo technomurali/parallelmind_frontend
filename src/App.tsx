@@ -1,32 +1,37 @@
-import { useState } from 'react'
 import './App.css'
+import LeftPanel from './containers/LeftPanel'
+import MindMap from './containers/MindMap'
+import RightPanel from './containers/RightPanel'
+import { uiText } from './constants/uiText'
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <div>
-      <div>
-        <a href="https://vite.dev" target="_blank" rel="noopener noreferrer">
-          <img src="/vite.svg" className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank" rel="noopener noreferrer">
-          <img src="/react.svg" className="logo react" alt="React logo" />
-        </a>
+    <>
+      <style>{`
+        .pm-resize-handle {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          width: var(--space-2);
+          cursor: col-resize;
+          background: transparent;
+          z-index: 10;
+        }
+        .pm-resize-handle--right { right: 0; }
+        .pm-resize-handle--left { left: 0; }
+
+        /* subtle visual affordance */
+        .pm-resize-handle:hover {
+          background: var(--border);
+        }
+      `}</style>
+
+      <div className="pm-app" aria-label={uiText.ariaLabels.workspace}>
+        <LeftPanel />
+        <MindMap />
+        <RightPanel />
       </div>
-      <h1>Vite + React + TypeScript</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </div>
+    </>
   )
 }
 
