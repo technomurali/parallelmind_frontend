@@ -91,6 +91,9 @@ export const uiText = {
     paste: 'Paste',
     selectAll: 'Select all nodes',
     clearSelection: 'Clear selection',
+    selectRootFolder: 'Select root folder',
+    changeRootFolder: 'Change root folder',
+    rootFolderNamePrefix: 'Root Folder:',
   },
 
   /**
@@ -112,6 +115,7 @@ export const uiText = {
     successSaved: 'Changes saved successfully.',
     successDeleted: 'Item deleted successfully.',
     successCreated: 'Item created successfully.',
+    confirmReplaceRootFolder: 'Replace the current root folder?',
   },
 
   /**
@@ -206,6 +210,7 @@ export const uiText = {
     folderName: 'Enter folder name',
     nodeName: 'Enter node name',
     nodeContent: 'Enter node content...',
+    settingsContainer: 'Settings Container',
   },
 } as const;
 

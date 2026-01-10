@@ -12,6 +12,7 @@
  */
 
 import { create } from 'zustand';
+import type { RootFolderJson } from '../data/fileManager';
 // import { MindMapNode, Edge } from '../types/nodeTypes';
 
 /**
@@ -48,6 +49,9 @@ export interface MindMapState {
   // UI state
   leftPanelWidth: number;
   rightPanelWidth: number;
+  rootDirectoryHandle: FileSystemDirectoryHandle | null;
+  rootFolderJson: RootFolderJson | null;
+  inlineEditNodeId: string | null;
   settingsOpen: boolean;
 }
 
@@ -62,6 +66,10 @@ export interface MindMapActions {
   updateSettings: (settings: Partial<AppSettings>) => void;
   setLeftPanelWidth: (width: number) => void;
   setRightPanelWidth: (width: number) => void;
+  setRoot: (handle: FileSystemDirectoryHandle, root: RootFolderJson) => void;
+  clearRoot: () => void;
+  setInlineEditNodeId: (nodeId: string | null) => void;
+  updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   toggleSettings: () => void;
 }
 
@@ -104,6 +112,9 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
   // UI state
   leftPanelWidth: 280,
   rightPanelWidth: 360,
+  rootDirectoryHandle: null,
+  rootFolderJson: null,
+  inlineEditNodeId: null,
   settingsOpen: false,
 
   // Actions
@@ -117,6 +128,25 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
     })),
   setLeftPanelWidth: (width) => set({ leftPanelWidth: width }),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
+  setRoot: (handle, root) =>
+    set({
+      rootDirectoryHandle: handle,
+      rootFolderJson: root,
+    }),
+  clearRoot: () =>
+    set({
+      rootDirectoryHandle: null,
+      rootFolderJson: null,
+      nodes: [],
+      edges: [],
+    }),
+  setInlineEditNodeId: (nodeId) => set({ inlineEditNodeId: nodeId }),
+  updateNodeData: (nodeId, data) =>
+    set((state) => ({
+      nodes: state.nodes.map((n) =>
+        n?.id === nodeId ? { ...n, data: { ...(n.data ?? {}), ...data } } : n,
+      ),
+    })),
   toggleSettings: () =>
     set((state) => ({ settingsOpen: !state.settingsOpen })),
 }));
