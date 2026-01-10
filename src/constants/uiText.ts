@@ -194,6 +194,7 @@ export const uiText = {
       properties: 'Properties',
     },
     folder: {
+      openFolder: 'Open Folder',
       newFile: 'New File',
       newFolder: 'New Folder',
       rename: 'Rename',
