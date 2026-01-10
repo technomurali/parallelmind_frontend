@@ -53,6 +53,7 @@ export interface MindMapState {
   rootFolderJson: RootFolderJson | null;
   inlineEditNodeId: string | null;
   settingsOpen: boolean;
+  nodeDisplayMode: 'icons' | 'titles' | 'names';
 }
 
 /**
@@ -73,6 +74,7 @@ export interface MindMapActions {
   setInlineEditNodeId: (nodeId: string | null) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   toggleSettings: () => void;
+  setNodeDisplayMode: (mode: 'icons' | 'titles' | 'names') => void;
 }
 
 /**
@@ -118,6 +120,7 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
   rootFolderJson: null,
   inlineEditNodeId: null,
   settingsOpen: false,
+  nodeDisplayMode: 'icons',
 
   // Actions
   setNodes: (nodes) => set({ nodes }),
@@ -156,4 +159,5 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
     })),
   toggleSettings: () =>
     set((state) => ({ settingsOpen: !state.settingsOpen })),
+  setNodeDisplayMode: (mode) => set({ nodeDisplayMode: mode }),
 }));

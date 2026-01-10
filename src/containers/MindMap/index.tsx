@@ -40,8 +40,12 @@ export default function MindMap() {
   const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
   const setInlineEditNodeId = useMindMapStore((s) => s.setInlineEditNodeId);
   const selectNode = useMindMapStore((s) => s.selectNode);
+  const selectedNodeId = useMindMapStore((s) => s.selectedNodeId);
+  const nodeDisplayMode = useMindMapStore((s) => s.nodeDisplayMode);
+  const setNodeDisplayMode = useMindMapStore((s) => s.setNodeDisplayMode);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const canvasBodyRef = useRef<HTMLDivElement | null>(null);
   const [rf, setRf] = useState<ReactFlowInstance | null>(null);
   const nodeTypes = useMemo(() => ({ rootFolder: RootFolderNode }), []);
 
@@ -119,7 +123,7 @@ export default function MindMap() {
     const path = getNodeFolderPath(node);
     if (!path) return;
 
-    const container = wrapperRef.current?.getBoundingClientRect();
+    const container = canvasBodyRef.current?.getBoundingClientRect();
     const x = container ? e.clientX - container.left : e.clientX;
     const y = container ? e.clientY - container.top : e.clientY;
     setContextMenu({ open: true, x, y, node });
@@ -198,93 +202,141 @@ export default function MindMap() {
       type: "rootFolder",
       position: pos,
       data: rootFolderJson,
+      // Sync selection state with store: mark node as selected if it matches selectedNodeId.
+      // ReactFlow will also manage selection on click, but this ensures consistency.
+      selected: selectedNodeId === "00",
     };
 
     // Enforce single root node only (replace any existing root)
     setNodes([rootNode]);
     setInlineEditNodeId("00");
-  }, [rf, rootFolderJson, setInlineEditNodeId, setNodes]);
+  }, [rf, rootFolderJson, selectedNodeId, setInlineEditNodeId, setNodes]);
 
   return (
     <main className="pm-center" aria-label={uiText.ariaLabels.mindMapCanvas}>
       <div className="pm-canvas" ref={wrapperRef}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          fitView
-          nodeTypes={nodeTypes}
-          onInit={setRf}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={onNodeClick}
-          onNodeDoubleClick={onNodeDoubleClick}
-          onNodeContextMenu={onNodeContextMenu}
-        />
-
-        {contextMenu.open && (
+        <header className="pm-canvas__header">
+          <div className="pm-canvas__title" title={rootFolderJson?.path ?? ""}>
+            {rootFolderJson?.name ?? ""}
+          </div>
           <div
-            data-pm-context-menu="node"
-            role="menu"
-            aria-label={uiText.ariaLabels.contextMenu}
+            role="radiogroup"
+            aria-label="Node display mode"
             style={{
-              position: "absolute",
-              left: contextMenu.x,
-              top: contextMenu.y,
-              zIndex: 50,
-              minWidth: 180,
-              borderRadius: "var(--radius-md)",
-              border: "var(--border-width) solid var(--border)",
-              background: "var(--surface-2)",
-              color: "var(--text)",
-              boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
-              padding: "6px",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-3)",
+              fontSize: "0.9em",
             }}
           >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={async () => {
-                const node = contextMenu.node;
-                closeContextMenu();
-                if (!node) return;
-                if (!isTauri()) return;
-                if (!isFolderNode(node)) return;
-                const path = getNodeFolderPath(node);
-                if (!path) return;
-                try {
-                  const { openPath } = await import(
-                    "@tauri-apps/plugin-opener"
-                  );
-                  await openPath(path);
-                } catch (err) {
-                  // Keep UX silent (no alerts/toasts), but log for debugging.
-                  console.error("[MindMap] Context menu open failed:", err);
-                }
-              }}
+            {(["icons", "titles", "names"] as const).map((mode) => (
+              <label
+                key={mode}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--space-2)",
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+                title={uiText.canvas.displayModeTooltips[mode]}
+              >
+                <input
+                  type="radio"
+                  name="nodeDisplayMode"
+                  value={mode}
+                  checked={nodeDisplayMode === mode}
+                  onChange={() => setNodeDisplayMode(mode)}
+                  aria-label={uiText.canvas.displayMode[mode]}
+                  style={{
+                    cursor: "pointer",
+                  }}
+                />
+                <span>{uiText.canvas.displayMode[mode]}</span>
+              </label>
+            ))}
+          </div>
+        </header>
+
+        <div className="pm-canvas__body" ref={canvasBodyRef}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            fitView
+            nodeTypes={nodeTypes}
+            onInit={setRf}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeClick={onNodeClick}
+            onNodeDoubleClick={onNodeDoubleClick}
+            onNodeContextMenu={onNodeContextMenu}
+          />
+
+          {contextMenu.open && (
+            <div
+              data-pm-context-menu="node"
+              role="menu"
+              aria-label={uiText.ariaLabels.contextMenu}
               style={{
-                width: "100%",
-                textAlign: "left",
-                padding: "8px 10px",
-                borderRadius: "var(--radius-sm)",
-                border: "none",
-                background: "transparent",
-                color: "inherit",
-                cursor: "pointer",
-                fontFamily: "var(--font-family)",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background =
-                  "var(--surface-1)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background =
-                  "transparent";
+                position: "absolute",
+                left: contextMenu.x,
+                top: contextMenu.y,
+                zIndex: 50,
+                minWidth: 180,
+                borderRadius: "var(--radius-md)",
+                border: "var(--border-width) solid var(--border)",
+                background: "var(--surface-2)",
+                color: "var(--text)",
+                boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+                padding: "6px",
               }}
             >
-              {uiText.contextMenus.folder.openFolder}
-            </button>
-          </div>
-        )}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={async () => {
+                  const node = contextMenu.node;
+                  closeContextMenu();
+                  if (!node) return;
+                  if (!isTauri()) return;
+                  if (!isFolderNode(node)) return;
+                  const path = getNodeFolderPath(node);
+                  if (!path) return;
+                  try {
+                    const { openPath } = await import(
+                      "@tauri-apps/plugin-opener"
+                    );
+                    await openPath(path);
+                  } catch (err) {
+                    // Keep UX silent (no alerts/toasts), but log for debugging.
+                    console.error("[MindMap] Context menu open failed:", err);
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-family)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+              >
+                {uiText.contextMenus.folder.openFolder}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

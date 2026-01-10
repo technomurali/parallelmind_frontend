@@ -106,11 +106,57 @@
 .pm-canvas {
   height: 100%;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.pm-canvas__header {
+  height: var(--panel-header-height);
+  min-height: var(--panel-header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 var(--panel-header-padding-x);
+  border-bottom: var(--border-width) solid var(--border);
+  background: var(--surface-2);
+  user-select: none;
+}
+
+.pm-canvas__title {
+  font-weight: 600;
+}
+
+.pm-canvas__meta {
+  opacity: 0.85;
+  font-size: 0.85em;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-canvas__body {
+  flex: 1;
+  min-height: 0;
+  position: relative; /* containing block for context menu */
 }
 
 /* Hide ReactFlow attribution watermark */
 .react-flow__attribution {
   display: none !important;
+}
+
+/* Improve the pan (canvas drag) cursor quality.
+   ReactFlow defaults to a low-res "grab" hand cursor on Windows in some environments.
+   Use native high-quality cursors instead. */
+.react-flow__pane {
+  cursor: all-scroll;
+}
+
+.react-flow__pane:active {
+  cursor: move;
 }
 
 .pm-placeholder {

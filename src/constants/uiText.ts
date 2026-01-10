@@ -78,6 +78,22 @@ export const uiText = {
   },
 
   /**
+   * Canvas display options
+   */
+  canvas: {
+    displayMode: {
+      icons: 'Icons',
+      titles: 'Titles',
+      names: 'Names',
+    },
+    displayModeTooltips: {
+      icons: 'Show node icons',
+      titles: 'Show node titles',
+      names: 'Show node names',
+    },
+  },
+
+  /**
    * Tooltips and hover messages
    */
   tooltips: {

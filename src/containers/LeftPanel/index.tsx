@@ -18,7 +18,7 @@ import { useMindMapStore } from '../../store/mindMapStore';
 import { useEffect, useMemo, useRef } from 'react';
 import { uiText } from '../../constants/uiText';
 import { FileManager } from '../../data/fileManager';
-import { FiFolder } from 'react-icons/fi';
+import { FiFolder, FiSettings } from 'react-icons/fi';
 
 /**
  * LeftPanel component
@@ -32,6 +32,7 @@ export default function LeftPanel() {
   const rootDirectoryHandle = useMindMapStore((s) => s.rootDirectoryHandle);
   const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
   const setRoot = useMindMapStore((s) => s.setRoot);
+  const toggleSettings = useMindMapStore((s) => s.toggleSettings);
 
   const fileManager = useMemo(() => new FileManager(), []);
 
@@ -174,34 +175,57 @@ export default function LeftPanel() {
       <div className="pm-panel__header">
         {!isReduced && <div className="pm-panel__title">{uiText.panels.files}</div>}
 
-        <button
-          type="button"
-          onClick={onSelectRootFolder}
-          aria-label={
-            rootDirectoryHandle || rootFolderJson?.path
-              ? uiText.tooltips.changeRootFolder
-              : uiText.tooltips.selectRootFolder
-          }
-          title={
-            rootDirectoryHandle || rootFolderJson?.path
-              ? uiText.tooltips.changeRootFolder
-              : uiText.tooltips.selectRootFolder
-          }
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: 'var(--control-size-sm)',
-            width: 'var(--control-size-sm)',
-            borderRadius: 'var(--radius-md)',
-            border: 'var(--border-width) solid var(--border)',
-            background: 'transparent',
-            color: 'var(--text)',
-            cursor: 'pointer',
-          }}
-        >
-          <FiFolder style={{ fontSize: 'var(--icon-size-md)' }} aria-hidden="true" />
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={onSelectRootFolder}
+            aria-label={
+              rootDirectoryHandle || rootFolderJson?.path
+                ? uiText.tooltips.changeRootFolder
+                : uiText.tooltips.selectRootFolder
+            }
+            title={
+              rootDirectoryHandle || rootFolderJson?.path
+                ? uiText.tooltips.changeRootFolder
+                : uiText.tooltips.selectRootFolder
+            }
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: 'var(--control-size-sm)',
+              width: 'var(--control-size-sm)',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text)',
+              cursor: 'pointer',
+            }}
+          >
+            <FiFolder style={{ fontSize: 'var(--icon-size-md)' }} aria-hidden="true" />
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleSettings}
+            aria-label={uiText.tooltips.toggleSettings}
+            title={uiText.tooltips.toggleSettings}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: 'var(--control-size-sm)',
+              width: 'var(--control-size-sm)',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text)',
+              cursor: 'pointer',
+            }}
+          >
+            <FiSettings style={{ fontSize: 'var(--icon-size-md)' }} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       {!isReduced ? (

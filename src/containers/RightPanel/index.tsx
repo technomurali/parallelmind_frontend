@@ -309,19 +309,35 @@ export default function RightPanel() {
                 gap: "var(--space-3)",
                 height: "100%",
                 // Ensure the details container spans the full inner width of the panel.
+                // Use 100% width and minWidth: 0 to allow flexbox to properly constrain it.
                 width: "100%",
                 minWidth: 0,
+                // Ensure box-sizing accounts for any padding/borders in width calculations.
+                boxSizing: "border-box",
               }}
             >
+              {/* Grid container for form fields: spans full available width. */}
               <div
                 style={{
                   display: "grid",
                   gap: "var(--space-2)",
+                  // Explicitly set width to 100% to consume all horizontal space.
                   width: "100%",
                   minWidth: 0,
+                  // Ensure grid columns fill available space.
+                  gridTemplateColumns: "1fr",
                 }}
               >
-                <label style={{ display: "grid", gap: "var(--space-2)" }}>
+                {/* Label container: must span full grid column width. */}
+                <label
+                  style={{
+                    display: "grid",
+                    gap: "var(--space-2)",
+                    // Critical: label must be 100% width to fill its grid column.
+                    width: "100%",
+                    minWidth: 0,
+                  }}
+                >
                   <div style={{ fontWeight: 600 }}>
                     {uiText.fields.nodeDetails.name}
                   </div>
@@ -331,8 +347,10 @@ export default function RightPanel() {
                     placeholder={uiText.placeholders.nodeName}
                     aria-label={uiText.fields.nodeDetails.name}
                     style={{
+                      // Input fills 100% of its label container.
                       width: "100%",
                       minWidth: 0,
+                      // Border-box ensures padding/border are included in width calculation.
                       boxSizing: "border-box",
                       borderRadius: "var(--radius-md)",
                       border: "var(--border-width) solid var(--border)",
@@ -344,7 +362,16 @@ export default function RightPanel() {
                   />
                 </label>
 
-                <label style={{ display: "grid", gap: "var(--space-2)" }}>
+                {/* Label container: must span full grid column width. */}
+                <label
+                  style={{
+                    display: "grid",
+                    gap: "var(--space-2)",
+                    // Critical: label must be 100% width to fill its grid column.
+                    width: "100%",
+                    minWidth: 0,
+                  }}
+                >
                   <div style={{ fontWeight: 600 }}>
                     {uiText.fields.nodeDetails.title}
                   </div>
@@ -354,8 +381,10 @@ export default function RightPanel() {
                     placeholder={uiText.placeholders.nodeTitle}
                     aria-label={uiText.fields.nodeDetails.title}
                     style={{
+                      // Input fills 100% of its label container.
                       width: "100%",
                       minWidth: 0,
+                      // Border-box ensures padding/border are included in width calculation.
                       boxSizing: "border-box",
                       borderRadius: "var(--radius-md)",
                       border: "var(--border-width) solid var(--border)",
@@ -367,7 +396,16 @@ export default function RightPanel() {
                   />
                 </label>
 
-                <label style={{ display: "grid", gap: "var(--space-2)" }}>
+                {/* Label container: must span full grid column width. */}
+                <label
+                  style={{
+                    display: "grid",
+                    gap: "var(--space-2)",
+                    // Critical: label must be 100% width to fill its grid column.
+                    width: "100%",
+                    minWidth: 0,
+                  }}
+                >
                   <div style={{ fontWeight: 600 }}>
                     {uiText.fields.nodeDetails.description}
                   </div>
@@ -380,8 +418,10 @@ export default function RightPanel() {
                     aria-label={uiText.fields.nodeDetails.description}
                     rows={6}
                     style={{
+                      // Textarea fills 100% of its label container.
                       width: "100%",
                       minWidth: 0,
+                      // Border-box ensures padding/border are included in width calculation.
                       boxSizing: "border-box",
                       resize: "vertical",
                       borderRadius: "var(--radius-md)",
