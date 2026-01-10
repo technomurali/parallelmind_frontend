@@ -111,6 +111,13 @@ export default function MindMap() {
   };
 
   /**
+   * Clear selection when clicking on empty canvas (pane).
+   */
+  const onPaneClick = () => {
+    selectNode(null);
+  };
+
+  /**
    * Right-click context menu for nodes (desktop only for file explorer actions).
    */
   const onNodeContextMenu = (e: React.MouseEvent, node: Node) => {
@@ -268,6 +275,7 @@ export default function MindMap() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={onNodeClick}
+            onPaneClick={onPaneClick}
             onNodeDoubleClick={onNodeDoubleClick}
             onNodeContextMenu={onNodeContextMenu}
           />
