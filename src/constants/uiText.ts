@@ -38,6 +38,8 @@ export const uiText = {
       name: 'Name',
       title: 'Title',
       description: 'Description',
+      createdTime: 'Created',
+      updatedTime: 'Updated',
     },
   },
 

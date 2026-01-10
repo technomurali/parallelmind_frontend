@@ -1,26 +1,26 @@
 /**
  * RightPanel/index.tsx
- * 
+ *
  * Right panel container component for node details and editor.
- * 
+ *
  * Features:
  * - Resizable panel with drag handle on the left edge
  * - Collapsible to icon-only view when minimized
  * - Node detail view and editor (placeholder for now)
- * 
+ *
  * The panel can be resized between MIN_WIDTH (56px) and MAX_WIDTH (400px).
  * When minimized, it shows only the panel header.
  */
 
-import { useMindMapStore } from '../../store/mindMapStore';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { uiText } from '../../constants/uiText';
-import { FileManager } from '../../data/fileManager';
-import { useAutoSave } from '../../hooks/useAutoSave';
+import { useMindMapStore } from "../../store/mindMapStore";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { uiText } from "../../constants/uiText";
+import { FileManager } from "../../data/fileManager";
+import { useAutoSave } from "../../hooks/useAutoSave";
 
 /**
  * RightPanel component
- * 
+ *
  * Renders the right sidebar with node details and editor.
  * Handles panel resizing via mouse drag on the left resize handle.
  */
@@ -49,15 +49,17 @@ export default function RightPanel() {
   const fileManager = useMemo(() => new FileManager(), []);
 
   // Draft state lives only in this container to satisfy "single container rule".
-  const [draft, setDraft] = useState({ name: '', title: '', description: '' });
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [draft, setDraft] = useState({ name: "", title: "", description: "" });
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
+    "idle"
+  );
   const [dirty, setDirty] = useState(false);
 
   // Pull selected node data from the centralized store and hydrate the editor when selection changes.
   useEffect(() => {
     if (!selectedNodeId) {
-      setDraft({ name: '', title: '', description: '' });
-      setSaveStatus('idle');
+      setDraft({ name: "", title: "", description: "" });
+      setSaveStatus("idle");
       setDirty(false);
       return;
     }
@@ -67,11 +69,11 @@ export default function RightPanel() {
 
     // Hydrate draft without triggering "Saving..." state.
     setDraft({
-      name: typeof data.name === 'string' ? data.name : '',
-      title: typeof data.title === 'string' ? data.title : '',
-      description: typeof data.description === 'string' ? data.description : '',
+      name: typeof data.name === "string" ? data.name : "",
+      title: typeof data.title === "string" ? data.title : "",
+      description: typeof data.description === "string" ? data.description : "",
     });
-    setSaveStatus('idle');
+    setSaveStatus("idle");
     setDirty(false);
   }, [nodes, selectedNodeId]);
 
@@ -87,21 +89,71 @@ export default function RightPanel() {
     });
 
     // Persist to root-folder.json only for the root node (existing mechanism).
-    if (selectedNodeId === '00' && rootDirectoryHandle) {
-      await fileManager.writeRootFolderJson(rootDirectoryHandle, {
+    if (selectedNodeId === "00") {
+      // Check if we have a valid persistence mechanism
+      const hasDirectoryHandle = !!rootDirectoryHandle;
+      const hasPath = !!(rootFolderJson?.path && rootFolderJson.path.trim() !== '');
+      
+      if (!hasDirectoryHandle && !hasPath) {
+        console.warn('[RightPanel] Cannot save: no directory handle and no valid path available', {
+          rootDirectoryHandle,
+          rootFolderJsonPath: rootFolderJson?.path,
+        });
+        setDirty(true); // Keep dirty state so user knows save failed
+        setSaveStatus("idle");
+        return;
+      }
+
+      const nowIso = new Date().toISOString();
+      const payload = {
         id: 0,
-        node_id: '00',
+        node_id: "00",
         level_id: 0,
+        node_type: "root_folder",
+        // Dates are finalized by FileManager.writeRootFolderJson (created preserved, update refreshed).
+        created_date: rootFolderJson?.created_date ?? "",
+        update_date: rootFolderJson?.update_date ?? "",
+        path: rootFolderJson?.path ?? "",
         name: draft.name,
         title: draft.title,
         description: draft.description,
         // Preserve existing children (depth logic is out of scope, but we must not wipe it).
         children: rootFolderJson?.children ?? [],
-      });
-    }
+      };
 
-    setDirty(false);
-    setSaveStatus('saved');
+      try {
+        // Browser mode: write via directory handle.
+        if (hasDirectoryHandle) {
+          console.log('[RightPanel] Saving via directory handle (browser mode)');
+          await fileManager.writeRootFolderJson(
+            rootDirectoryHandle!,
+            payload as any
+          );
+        }
+
+        // Tauri mode: write via absolute path.
+        if (!hasDirectoryHandle && hasPath) {
+          const savePath = rootFolderJson!.path!;
+          console.log('[RightPanel] Saving via path (Tauri mode):', savePath);
+          await fileManager.writeRootFolderJsonFromPath(
+            savePath,
+            payload as any
+          );
+        }
+
+        // Update in-memory model timestamp so the panel reflects the latest save immediately.
+        updateNodeData(selectedNodeId, { update_date: nowIso });
+        setDirty(false);
+        setSaveStatus("saved");
+      } catch (error) {
+        console.error('[RightPanel] Failed to save root-folder.json:', error);
+        setDirty(true); // Keep dirty state so user knows save failed
+        setSaveStatus("idle");
+      }
+    } else {
+      setDirty(false);
+      setSaveStatus("saved");
+    }
   };
 
   // Debounced auto-save: "Saving..." while debounce is active, "Saved" after commit.
@@ -111,21 +163,40 @@ export default function RightPanel() {
     },
     3000,
     [draft.name, draft.title, draft.description, selectedNodeId, dirty],
-    dirty,
+    dirty
   );
 
   const onFieldChange =
-    (field: 'name' | 'title' | 'description') =>
-    (value: string) => {
+    (field: "name" | "title" | "description") => (value: string) => {
       setDraft((d) => ({ ...d, [field]: value }));
       // Only show "Saving..." when the user has actually made edits.
       setDirty(true);
-      setSaveStatus('saving');
+      setSaveStatus("saving");
     };
 
   /**
+   * Formats an ISO timestamp into a readable datetime string:
+   * YYYY-MM-DD HH:MM:SS (24h).
+   *
+   * Kept local to this container to avoid new abstractions/files.
+   */
+  const formatDateTime = (iso: unknown): string => {
+    if (typeof iso !== "string") return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const min = pad(d.getMinutes());
+    const ss = pad(d.getSeconds());
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+  };
+
+  /**
    * Initiates panel resize operation
-   * 
+   *
    * Captures initial mouse position and panel width, then sets up
    * global mouse move/up listeners for drag tracking.
    * Note: Right panel resizes from its LEFT edge.
@@ -142,13 +213,13 @@ export default function RightPanel() {
       dragging: true,
     };
 
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
   };
 
   /**
    * Effect: Handle panel resizing via mouse drag
-   * 
+   *
    * Uses requestAnimationFrame for smooth resizing performance.
    * Right panel resizes from LEFT edge, so moving mouse right reduces width.
    * Calculates new width and clamps to MIN/MAX bounds.
@@ -167,7 +238,10 @@ export default function RightPanel() {
 
         // Right panel resizes from its LEFT edge, so moving mouse right reduces width
         const dx = dd.latestX - dd.startX;
-        const next = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, dd.startWidth - dx));
+        const next = Math.max(
+          MIN_WIDTH,
+          Math.min(MAX_WIDTH, dd.startWidth - dx)
+        );
         setRightPanelWidth(next);
         dd.raf = null;
       });
@@ -182,15 +256,15 @@ export default function RightPanel() {
         d.raf = null;
       }
       dragRef.current = null;
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
     };
   }, [setRightPanelWidth]);
 
@@ -199,11 +273,11 @@ export default function RightPanel() {
       className="pm-panel pm-panel--right"
       aria-label={uiText.ariaLabels.rightSidebar}
       style={{
-        position: 'relative',
+        position: "relative",
         width: rightPanelWidth,
         minWidth: rightPanelWidth,
         maxWidth: rightPanelWidth,
-        flex: '0 0 auto',
+        flex: "0 0 auto",
       }}
     >
       <div
@@ -215,108 +289,148 @@ export default function RightPanel() {
       />
 
       <div className="pm-panel__header">
-        {!isReduced && <div className="pm-panel__title">{uiText.panels.node}</div>}
+        {!isReduced && (
+          <div className="pm-panel__title">{uiText.panels.node}</div>
+        )}
       </div>
 
       {!isReduced ? (
         <div className="pm-panel__content">
           {!selectedNodeId ? (
-            <div className="pm-placeholder">{uiText.placeholders.nodeDetails}</div>
+            <div className="pm-placeholder">
+              {uiText.placeholders.nodeDetails}
+            </div>
           ) : (
             <div
               aria-label={uiText.ariaLabels.nodeEditor}
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-3)',
-                height: '100%',
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-3)",
+                height: "100%",
                 // Ensure the details container spans the full inner width of the panel.
-                width: '100%',
+                width: "100%",
                 minWidth: 0,
               }}
             >
-              <div style={{ display: 'grid', gap: 'var(--space-2)', width: '100%', minWidth: 0 }}>
-                <label style={{ display: 'grid', gap: 'var(--space-2)' }}>
-                  <div style={{ fontWeight: 600 }}>{uiText.fields.nodeDetails.name}</div>
+              <div
+                style={{
+                  display: "grid",
+                  gap: "var(--space-2)",
+                  width: "100%",
+                  minWidth: 0,
+                }}
+              >
+                <label style={{ display: "grid", gap: "var(--space-2)" }}>
+                  <div style={{ fontWeight: 600 }}>
+                    {uiText.fields.nodeDetails.name}
+                  </div>
                   <input
                     value={draft.name}
-                    onChange={(e) => onFieldChange('name')(e.target.value)}
+                    onChange={(e) => onFieldChange("name")(e.target.value)}
                     placeholder={uiText.placeholders.nodeName}
                     aria-label={uiText.fields.nodeDetails.name}
                     style={{
-                      width: '100%',
+                      width: "100%",
                       minWidth: 0,
-                      boxSizing: 'border-box',
-                      borderRadius: 'var(--radius-md)',
-                      border: 'var(--border-width) solid var(--border)',
-                      padding: 'var(--space-2)',
-                      background: 'var(--surface-1)',
-                      color: 'var(--text)',
-                      fontFamily: 'var(--font-family)',
+                      boxSizing: "border-box",
+                      borderRadius: "var(--radius-md)",
+                      border: "var(--border-width) solid var(--border)",
+                      padding: "var(--space-2)",
+                      background: "var(--surface-1)",
+                      color: "var(--text)",
+                      fontFamily: "var(--font-family)",
                     }}
                   />
                 </label>
 
-                <label style={{ display: 'grid', gap: 'var(--space-2)' }}>
-                  <div style={{ fontWeight: 600 }}>{uiText.fields.nodeDetails.title}</div>
+                <label style={{ display: "grid", gap: "var(--space-2)" }}>
+                  <div style={{ fontWeight: 600 }}>
+                    {uiText.fields.nodeDetails.title}
+                  </div>
                   <input
                     value={draft.title}
-                    onChange={(e) => onFieldChange('title')(e.target.value)}
+                    onChange={(e) => onFieldChange("title")(e.target.value)}
                     placeholder={uiText.placeholders.nodeTitle}
                     aria-label={uiText.fields.nodeDetails.title}
                     style={{
-                      width: '100%',
+                      width: "100%",
                       minWidth: 0,
-                      boxSizing: 'border-box',
-                      borderRadius: 'var(--radius-md)',
-                      border: 'var(--border-width) solid var(--border)',
-                      padding: 'var(--space-2)',
-                      background: 'var(--surface-1)',
-                      color: 'var(--text)',
-                      fontFamily: 'var(--font-family)',
+                      boxSizing: "border-box",
+                      borderRadius: "var(--radius-md)",
+                      border: "var(--border-width) solid var(--border)",
+                      padding: "var(--space-2)",
+                      background: "var(--surface-1)",
+                      color: "var(--text)",
+                      fontFamily: "var(--font-family)",
                     }}
                   />
                 </label>
 
-                <label style={{ display: 'grid', gap: 'var(--space-2)' }}>
-                  <div style={{ fontWeight: 600 }}>{uiText.fields.nodeDetails.description}</div>
+                <label style={{ display: "grid", gap: "var(--space-2)" }}>
+                  <div style={{ fontWeight: 600 }}>
+                    {uiText.fields.nodeDetails.description}
+                  </div>
                   <textarea
                     value={draft.description}
-                    onChange={(e) => onFieldChange('description')(e.target.value)}
+                    onChange={(e) =>
+                      onFieldChange("description")(e.target.value)
+                    }
                     placeholder={uiText.placeholders.nodeDescription}
                     aria-label={uiText.fields.nodeDetails.description}
                     rows={6}
                     style={{
-                      width: '100%',
+                      width: "100%",
                       minWidth: 0,
-                      boxSizing: 'border-box',
-                      resize: 'vertical',
-                      borderRadius: 'var(--radius-md)',
-                      border: 'var(--border-width) solid var(--border)',
-                      padding: 'var(--space-2)',
-                      background: 'var(--surface-1)',
-                      color: 'var(--text)',
-                      fontFamily: 'var(--font-family)',
+                      boxSizing: "border-box",
+                      resize: "vertical",
+                      borderRadius: "var(--radius-md)",
+                      border: "var(--border-width) solid var(--border)",
+                      padding: "var(--space-2)",
+                      background: "var(--surface-1)",
+                      color: "var(--text)",
+                      fontFamily: "var(--font-family)",
                     }}
                   />
                 </label>
               </div>
 
+              {/* Read-only timestamps (root only). Kept small and easy to scan. */}
+              {selectedNodeId === "00" && (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "var(--space-2)",
+                    fontSize: "0.75em",
+                    opacity: 0.9,
+                  }}
+                >
+                  <div style={{ width: "100%" }}>
+                    {uiText.fields.nodeDetails.createdTime}: "
+                    {formatDateTime(rootFolderJson?.created_date)}"
+                  </div>
+                  <div style={{ width: "100%" }}>
+                    {uiText.fields.nodeDetails.updatedTime}: "
+                    {formatDateTime(rootFolderJson?.update_date)}"
+                  </div>
+                </div>
+              )}
+
               {/* Save status is always visible at the bottom of the container. */}
               <div
                 style={{
-                  marginTop: 'auto',
+                  marginTop: "auto",
                   opacity: 0.9,
                   // Ensure status text is small like normal body text (not header-like).
-                  fontSize: '0.75em',
-                  fontWeight: 'normal',
+                  fontSize: "0.75em",
+                  fontWeight: "normal",
                 }}
               >
-                {saveStatus === 'saving'
+                {saveStatus === "saving"
                   ? uiText.statusMessages.saving
-                  : saveStatus === 'saved'
-                    ? uiText.statusMessages.saved
-                    : uiText.statusMessages.idle}
+                  : saveStatus === "saved"
+                  ? uiText.statusMessages.saved
+                  : uiText.statusMessages.idle}
               </div>
             </div>
           )}

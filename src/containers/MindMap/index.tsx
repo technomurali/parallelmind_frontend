@@ -66,6 +66,21 @@ export default function MindMap() {
   };
 
   /**
+   * Double-click opens the node folder in the OS file explorer (Tauri desktop).
+   * This is feature-detected and silent on failure (no alerts/toasts).
+   */
+  const onNodeDoubleClick = async (_: unknown, node: Node) => {
+    const path = (node?.data as any)?.path;
+    if (typeof path !== 'string' || !path) return;
+    try {
+      const { open } = await import('@tauri-apps/plugin-shell');
+      await open(path);
+    } catch {
+      // silent by UX rules
+    }
+  };
+
+  /**
    * Effect: Create/replace root node when root folder is selected
    * 
    * When a root folder is selected, this effect:
@@ -109,6 +124,7 @@ export default function MindMap() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
+          onNodeDoubleClick={onNodeDoubleClick}
         />
       </div>
     </main>

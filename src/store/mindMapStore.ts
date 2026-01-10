@@ -66,7 +66,9 @@ export interface MindMapActions {
   updateSettings: (settings: Partial<AppSettings>) => void;
   setLeftPanelWidth: (width: number) => void;
   setRightPanelWidth: (width: number) => void;
-  setRoot: (handle: FileSystemDirectoryHandle, root: RootFolderJson) => void;
+  // Root can be selected via browser directory handle or via desktop path (Tauri).
+  // When using a desktop path, handle will be null and root.path will contain the absolute folder path.
+  setRoot: (handle: FileSystemDirectoryHandle | null, root: RootFolderJson) => void;
   clearRoot: () => void;
   setInlineEditNodeId: (nodeId: string | null) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;

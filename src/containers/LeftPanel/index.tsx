@@ -30,6 +30,7 @@ export default function LeftPanel() {
   const leftPanelWidth = useMindMapStore((s) => s.leftPanelWidth);
   const setLeftPanelWidth = useMindMapStore((s) => s.setLeftPanelWidth);
   const rootDirectoryHandle = useMindMapStore((s) => s.rootDirectoryHandle);
+  const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
   const setRoot = useMindMapStore((s) => s.setRoot);
 
   const fileManager = useMemo(() => new FileManager(), []);
@@ -55,19 +56,23 @@ export default function LeftPanel() {
    * root-folder.json is only created the first time (when missing).
    */
   const onSelectRootFolder = async () => {
-    const dirHandle = await fileManager.pickRootDirectory();
-    if (!dirHandle) return; // Silent cancel - user closed picker
+    const selection = await fileManager.pickRootDirectory();
+    if (!selection) return; // Silent cancel - user closed picker
 
     // If a root already exists and the user picked a different folder, confirm replacement.
-    if (rootDirectoryHandle) {
+    if (rootDirectoryHandle || rootFolderJson?.path) {
       let isSame = false;
-      try {
-        if (typeof rootDirectoryHandle.isSameEntry === 'function') {
-          isSame = await rootDirectoryHandle.isSameEntry(dirHandle);
+      if (typeof selection === 'string') {
+        isSame = rootFolderJson?.path === selection;
+      } else if (rootDirectoryHandle) {
+        try {
+          if (typeof rootDirectoryHandle.isSameEntry === 'function') {
+            isSame = await rootDirectoryHandle.isSameEntry(selection);
+          }
+        } catch {
+          // If comparison fails, treat as different and require confirmation.
+          isSame = false;
         }
-      } catch {
-        // If comparison fails, treat as different and require confirmation.
-        isSame = false;
       }
 
       if (!isSame) {
@@ -76,8 +81,14 @@ export default function LeftPanel() {
       }
     }
 
-    const { root } = await fileManager.loadOrCreateRootFolderJson(dirHandle);
-    setRoot(dirHandle, root);
+    if (typeof selection === 'string') {
+      const { root } = await fileManager.loadOrCreateRootFolderJsonFromPath(selection);
+      setRoot(null, root);
+      return;
+    }
+
+    const { root } = await fileManager.loadOrCreateRootFolderJson(selection);
+    setRoot(selection, root);
   };
 
   /**
@@ -167,10 +178,14 @@ export default function LeftPanel() {
           type="button"
           onClick={onSelectRootFolder}
           aria-label={
-            rootDirectoryHandle ? uiText.tooltips.changeRootFolder : uiText.tooltips.selectRootFolder
+            rootDirectoryHandle || rootFolderJson?.path
+              ? uiText.tooltips.changeRootFolder
+              : uiText.tooltips.selectRootFolder
           }
           title={
-            rootDirectoryHandle ? uiText.tooltips.changeRootFolder : uiText.tooltips.selectRootFolder
+            rootDirectoryHandle || rootFolderJson?.path
+              ? uiText.tooltips.changeRootFolder
+              : uiText.tooltips.selectRootFolder
           }
           style={{
             display: 'inline-flex',
