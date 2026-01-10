@@ -31,6 +31,17 @@ export const uiText = {
   },
 
   /**
+   * Form field labels (keep user-facing text centralized here)
+   */
+  fields: {
+    nodeDetails: {
+      name: 'Name',
+      title: 'Title',
+      description: 'Description',
+    },
+  },
+
+  /**
    * Button labels
    */
   buttons: {
@@ -210,6 +221,8 @@ export const uiText = {
     folderName: 'Enter folder name',
     nodeName: 'Enter node name',
     nodeContent: 'Enter node content...',
+    nodeTitle: 'Enter title',
+    nodeDescription: 'Enter description',
     settingsContainer: 'Settings Container',
   },
 } as const;

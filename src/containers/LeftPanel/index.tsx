@@ -51,19 +51,32 @@ export default function LeftPanel() {
    * Handles root folder selection via File System Access API
    * 
    * If a root folder already exists, prompts user for confirmation before replacing.
-   * Creates root-folder.json in the selected directory and updates the store.
+   * If root-folder.json already exists in the selected directory, it is loaded (not overwritten).
+   * root-folder.json is only created the first time (when missing).
    */
   const onSelectRootFolder = async () => {
-    // Root replacement confirmation (only when root exists)
-    if (rootDirectoryHandle) {
-      const ok = window.confirm(uiText.alerts.confirmReplaceRootFolder);
-      if (!ok) return;
-    }
-
     const dirHandle = await fileManager.pickRootDirectory();
     if (!dirHandle) return; // Silent cancel - user closed picker
 
-    const root = await fileManager.createRootFolderJson(dirHandle);
+    // If a root already exists and the user picked a different folder, confirm replacement.
+    if (rootDirectoryHandle) {
+      let isSame = false;
+      try {
+        if (typeof rootDirectoryHandle.isSameEntry === 'function') {
+          isSame = await rootDirectoryHandle.isSameEntry(dirHandle);
+        }
+      } catch {
+        // If comparison fails, treat as different and require confirmation.
+        isSame = false;
+      }
+
+      if (!isSame) {
+        const ok = window.confirm(uiText.alerts.confirmReplaceRootFolder);
+        if (!ok) return;
+      }
+    }
+
+    const { root } = await fileManager.loadOrCreateRootFolderJson(dirHandle);
     setRoot(dirHandle, root);
   };
 

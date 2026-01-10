@@ -143,6 +143,11 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
   setInlineEditNodeId: (nodeId) => set({ inlineEditNodeId: nodeId }),
   updateNodeData: (nodeId, data) =>
     set((state) => ({
+      // Keep rootFolderJson in sync when editing the root node (single source of truth in-memory).
+      rootFolderJson:
+        nodeId === '00' && state.rootFolderJson
+          ? ({ ...state.rootFolderJson, ...(data as any) } as any)
+          : state.rootFolderJson,
       nodes: state.nodes.map((n) =>
         n?.id === nodeId ? { ...n, data: { ...(n.data ?? {}), ...data } } : n,
       ),

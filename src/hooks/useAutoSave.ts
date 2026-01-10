@@ -13,12 +13,13 @@ import { useEffect, useRef } from 'react';
 /**
  * useAutoSave hook
  * 
- * Automatically calls the save callback after a delay period.
- * The delay is reset each time the callback changes, ensuring
- * that saves only occur after the user has stopped making changes.
+ * Debounced auto-save: schedules a save after a delay period, and resets the timer
+ * whenever any dependency changes. This prevents excessive saves while typing.
  * 
- * @param callback - Function to call for saving (typically saves file content)
+ * @param callback - Function to call for saving (typically persists current state)
  * @param delay - Delay in milliseconds before auto-saving (default: 3000ms / 3 seconds)
+ * @param deps - Dependencies that should trigger (and reset) the debounce timer
+ * @param enabled - When false, no timer is scheduled
  * 
  * @example
  * ```tsx
@@ -26,10 +27,15 @@ import { useEffect, useRef } from 'react';
  *   fileManager.update(fileId, { content: editorContent });
  * };
  * 
- * useAutoSave(saveFile, 3000);
+ * useAutoSave(saveFile, 3000, [editorContent], true);
  * ```
  */
-export function useAutoSave(callback: () => void, delay: number = 3000) {
+export function useAutoSave(
+  callback: () => void,
+  delay: number = 3000,
+  deps: unknown[] = [],
+  enabled: boolean = true,
+) {
   // Use ref to store the latest callback to avoid stale closures
   const callbackRef = useRef(callback);
 
@@ -38,13 +44,15 @@ export function useAutoSave(callback: () => void, delay: number = 3000) {
     callbackRef.current = callback;
   }, [callback]);
 
-  // Set up the auto-save interval
+  // Set up the debounced auto-save timer
   useEffect(() => {
-    const interval = setInterval(() => {
+    if (!enabled) return;
+    const timeout = window.setTimeout(() => {
       callbackRef.current();
     }, delay);
 
-    // Cleanup: clear interval on unmount or when delay changes
-    return () => clearInterval(interval);
-  }, [delay]);
+    // Cleanup: clear timeout on unmount or when any dependency changes (debounce reset)
+    return () => window.clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [delay, enabled, ...deps]);
 }

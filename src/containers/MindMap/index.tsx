@@ -12,7 +12,14 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import ReactFlow, { type Node, type ReactFlowInstance } from 'reactflow';
+import ReactFlow, {
+  applyEdgeChanges,
+  applyNodeChanges,
+  type EdgeChange,
+  type Node,
+  type NodeChange,
+  type ReactFlowInstance,
+} from 'reactflow';
 import 'reactflow/dist/style.css';
 import { uiText } from '../../constants/uiText';
 import { useMindMapStore } from '../../store/mindMapStore';
@@ -29,12 +36,34 @@ export default function MindMap() {
   const nodes = useMindMapStore((s) => s.nodes);
   const edges = useMindMapStore((s) => s.edges);
   const setNodes = useMindMapStore((s) => s.setNodes);
+  const setEdges = useMindMapStore((s) => s.setEdges);
   const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
   const setInlineEditNodeId = useMindMapStore((s) => s.setInlineEditNodeId);
+  const selectNode = useMindMapStore((s) => s.selectNode);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [rf, setRf] = useState<ReactFlowInstance | null>(null);
   const nodeTypes = useMemo(() => ({ rootFolder: RootFolderNode }), []);
+
+  /**
+   * ReactFlow is "controlled" here (nodes/edges come from the global store),
+   * so we must apply change events back into the store for selection/dragging
+   * and other interactions to work correctly.
+   */
+  const onNodesChange = (changes: NodeChange[]) => {
+    setNodes(applyNodeChanges(changes, nodes));
+  };
+
+  const onEdgesChange = (changes: EdgeChange[]) => {
+    setEdges(applyEdgeChanges(changes, edges));
+  };
+
+  /**
+   * Keep selected node id in the global store so the right panel can show details.
+   */
+  const onNodeClick = (_: unknown, node: Node) => {
+    selectNode(node.id);
+  };
 
   /**
    * Effect: Create/replace root node when root folder is selected
@@ -71,8 +100,16 @@ export default function MindMap() {
   return (
     <main className="pm-center" aria-label={uiText.ariaLabels.mindMapCanvas}>
       <div className="pm-canvas" ref={wrapperRef}>
-        <ReactFlow nodes={nodes} edges={edges} fitView nodeTypes={nodeTypes} onInit={setRf}>
-        </ReactFlow>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          fitView
+          nodeTypes={nodeTypes}
+          onInit={setRf}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
+        />
       </div>
     </main>
   );

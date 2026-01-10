@@ -108,6 +108,11 @@
   width: 100%;
 }
 
+/* Hide ReactFlow attribution watermark */
+.react-flow__attribution {
+  display: none !important;
+}
+
 .pm-placeholder {
   opacity: 0.85;
 }

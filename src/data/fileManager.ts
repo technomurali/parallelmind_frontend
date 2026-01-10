@@ -19,13 +19,13 @@ export interface FileNode {
 }
 
 export type RootFolderJson = {
-  id: 0;
-  node_id: '00';
-  level_id: 0;
+  id: number; // root must be 0 (number type) when written
+  node_id: '00'; // root node id (string)
+  level_id: number; // root must be 0 (number type) when written
   name: string;
   title: string;
   description: string;
-  children: [];
+  children: unknown[];
 };
 
 /**
@@ -37,6 +37,61 @@ export type RootFolderJson = {
  */
 export class FileManager {
   private static ROOT_FILE_NAME = 'root-folder.json' as const;
+
+  /**
+   * Normalizes any parsed JSON into the strict root-folder schema.
+   * Important: this does NOT write to disk; it only shapes data in-memory.
+   */
+  private normalizeRootFolderJson(input: unknown, fallbackFolderName: string): RootFolderJson {
+    const obj = (input ?? {}) as any;
+    const children = Array.isArray(obj.children) ? obj.children : [];
+    return {
+      id: 0,
+      node_id: '00',
+      level_id: 0,
+      name: typeof obj.name === 'string' ? obj.name : fallbackFolderName,
+      title: typeof obj.title === 'string' ? obj.title : '',
+      description: typeof obj.description === 'string' ? obj.description : '',
+      children,
+    };
+  }
+
+  /**
+   * Reads root-folder.json from the selected directory if it exists.
+   * Returns null when the file does not exist or cannot be read.
+   *
+   * We keep failures silent by design (no alerts/toasts).
+   */
+  async readRootFolderJson(dirHandle: FileSystemDirectoryHandle): Promise<RootFolderJson | null> {
+    try {
+      const fileHandle = await dirHandle.getFileHandle(FileManager.ROOT_FILE_NAME, {
+        create: false,
+      });
+      const file = await fileHandle.getFile();
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      return this.normalizeRootFolderJson(parsed, dirHandle.name);
+    } catch (err) {
+      // Missing file is expected for first-time roots.
+      if (err instanceof DOMException && err.name === 'NotFoundError') return null;
+      // Parse errors or permission issues: do not overwrite the file, just treat as unreadable.
+      return null;
+    }
+  }
+
+  /**
+   * Loads existing root-folder.json if present; otherwise creates it.
+   * This prevents "recreating" the root when the file already exists.
+   */
+  async loadOrCreateRootFolderJson(
+    dirHandle: FileSystemDirectoryHandle,
+  ): Promise<{ root: RootFolderJson; created: boolean }> {
+    const existing = await this.readRootFolderJson(dirHandle);
+    if (existing) return { root: existing, created: false };
+
+    const createdRoot = await this.createRootFolderJson(dirHandle);
+    return { root: createdRoot, created: true };
+  }
 
   /**
    * Opens the Windows directory picker (File System Access API).
@@ -80,7 +135,8 @@ export class FileManager {
     dirHandle: FileSystemDirectoryHandle,
     root: RootFolderJson,
   ): Promise<void> {
-    // Normalize to the strict schema (no extra keys; string ids; children always empty array for now).
+    // Normalize to the strict schema (no extra keys; correct id/node_id/level_id types).
+    // NOTE: children are preserved to avoid wiping existing tree data.
     const normalized: RootFolderJson = {
       id: 0,
       node_id: '00',
@@ -88,7 +144,7 @@ export class FileManager {
       name: root.name ?? '',
       title: root.title ?? '',
       description: root.description ?? '',
-      children: [],
+      children: Array.isArray(root.children) ? root.children : [],
     };
 
     const fileHandle = await dirHandle.getFileHandle(FileManager.ROOT_FILE_NAME, {
