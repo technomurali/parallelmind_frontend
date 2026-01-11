@@ -9,7 +9,7 @@
  */
 
 import { useMemo } from "react";
-import type { NodeProps } from "reactflow";
+import { Handle, Position, type NodeProps } from "reactflow";
 import { FileManager, type RootFolderJson } from "../../data/fileManager";
 import { FiFolder } from "react-icons/fi";
 import { useMindMapStore } from "../../store/mindMapStore";
@@ -94,11 +94,38 @@ export default function RootFolderNode({
         border: "none",
         borderRadius: "9999px",
         color: "var(--text)",
-        padding: "var(--space-2)",
+        padding: 0,
         display: "grid",
         justifyItems: "center",
       }}
     >
+      {/* 
+        ReactFlow edges need connection handles to compute anchor points for custom nodes.
+        We keep these handles visually hidden so the node stays purely "circular icon" UI,
+        but edges can still render after name-gated commit.
+      */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{
+          width: 1,
+          height: 1,
+          opacity: 0,
+          border: "none",
+          background: "transparent",
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{
+          width: 1,
+          height: 1,
+          opacity: 0,
+          border: "none",
+          background: "transparent",
+        }}
+      />
       <div
         title={tooltipText}
         style={{
@@ -113,7 +140,7 @@ export default function RootFolderNode({
           alignItems: "center",
           justifyContent: "center",
           position: "relative",
-          padding: "8px",
+          padding: "var(--space-2)",
           boxSizing: "border-box",
           // Smooth transition for selection state changes (subtle, non-distracting).
           transition: "border-color 0.15s ease, box-shadow 0.15s ease",

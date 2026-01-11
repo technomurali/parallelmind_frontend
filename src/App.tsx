@@ -45,10 +45,13 @@ function App() {
         }
       `}</style>
 
-      <div className="pm-app" aria-label={uiText.ariaLabels.workspace}>
-        <LeftPanel />
-        <MindMap />
-        <RightPanel />
+      <div className="pm-app-wrapper">
+        <div className="pm-app" aria-label={uiText.ariaLabels.workspace}>
+          <LeftPanel />
+          <MindMap />
+          <RightPanel />
+        </div>
+        <footer className="pm-app-footer"></footer>
       </div>
     </>
   )

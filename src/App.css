@@ -1,10 +1,28 @@
-.pm-app {
+.pm-app-wrapper {
   height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+  color: var(--text);
+}
+
+.pm-app {
+  flex: 1;
+  min-height: 0;
   width: 100%;
   display: flex;
   align-items: stretch;
   background: var(--background);
   color: var(--text);
+}
+
+.pm-app-footer {
+  height: 25px;
+  width: 100%;
+  background: var(--surface-2);
+  border-top: var(--border-width) solid var(--border);
+  flex-shrink: 0;
 }
 
 .pm-panel {

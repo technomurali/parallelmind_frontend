@@ -30,6 +30,10 @@ export default function RightPanel() {
   const selectedNodeId = useMindMapStore((s) => s.selectedNodeId);
   const nodes = useMindMapStore((s) => s.nodes);
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
+  const pendingChildCreation = useMindMapStore((s) => s.pendingChildCreation);
+  const finalizePendingChildCreation = useMindMapStore(
+    (s) => s.finalizePendingChildCreation
+  );
   const rootDirectoryHandle = useMindMapStore((s) => s.rootDirectoryHandle);
   const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
 
@@ -41,9 +45,9 @@ export default function RightPanel() {
     dragging: boolean;
   } | null>(null);
 
-  // Panel width constraints
+  // Right Panel width constraints
   const MIN_WIDTH = 56;
-  const MAX_WIDTH = 400;
+  const MAX_WIDTH = 600;
   const isReduced = rightPanelWidth <= MIN_WIDTH;
 
   const fileManager = useMemo(() => new FileManager(), []);
@@ -55,35 +59,141 @@ export default function RightPanel() {
   );
   const [dirty, setDirty] = useState(false);
 
+  // Used to auto-focus and visually guide the user when name is mandatory.
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const lastHydratedSelectedIdRef = useRef<string | null>(null);
+
   // Pull selected node data from the centralized store and hydrate the editor when selection changes.
   useEffect(() => {
+    // We only want to "reset" draft/dirty status when selection actually changes.
+    // If we reset on every `nodes` mutation, we can accidentally cancel the debounced
+    // auto-save timer while the user is typing (ReactFlow can emit node updates for
+    // selection/dragging/etc.). That would block the name-gated finalize step too.
+    const selectionChanged =
+      lastHydratedSelectedIdRef.current !== selectedNodeId;
+
     if (!selectedNodeId) {
       setDraft({ name: "", title: "", description: "" });
       setSaveStatus("idle");
       setDirty(false);
+      lastHydratedSelectedIdRef.current = null;
       return;
     }
 
     const node = (nodes ?? []).find((n: any) => n?.id === selectedNodeId);
     const data = (node?.data ?? {}) as any;
 
-    // Hydrate draft without triggering "Saving..." state.
-    setDraft({
-      name: typeof data.name === "string" ? data.name : "",
-      title: typeof data.title === "string" ? data.title : "",
-      description: typeof data.description === "string" ? data.description : "",
-    });
-    setSaveStatus("idle");
-    setDirty(false);
+    // If the selection changed, re-hydrate and reset editing state.
+    // If only `nodes` changed while the user is typing (dirty=true), do not clobber
+    // the draft or we will cancel the debounced save and confuse the creation flow.
+    if (selectionChanged || !dirty) {
+      setDraft({
+        name: typeof data.name === "string" ? data.name : "",
+        title: typeof data.title === "string" ? data.title : "",
+        description:
+          typeof data.description === "string" ? data.description : "",
+      });
+    }
+    if (selectionChanged) {
+      setSaveStatus("idle");
+      setDirty(false);
+    }
+    lastHydratedSelectedIdRef.current = selectedNodeId;
   }, [nodes, selectedNodeId]);
+
+  // Helper: detect whether the currently selected node is a temporary (deferred-commit) node.
+  const selectedNode = useMemo(() => {
+    if (!selectedNodeId) return null;
+    return (nodes ?? []).find((n: any) => n?.id === selectedNodeId) ?? null;
+  }, [nodes, selectedNodeId]);
+
+  const isDraftNode = !!(selectedNode?.data as any)?.isDraft;
+  const parentIdForDraft =
+    typeof (selectedNode?.data as any)?.parentId === "string"
+      ? ((selectedNode?.data as any)?.parentId as string)
+      : null;
+
+  /**
+   * File-name style validation (minimal and purpose-fit).
+   *
+   * Scope intentionally limited:
+   * - Name presence is required for draft nodes.
+   * - Basic filesystem invalid characters + trailing dot/space (Windows-style).
+   * - Conflict check at the same level (siblings under the same parent).
+   */
+  const validateNodeNameForDraft = (name: string): string | null => {
+    const trimmed = name.trim();
+    if (!trimmed) return uiText.alerts.nodeNameRequired;
+
+    // Windows-invalid filename characters (also a good cross-platform baseline).
+    if (/[<>:"/\\|?*\u0000-\u001F]/.test(trimmed))
+      return uiText.alerts.nodeNameInvalidFileName;
+    if (/[. ]$/.test(trimmed)) return uiText.alerts.nodeNameInvalidFileName;
+
+    // Reserved device names on Windows (case-insensitive).
+    // Keep minimal: CON, PRN, AUX, NUL, COM1-9, LPT1-9
+    const upper = trimmed.toUpperCase();
+    if (
+      upper === "CON" ||
+      upper === "PRN" ||
+      upper === "AUX" ||
+      upper === "NUL" ||
+      /^COM[1-9]$/.test(upper) ||
+      /^LPT[1-9]$/.test(upper)
+    )
+      return uiText.alerts.nodeNameInvalidFileName;
+
+    // Sibling conflict (same level).
+    if (parentIdForDraft) {
+      const conflict = (nodes ?? []).some((n: any) => {
+        if (!n || n.id === selectedNodeId) return false;
+        const pid = (n.data as any)?.parentId;
+        if (pid !== parentIdForDraft) return false;
+        const siblingName =
+          typeof (n.data as any)?.name === "string" ? (n.data as any).name : "";
+        return siblingName.trim().toLowerCase() === trimmed.toLowerCase();
+      });
+      if (conflict) return uiText.alerts.nodeNameConflictAtLevel;
+    }
+
+    return null;
+  };
+
+  const nameError =
+    isDraftNode && selectedNodeId ? validateNodeNameForDraft(draft.name) : null;
+
+  // Auto-focus the name field when a draft node is selected to guide the required step.
+  useEffect(() => {
+    if (!isDraftNode) return;
+    // Defer focus to the next tick to ensure the input is mounted.
+    const t = window.setTimeout(() => {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [isDraftNode, selectedNodeId]);
 
   // Save callback: updates in-memory state and persists only when we already have a persistence mechanism.
   const commitSave = async () => {
     if (!dirty || !selectedNodeId) return;
 
+    // Name-gated commit for draft nodes: do not finalize/save until name is valid.
+    if (isDraftNode) {
+      const err = validateNodeNameForDraft(draft.name);
+      if (err) {
+        // Keep the form in "dirty" state and prevent "Saved" from appearing.
+        setDirty(true);
+        setSaveStatus("idle");
+        // Focus the user back to the required field.
+        nameInputRef.current?.focus();
+        return;
+      }
+    }
+
     // Always update in-memory node data (the UI is driven from centralized state).
     updateNodeData(selectedNodeId, {
-      name: draft.name,
+      // Store trimmed name to match filesystem expectation and conflict checks.
+      name: draft.name.trim(),
       title: draft.title,
       description: draft.description,
     });
@@ -92,13 +202,18 @@ export default function RightPanel() {
     if (selectedNodeId === "00") {
       // Check if we have a valid persistence mechanism
       const hasDirectoryHandle = !!rootDirectoryHandle;
-      const hasPath = !!(rootFolderJson?.path && rootFolderJson.path.trim() !== '');
-      
+      const hasPath = !!(
+        rootFolderJson?.path && rootFolderJson.path.trim() !== ""
+      );
+
       if (!hasDirectoryHandle && !hasPath) {
-        console.warn('[RightPanel] Cannot save: no directory handle and no valid path available', {
-          rootDirectoryHandle,
-          rootFolderJsonPath: rootFolderJson?.path,
-        });
+        console.warn(
+          "[RightPanel] Cannot save: no directory handle and no valid path available",
+          {
+            rootDirectoryHandle,
+            rootFolderJsonPath: rootFolderJson?.path,
+          }
+        );
         setDirty(true); // Keep dirty state so user knows save failed
         setSaveStatus("idle");
         return;
@@ -124,7 +239,9 @@ export default function RightPanel() {
       try {
         // Browser mode: write via directory handle.
         if (hasDirectoryHandle) {
-          console.log('[RightPanel] Saving via directory handle (browser mode)');
+          console.log(
+            "[RightPanel] Saving via directory handle (browser mode)"
+          );
           await fileManager.writeRootFolderJson(
             rootDirectoryHandle!,
             payload as any
@@ -134,7 +251,7 @@ export default function RightPanel() {
         // Tauri mode: write via absolute path.
         if (!hasDirectoryHandle && hasPath) {
           const savePath = rootFolderJson!.path!;
-          console.log('[RightPanel] Saving via path (Tauri mode):', savePath);
+          console.log("[RightPanel] Saving via path (Tauri mode):", savePath);
           await fileManager.writeRootFolderJsonFromPath(
             savePath,
             payload as any
@@ -146,13 +263,27 @@ export default function RightPanel() {
         setDirty(false);
         setSaveStatus("saved");
       } catch (error) {
-        console.error('[RightPanel] Failed to save root-folder.json:', error);
+        console.error("[RightPanel] Failed to save root-folder.json:", error);
         setDirty(true); // Keep dirty state so user knows save failed
         setSaveStatus("idle");
       }
     } else {
       setDirty(false);
       setSaveStatus("saved");
+    }
+
+    /**
+     * Finalize a deferred-commit node creation ONLY after the save succeeds.
+     *
+     * We intentionally create the parent->child edge here (not at creation time)
+     * so the user must confirm the node by providing the required `name`.
+     */
+    if (
+      isDraftNode &&
+      pendingChildCreation &&
+      pendingChildCreation.tempNodeId === selectedNodeId
+    ) {
+      finalizePendingChildCreation();
     }
   };
 
@@ -342,6 +473,7 @@ export default function RightPanel() {
                     {uiText.fields.nodeDetails.name}
                   </div>
                   <input
+                    ref={nameInputRef}
                     value={draft.name}
                     onChange={(e) => onFieldChange("name")(e.target.value)}
                     placeholder={uiText.placeholders.nodeName}
@@ -353,13 +485,31 @@ export default function RightPanel() {
                       // Border-box ensures padding/border are included in width calculation.
                       boxSizing: "border-box",
                       borderRadius: "var(--radius-md)",
-                      border: "var(--border-width) solid var(--border)",
+                      // Visually highlight the required field for draft nodes.
+                      border: isDraftNode
+                        ? "var(--border-width) solid var(--primary-color)"
+                        : "var(--border-width) solid var(--border)",
                       padding: "var(--space-2)",
                       background: "var(--surface-1)",
                       color: "var(--text)",
                       fontFamily: "var(--font-family)",
+                      boxShadow: isDraftNode
+                        ? "0 0 0 2px rgba(100, 108, 255, 0.2)"
+                        : "none",
                     }}
                   />
+                  {/* Name validation message (draft nodes only). */}
+                  {isDraftNode && nameError && (
+                    <div
+                      style={{
+                        fontSize: "0.8em",
+                        color: "var(--danger, #e5484d)",
+                        opacity: 0.95,
+                      }}
+                    >
+                      {nameError}
+                    </div>
+                  )}
                 </label>
 
                 {/* Label container: must span full grid column width. */}

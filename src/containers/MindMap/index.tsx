@@ -21,6 +21,7 @@ import ReactFlow, {
   type ReactFlowInstance,
 } from "reactflow";
 import "reactflow/dist/style.css";
+import { FiMenu } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import { useMindMapStore } from "../../store/mindMapStore";
 import RootFolderNode from "./RootFolderNode";
@@ -41,6 +42,12 @@ export default function MindMap() {
   const setInlineEditNodeId = useMindMapStore((s) => s.setInlineEditNodeId);
   const selectNode = useMindMapStore((s) => s.selectNode);
   const selectedNodeId = useMindMapStore((s) => s.selectedNodeId);
+  const setPendingChildCreation = useMindMapStore(
+    (s) => s.setPendingChildCreation
+  );
+  const discardPendingChildCreationIfSelected = useMindMapStore(
+    (s) => s.discardPendingChildCreationIfSelected
+  );
   const nodeDisplayMode = useMindMapStore((s) => s.nodeDisplayMode);
   const setNodeDisplayMode = useMindMapStore((s) => s.setNodeDisplayMode);
 
@@ -59,10 +66,33 @@ export default function MindMap() {
     node: Node | null;
   }>({ open: false, x: 0, y: 0, node: null });
 
+  const [paneMenu, setPaneMenu] = useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    flowPos: { x: number; y: number } | null;
+    parentNodeId: string | null;
+  }>({ open: false, x: 0, y: 0, flowPos: null, parentNodeId: null });
+
+  const [canvasMenu, setCanvasMenu] = useState<{
+    open: boolean;
+  }>({ open: false });
+
   const closeContextMenu = () =>
     setContextMenu((s) =>
       s.open ? { open: false, x: 0, y: 0, node: null } : s
     );
+
+  const closePaneMenu = () =>
+    setPaneMenu((s) =>
+      s.open
+        ? { open: false, x: 0, y: 0, flowPos: null, parentNodeId: null }
+        : s
+    );
+
+  const toggleCanvasMenu = () => setCanvasMenu((s) => ({ open: !s.open }));
+
+  const closeCanvasMenu = () => setCanvasMenu({ open: false });
 
   const isFolderNode = (node: Node): boolean => {
     // Root node is always a folder conceptually.
@@ -114,7 +144,36 @@ export default function MindMap() {
    * Clear selection when clicking on empty canvas (pane).
    */
   const onPaneClick = () => {
+    // If the user was in the middle of creating a child and clicks away before
+    // naming/saving, discard the temporary node (reversible-before-save behavior).
+    discardPendingChildCreationIfSelected();
     selectNode(null);
+  };
+
+  /**
+   * Right-click context menu for the canvas/pane.
+   *
+   * Requirement: Only show "New Folder" when a parent node is selected.
+   * We also snapshot the parent node id at the moment the user opens the menu,
+   * so the parent context is preserved through the deferred-commit flow.
+   */
+  const onPaneContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeContextMenu();
+
+    // If no parent is selected, do nothing (matches existing "no menu" expectations).
+    if (!selectedNodeId) return;
+    if (!rf) return;
+
+    const container = canvasBodyRef.current?.getBoundingClientRect();
+    const x = container ? e.clientX - container.left : e.clientX;
+    const y = container ? e.clientY - container.top : e.clientY;
+
+    // Convert the click to flow coordinates so the new node appears exactly
+    // where the user right-clicked on the canvas.
+    const flowPos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    setPaneMenu({ open: true, x, y, flowPos, parentNodeId: selectedNodeId });
   };
 
   /**
@@ -123,6 +182,7 @@ export default function MindMap() {
   const onNodeContextMenu = (e: React.MouseEvent, node: Node) => {
     e.preventDefault();
     e.stopPropagation();
+    closePaneMenu();
 
     // Only show the context menu when we can actually perform desktop actions.
     if (!isTauri()) return;
@@ -163,17 +223,30 @@ export default function MindMap() {
 
   // Close context menu on outside click / Escape.
   useEffect(() => {
-    if (!contextMenu.open) return;
+    if (!contextMenu.open && !paneMenu.open && !canvasMenu.open) return;
 
     const onMouseDown = (ev: MouseEvent) => {
       const target = ev.target as HTMLElement | null;
-      if (!target) return closeContextMenu();
+      if (!target) {
+        closeContextMenu();
+        closePaneMenu();
+        closeCanvasMenu();
+        return;
+      }
       if (target.closest('[data-pm-context-menu="node"]')) return;
+      if (target.closest('[data-pm-context-menu="pane"]')) return;
+      if (target.closest('[data-pm-context-menu="canvas"]')) return;
       closeContextMenu();
+      closePaneMenu();
+      closeCanvasMenu();
     };
 
     const onKeyDown = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") closeContextMenu();
+      if (ev.key === "Escape") {
+        closeContextMenu();
+        closePaneMenu();
+        closeCanvasMenu();
+      }
     };
 
     window.addEventListener("mousedown", onMouseDown);
@@ -182,28 +255,38 @@ export default function MindMap() {
       window.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [contextMenu.open]);
+  }, [contextMenu.open, paneMenu.open, canvasMenu.open]);
 
   /**
    * Effect: Create/replace root node when root folder is selected
    *
    * When a root folder is selected, this effect:
-   * 1. Calculates the center of the viewport
-   * 2. Converts screen coordinates to flow coordinates
-   * 3. Creates a single root node at that position
+   * 1. Checks if a root node already exists
+   * 2. If it exists, preserves its current position
+   * 3. If it doesn't exist (first creation), centers it in the viewport
    * 4. Enables inline editing for the root node
    *
    * Only one root node is allowed at a time (enforced by setNodes([rootNode])).
    */
   useEffect(() => {
     if (!rootFolderJson || !rf) return;
-    const el = wrapperRef.current;
-    const rect = el?.getBoundingClientRect();
-    const centerClient = rect
-      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
-      : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 
-    const pos = rf.screenToFlowPosition(centerClient);
+    const existing = useMindMapStore.getState().nodes ?? [];
+    const existingRoot = existing.find((n: any) => n?.id === "00");
+
+    // If root node already exists, preserve its position; otherwise center it
+    let pos: { x: number; y: number };
+    if (existingRoot?.position) {
+      pos = existingRoot.position;
+    } else {
+      const el = wrapperRef.current;
+      const rect = el?.getBoundingClientRect();
+      const centerClient = rect
+        ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+        : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      pos = rf.screenToFlowPosition(centerClient);
+    }
+
     const rootNode: Node = {
       id: "00",
       type: "rootFolder",
@@ -214,8 +297,18 @@ export default function MindMap() {
       selected: selectedNodeId === "00",
     };
 
-    // Enforce single root node only (replace any existing root)
-    setNodes([rootNode]);
+    /**
+     * Preserve non-root nodes when updating the root node.
+     *
+     * Previously this component enforced a single-node canvas by calling `setNodes([rootNode])`,
+     * which would wipe any newly created children. For the guided child-creation flow we must
+     * keep the rest of the graph in memory and only replace/update the root node.
+     *
+     * We intentionally read the latest nodes from the Zustand store here to avoid adding `nodes`
+     * as an effect dependency (which would re-center the root on every node mutation).
+     */
+    const nonRoot = existing.filter((n: any) => n?.id !== "00");
+    setNodes([rootNode, ...nonRoot]);
     setInlineEditNodeId("00");
   }, [rf, rootFolderJson, selectedNodeId, setInlineEditNodeId, setNodes]);
 
@@ -227,43 +320,162 @@ export default function MindMap() {
             {rootFolderJson?.name ?? ""}
           </div>
           <div
-            role="radiogroup"
-            aria-label="Node display mode"
             style={{
               display: "flex",
               alignItems: "center",
               gap: "var(--space-3)",
-              fontSize: "0.9em",
             }}
           >
-            {(["icons", "titles", "names"] as const).map((mode) => (
-              <label
-                key={mode}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-2)",
-                  cursor: "pointer",
-                  userSelect: "none",
-                }}
-                title={uiText.canvas.displayModeTooltips[mode]}
-              >
-                <input
-                  type="radio"
-                  name="nodeDisplayMode"
-                  value={mode}
-                  checked={nodeDisplayMode === mode}
-                  onChange={() => setNodeDisplayMode(mode)}
-                  aria-label={uiText.canvas.displayMode[mode]}
+            <div
+              role="radiogroup"
+              aria-label="Node display mode"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-3)",
+                fontSize: "0.9em",
+              }}
+            >
+              {(["icons", "titles", "names"] as const).map((mode) => (
+                <label
+                  key={mode}
                   style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-2)",
                     cursor: "pointer",
+                    userSelect: "none",
                   }}
-                />
-                <span>{uiText.canvas.displayMode[mode]}</span>
-              </label>
-            ))}
+                  title={uiText.canvas.displayModeTooltips[mode]}
+                >
+                  <input
+                    type="radio"
+                    name="nodeDisplayMode"
+                    value={mode}
+                    checked={nodeDisplayMode === mode}
+                    onChange={() => setNodeDisplayMode(mode)}
+                    aria-label={uiText.canvas.displayMode[mode]}
+                    style={{
+                      cursor: "pointer",
+                    }}
+                  />
+                  <span>{uiText.canvas.displayMode[mode]}</span>
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={toggleCanvasMenu}
+              aria-label="Canvas menu"
+              title="Canvas menu"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "var(--control-size-sm)",
+                width: "var(--control-size-sm)",
+                borderRadius: "var(--radius-md)",
+                border: "none",
+                background: "transparent",
+                color: "var(--text)",
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "transparent";
+              }}
+            >
+              <FiMenu
+                style={{ fontSize: "var(--icon-size-md)" }}
+                aria-hidden="true"
+              />
+            </button>
           </div>
         </header>
+
+        {canvasMenu.open && (
+          <div
+            data-pm-context-menu="canvas"
+            role="menu"
+            aria-label="Canvas menu"
+            style={{
+              position: "absolute",
+              top: "var(--panel-header-height)",
+              right: "var(--panel-header-padding-x)",
+              zIndex: 50,
+              minWidth: 180,
+              borderRadius: "var(--radius-md)",
+              border: "var(--border-width) solid var(--border)",
+              background: "var(--surface-2)",
+              color: "var(--text)",
+              boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+              padding: "6px",
+            }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeCanvasMenu();
+                // Add menu actions here
+              }}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                cursor: "pointer",
+                fontFamily: "var(--font-family)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "transparent";
+              }}
+            >
+              Menu Item 1
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeCanvasMenu();
+                // Add menu actions here
+              }}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                cursor: "pointer",
+                fontFamily: "var(--font-family)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "transparent";
+              }}
+            >
+              Menu Item 2
+            </button>
+          </div>
+        )}
 
         <div className="pm-canvas__body" ref={canvasBodyRef}>
           <ReactFlow
@@ -276,9 +488,100 @@ export default function MindMap() {
             onEdgesChange={onEdgesChange}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
+            onPaneContextMenu={onPaneContextMenu}
             onNodeDoubleClick={onNodeDoubleClick}
             onNodeContextMenu={onNodeContextMenu}
           />
+
+          {paneMenu.open && (
+            <div
+              data-pm-context-menu="pane"
+              role="menu"
+              aria-label={uiText.ariaLabels.contextMenu}
+              style={{
+                position: "absolute",
+                left: paneMenu.x,
+                top: paneMenu.y,
+                zIndex: 50,
+                minWidth: 180,
+                borderRadius: "var(--radius-md)",
+                border: "var(--border-width) solid var(--border)",
+                background: "var(--surface-2)",
+                color: "var(--text)",
+                boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+                padding: "6px",
+              }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const flowPos = paneMenu.flowPos;
+                  const parentNodeId = paneMenu.parentNodeId;
+                  closePaneMenu();
+                  if (!flowPos || !parentNodeId) return;
+
+                  // Create a temporary node with no name. It will not be committed (and no edge is created)
+                  // until the user enters a valid name and it is saved from the Node Details panel.
+                  const tempNodeId = `tmp_${Date.now()}_${Math.random()
+                    .toString(16)
+                    .slice(2)}`;
+
+                  const tempNode: Node = {
+                    id: tempNodeId,
+                    // Reuse existing circular folder renderer for now.
+                    type: "rootFolder",
+                    position: flowPos,
+                    data: {
+                      type: "folder",
+                      node_type: "folder",
+                      name: "",
+                      title: "",
+                      description: "",
+                      // Preserve parent context for finalize step (in-memory only).
+                      parentId: parentNodeId,
+                      // Marks the node as temporary until the required name is saved.
+                      isDraft: true,
+                    },
+                    selected: true,
+                  };
+
+                  const existing = useMindMapStore.getState().nodes ?? [];
+                  const next = [
+                    ...existing.map((n: any) => ({
+                      ...n,
+                      selected: n?.id === tempNodeId,
+                    })),
+                    tempNode,
+                  ];
+                  setNodes(next);
+                  setPendingChildCreation({ tempNodeId, parentNodeId });
+                  selectNode(tempNodeId);
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-family)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+              >
+                {uiText.contextMenus.canvas.newFolder}
+              </button>
+            </div>
+          )}
 
           {contextMenu.open && (
             <div

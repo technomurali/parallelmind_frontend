@@ -140,6 +140,15 @@ export const uiText = {
     errorCreateFailed: 'Failed to create. Please try again.',
     errorInvalidName: 'Invalid name. Please use a different name.',
     errorNameExists: 'A file or folder with this name already exists.',
+    /**
+     * Node creation validation (mind map).
+     * Kept in `alerts` to avoid introducing a new top-level section for a small,
+     * user-facing validation surface.
+     */
+    nodeNameRequired: 'Name is required to create this folder.',
+    nodeNameInvalidFileName:
+      'Name must follow file naming rules (no reserved characters, no trailing dot/space).',
+    nodeNameConflictAtLevel: 'A folder with this name already exists at this level.',
     errorNetworkError: 'Network error. Please check your connection.',
     successSaved: 'Changes saved successfully.',
     successDeleted: 'Item deleted successfully.',
@@ -223,6 +232,7 @@ export const uiText = {
       paste: 'Paste',
       selectAll: 'Select All',
       clearSelection: 'Clear Selection',
+      newFolder: 'New Folder',
       fitView: 'Fit View',
       zoomIn: 'Zoom In',
       zoomOut: 'Zoom Out',

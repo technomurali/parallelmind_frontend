@@ -43,6 +43,18 @@ export interface MindMapState {
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
 
+  /**
+   * Pending node-creation flow (in-memory only).
+   *
+   * We defer "committing" a newly created node until the user supplies the
+   * required metadata (name) and it is saved from the Node Details panel.
+   * This avoids orphan/premature nodes and makes the interaction predictable.
+   */
+  pendingChildCreation: {
+    tempNodeId: string;
+    parentNodeId: string;
+  } | null;
+
   // Application settings
   settings: AppSettings;
 
@@ -64,6 +76,11 @@ export interface MindMapActions {
   setEdges: (edges: any[]) => void;
   selectNode: (nodeId: string | null) => void;
   selectEdge: (edgeId: string | null) => void;
+  setPendingChildCreation: (
+    pending: { tempNodeId: string; parentNodeId: string } | null
+  ) => void;
+  finalizePendingChildCreation: () => void;
+  discardPendingChildCreationIfSelected: () => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
   setLeftPanelWidth: (width: number) => void;
   setRightPanelWidth: (width: number) => void;
@@ -99,6 +116,8 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
   selectedNodeId: null,
   selectedEdgeId: null,
 
+  pendingChildCreation: null,
+
   // Application settings
   settings: {
     theme: 'dark',
@@ -127,6 +146,90 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
   setEdges: (edges) => set({ edges }),
   selectNode: (nodeId) => set({ selectedNodeId: nodeId }),
   selectEdge: (edgeId) => set({ selectedEdgeId: edgeId }),
+  setPendingChildCreation: (pending) => set({ pendingChildCreation: pending }),
+  finalizePendingChildCreation: () =>
+    set((state) => {
+      const pending = state.pendingChildCreation;
+      if (!pending) return state;
+
+      const { tempNodeId, parentNodeId } = pending;
+      const tempNode = (state.nodes ?? []).find((n: any) => n?.id === tempNodeId);
+      const parentNode = (state.nodes ?? []).find((n: any) => n?.id === parentNodeId);
+
+      // If either node is missing, we can't finalize; just clear pending to avoid getting stuck.
+      if (!tempNode || !parentNode) {
+        return { ...state, pendingChildCreation: null };
+      }
+
+      // Mark node as finalized (no longer a draft).
+      const nextNodes = (state.nodes ?? []).map((n: any) => {
+        if (n?.id !== tempNodeId) return n;
+        return {
+          ...n,
+          data: { ...(n.data ?? {}), isDraft: false },
+        };
+      });
+
+      // Create an edge only on finalize (name-gated commit).
+      const edgeId = `e_${parentNodeId}_${tempNodeId}`;
+      const edgeExists = (state.edges ?? []).some((e: any) => e?.id === edgeId);
+      const nextEdges = edgeExists
+        ? state.edges
+        : [
+            ...(state.edges ?? []),
+            {
+              id: edgeId,
+              source: parentNodeId,
+              target: tempNodeId,
+              type: "default",
+            },
+          ];
+
+      // Record parent->children relationship in memory only (JSON persistence is out of scope).
+      const nextNodesWithLink = nextNodes.map((n: any) => {
+        if (n?.id !== parentNodeId) return n;
+        const existing = (n?.data as any)?.childNodeIds;
+        const childNodeIds: string[] = Array.isArray(existing) ? existing : [];
+        if (childNodeIds.includes(tempNodeId)) return n;
+        return {
+          ...n,
+          data: {
+            ...(n.data ?? {}),
+            childNodeIds: [...childNodeIds, tempNodeId],
+          },
+        };
+      });
+
+      return {
+        ...state,
+        nodes: nextNodesWithLink,
+        edges: nextEdges,
+        pendingChildCreation: null,
+      };
+    }),
+  discardPendingChildCreationIfSelected: () =>
+    set((state) => {
+      const pending = state.pendingChildCreation;
+      if (!pending) return state;
+      if (state.selectedNodeId !== pending.tempNodeId) return state;
+
+      const tempNode = (state.nodes ?? []).find((n: any) => n?.id === pending.tempNodeId);
+      const isDraft = !!(tempNode?.data as any)?.isDraft;
+      const name = (tempNode?.data as any)?.name;
+      const hasName = typeof name === "string" && name.trim().length > 0;
+
+      // "Reversible before save": if the user deselects before providing a name,
+      // discard the temporary node and clear the pending flow.
+      if (isDraft && !hasName) {
+        return {
+          ...state,
+          nodes: (state.nodes ?? []).filter((n: any) => n?.id !== pending.tempNodeId),
+          pendingChildCreation: null,
+          selectedNodeId: null,
+        };
+      }
+      return state;
+    }),
   updateSettings: (newSettings) =>
     set((state) => ({
       settings: { ...state.settings, ...newSettings },

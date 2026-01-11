@@ -31,7 +31,7 @@
   --left-panel-width: 280px;
   --right-panel-width: 360px;
   --panel-collapsed-width: 40px;
-  --panel-header-height: 44px;
+  --panel-header-height: 30px;
 }
 
 @media (prefers-color-scheme: light) {
