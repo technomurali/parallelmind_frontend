@@ -18,7 +18,7 @@ import { useMindMapStore } from "../../store/mindMapStore";
 import { useEffect, useMemo, useRef } from "react";
 import { uiText } from "../../constants/uiText";
 import { FileManager } from "../../data/fileManager";
-import { FiFolder, FiSettings } from "react-icons/fi";
+import { FiFolder } from "react-icons/fi";
 
 /**
  * LeftPanel component
@@ -32,7 +32,6 @@ export default function LeftPanel() {
   const rootDirectoryHandle = useMindMapStore((s) => s.rootDirectoryHandle);
   const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
   const setRoot = useMindMapStore((s) => s.setRoot);
-  const toggleSettings = useMindMapStore((s) => s.toggleSettings);
 
   const fileManager = useMemo(() => new FileManager(), []);
 
@@ -216,30 +215,6 @@ export default function LeftPanel() {
             }}
           >
             <FiFolder
-              style={{ fontSize: "var(--icon-size-md)" }}
-              aria-hidden="true"
-            />
-          </button>
-
-          <button
-            type="button"
-            onClick={toggleSettings}
-            aria-label={uiText.tooltips.toggleSettings}
-            title={uiText.tooltips.toggleSettings}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "var(--control-size-sm)",
-              width: "var(--control-size-sm)",
-              borderRadius: "var(--radius-md)",
-              border: "none",
-              background: "transparent",
-              color: "var(--text)",
-              cursor: "pointer",
-            }}
-          >
-            <FiSettings
               style={{ fontSize: "var(--icon-size-md)" }}
               aria-hidden="true"
             />

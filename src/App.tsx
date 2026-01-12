@@ -10,11 +10,15 @@
  * Also includes inline styles for resize handles used for panel resizing.
  */
 
+import { useEffect } from 'react'
 import './App.css'
 import LeftPanel from './containers/LeftPanel'
 import MindMap from './containers/MindMap'
 import RightPanel from './containers/RightPanel'
 import { uiText } from './constants/uiText'
+import { GlobalHeaderBar } from './components/GlobalHeaderBar'
+import Settings from './containers/Settings'
+import { useMindMapStore } from './store/mindMapStore'
 
 /**
  * Main App component
@@ -23,6 +27,14 @@ import { uiText } from './constants/uiText'
  * The resize handle styles are defined inline for component-specific styling.
  */
 function App() {
+  const settingsOpen = useMindMapStore((s) => s.settingsOpen)
+  const theme = useMindMapStore((s) => s.settings.theme)
+
+  useEffect(() => {
+    // Drive the global theme via CSS variables in `src/styles/theme.css`.
+    document.documentElement.dataset.theme = theme
+  }, [theme])
+
   return (
     <>
       {/* Inline styles for panel resize handles */}
@@ -46,11 +58,18 @@ function App() {
       `}</style>
 
       <div className="pm-app-wrapper">
-        <div className="pm-app" aria-label={uiText.ariaLabels.workspace}>
-          <LeftPanel />
-          <MindMap />
-          <RightPanel />
-        </div>
+        <GlobalHeaderBar />
+        {settingsOpen ? (
+          <div className="pm-app" aria-label={uiText.ariaLabels.workspace}>
+            <Settings />
+          </div>
+        ) : (
+          <div className="pm-app" aria-label={uiText.ariaLabels.workspace}>
+            <LeftPanel />
+            <MindMap />
+            <RightPanel />
+          </div>
+        )}
         <footer className="pm-app-footer"></footer>
       </div>
     </>

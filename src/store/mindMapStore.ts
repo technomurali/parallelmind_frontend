@@ -15,6 +15,31 @@ import { create } from 'zustand';
 import type { RootFolderJson } from '../data/fileManager';
 // import { MindMapNode, Edge } from '../types/nodeTypes';
 
+const SETTINGS_STORAGE_KEY = 'parallelmind.settings.v1';
+
+function readPersistedSettings(): Partial<AppSettings> | null {
+  try {
+    // In some runtimes (SSR/tests) window/localStorage may not exist.
+    if (typeof window === 'undefined') return null;
+    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed as Partial<AppSettings>;
+  } catch {
+    return null;
+  }
+}
+
+function persistSettings(settings: AppSettings) {
+  try {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Intentionally ignore persistence failures (private mode, quota, etc.)
+  }
+}
+
 function wouldCreateCycle(
   edges: any[],
   source: string,
@@ -150,18 +175,33 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
   pendingChildCreation: null,
 
   // Application settings
-  settings: {
-    theme: 'dark',
-    font: 'system-ui',
-    fontSize: 14,
-    llmModel: 'gpt-4',
-    llmProvider: 'openai',
-    appearance: {
-      nodeSize: 200,
-      edgeStyle: 'default',
-      showMinimap: true,
-    },
-  },
+  settings: (() => {
+    const defaults: AppSettings = {
+      theme: 'dark',
+      font: 'system-ui',
+      fontSize: 14,
+      llmModel: 'gpt-4',
+      llmProvider: 'openai',
+      appearance: {
+        nodeSize: 200,
+        edgeStyle: 'default',
+        showMinimap: true,
+      },
+    };
+
+    const persisted = readPersistedSettings();
+    if (!persisted) return defaults;
+
+    // Deep-merge appearance so partial updates don’t drop nested keys.
+    return {
+      ...defaults,
+      ...persisted,
+      appearance: {
+        ...defaults.appearance,
+        ...(persisted as any).appearance,
+      },
+    };
+  })(),
 
   // UI state
   leftPanelWidth: 280,
@@ -265,9 +305,18 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
       return state;
     }),
   updateSettings: (newSettings) =>
-    set((state) => ({
-      settings: { ...state.settings, ...newSettings },
-    })),
+    set((state) => {
+      const next: AppSettings = {
+        ...state.settings,
+        ...newSettings,
+        appearance: {
+          ...state.settings.appearance,
+          ...(newSettings.appearance ?? {}),
+        },
+      };
+      persistSettings(next);
+      return { settings: next };
+    }),
   setLeftPanelWidth: (width) => set({ leftPanelWidth: width }),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
   setRoot: (handle, root) =>

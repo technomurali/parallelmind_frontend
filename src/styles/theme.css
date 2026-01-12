@@ -1,13 +1,11 @@
 /* Global theme styles */
 
 :root {
-  color-scheme: light dark;
-
   /* Core colors */
   --primary-color: #646cff;
   --secondary-color: #535bf2;
 
-  /* Surfaces / text */
+  /* Surfaces / text (defaults to dark if no explicit theme is set) */
   --background: #242424;
   --surface-1: #1e1e1e;
   --surface-2: #2a2a2a;
@@ -37,8 +35,27 @@
   --panel-header-height: 30px;
 }
 
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --background: #242424;
+  --surface-1: #1e1e1e;
+  --surface-2: #2a2a2a;
+  --text: rgba(255, 255, 255, 0.87);
+  --border: rgba(255, 255, 255, 0.12);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --background: #ffffff;
+  --surface-1: #f7f7f8;
+  --surface-2: #ffffff;
+  --text: #213547;
+  --border: rgba(0, 0, 0, 0.12);
+}
+
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme]) {
+    color-scheme: light;
     --background: #ffffff;
     --surface-1: #f7f7f8;
     --surface-2: #ffffff;
