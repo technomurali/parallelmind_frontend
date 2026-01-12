@@ -82,14 +82,10 @@ export const uiText = {
    */
   canvas: {
     displayMode: {
-      icons: 'Icons',
-      titles: 'Titles',
-      names: 'Names',
+      details: 'Details',
     },
     displayModeTooltips: {
-      icons: 'Show node icons',
-      titles: 'Show node titles',
-      names: 'Show node names',
+      details: 'Show node details',
     },
   },
 

@@ -17,6 +17,9 @@
 
   /* Typography */
   --font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --node-details-header-font-size: 10px;
+  --node-details-content-font-size: 7px;
+  --node-details-label-font-size: 9px;
 
   /* Spacing / radii / controls */
   --space-2: 8px;

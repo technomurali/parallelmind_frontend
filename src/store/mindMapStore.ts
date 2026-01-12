@@ -15,6 +15,39 @@ import { create } from 'zustand';
 import type { RootFolderJson } from '../data/fileManager';
 // import { MindMapNode, Edge } from '../types/nodeTypes';
 
+function wouldCreateCycle(
+  edges: any[],
+  source: string,
+  target: string,
+  ignoreEdgeId?: string
+): boolean {
+  if (!source || !target) return true;
+  if (source === target) return true;
+
+  const adj = new Map<string, string[]>();
+  for (const e of edges ?? []) {
+    if (ignoreEdgeId && e?.id === ignoreEdgeId) continue;
+    const s = e?.source;
+    const t = e?.target;
+    if (typeof s !== 'string' || typeof t !== 'string') continue;
+    if (!adj.has(s)) adj.set(s, []);
+    adj.get(s)!.push(t);
+  }
+
+  // Adding source -> target creates a cycle iff target can already reach source.
+  const stack: string[] = [target];
+  const visited = new Set<string>();
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (cur === source) return true;
+    if (visited.has(cur)) continue;
+    visited.add(cur);
+    const next = adj.get(cur);
+    if (next) stack.push(...next);
+  }
+  return false;
+}
+
 /**
  * Application settings state
  */
@@ -65,7 +98,6 @@ export interface MindMapState {
   rootFolderJson: RootFolderJson | null;
   inlineEditNodeId: string | null;
   settingsOpen: boolean;
-  nodeDisplayMode: 'icons' | 'titles' | 'names';
 }
 
 /**
@@ -91,7 +123,6 @@ export interface MindMapActions {
   setInlineEditNodeId: (nodeId: string | null) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   toggleSettings: () => void;
-  setNodeDisplayMode: (mode: 'icons' | 'titles' | 'names') => void;
 }
 
 /**
@@ -139,7 +170,6 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
   rootFolderJson: null,
   inlineEditNodeId: null,
   settingsOpen: false,
-  nodeDisplayMode: 'icons',
 
   // Actions
   setNodes: (nodes) => set({ nodes }),
@@ -173,20 +203,24 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
       // Create an edge only on finalize (name-gated commit).
       const edgeId = `e_${parentNodeId}_${tempNodeId}`;
       const edgeExists = (state.edges ?? []).some((e: any) => e?.id === edgeId);
-      const nextEdges = edgeExists
-        ? state.edges
-        : [
-            ...(state.edges ?? []),
-            {
-              id: edgeId,
-              source: parentNodeId,
-              target: tempNodeId,
-              type: "default",
-            },
-          ];
+      const cycle = wouldCreateCycle(state.edges ?? [], parentNodeId, tempNodeId);
+      const nextEdges =
+        edgeExists || cycle
+          ? state.edges
+          : [
+              ...(state.edges ?? []),
+              {
+                id: edgeId,
+                source: parentNodeId,
+                target: tempNodeId,
+                type: "default",
+              },
+            ];
 
       // Record parent->children relationship in memory only (JSON persistence is out of scope).
-      const nextNodesWithLink = nextNodes.map((n: any) => {
+      const nextNodesWithLink = cycle
+        ? nextNodes
+        : nextNodes.map((n: any) => {
         if (n?.id !== parentNodeId) return n;
         const existing = (n?.data as any)?.childNodeIds;
         const childNodeIds: string[] = Array.isArray(existing) ? existing : [];
@@ -262,5 +296,4 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
     })),
   toggleSettings: () =>
     set((state) => ({ settingsOpen: !state.settingsOpen })),
-  setNodeDisplayMode: (mode) => set({ nodeDisplayMode: mode }),
 }));

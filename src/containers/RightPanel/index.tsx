@@ -53,7 +53,11 @@ export default function RightPanel() {
   const fileManager = useMemo(() => new FileManager(), []);
 
   // Draft state lives only in this container to satisfy "single container rule".
-  const [draft, setDraft] = useState({ name: "", title: "", description: "" });
+  const [draft, setDraft] = useState({
+    name: "",
+    title: "",
+    description: "",
+  });
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
   );

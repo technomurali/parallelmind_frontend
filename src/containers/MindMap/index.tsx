@@ -15,6 +15,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
+  type Connection,
+  type Edge,
   type EdgeChange,
   type Node,
   type NodeChange,
@@ -48,8 +50,6 @@ export default function MindMap() {
   const discardPendingChildCreationIfSelected = useMindMapStore(
     (s) => s.discardPendingChildCreationIfSelected
   );
-  const nodeDisplayMode = useMindMapStore((s) => s.nodeDisplayMode);
-  const setNodeDisplayMode = useMindMapStore((s) => s.setNodeDisplayMode);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasBodyRef = useRef<HTMLDivElement | null>(null);
@@ -134,6 +134,92 @@ export default function MindMap() {
   };
 
   /**
+   * Prevent creating cycles in the directed graph.
+   * We treat edges as directed source -> target, and disallow any edge that would create a cycle.
+   */
+  const wouldCreateCycle = (
+    existingEdges: Edge[],
+    source: string,
+    target: string,
+    ignoreEdgeId?: string
+  ): boolean => {
+    if (!source || !target) return true;
+    // Disallow self-loop
+    if (source === target) return true;
+
+    // Build adjacency list excluding the edge we're updating (if any)
+    const adj = new Map<string, string[]>();
+    for (const e of existingEdges) {
+      if (ignoreEdgeId && e.id === ignoreEdgeId) continue;
+      const s = (e as any)?.source;
+      const t = (e as any)?.target;
+      if (typeof s !== "string" || typeof t !== "string") continue;
+      if (!adj.has(s)) adj.set(s, []);
+      adj.get(s)!.push(t);
+    }
+
+    // Adding source -> target creates a cycle iff target can already reach source.
+    const stack: string[] = [target];
+    const visited = new Set<string>();
+    while (stack.length) {
+      const cur = stack.pop()!;
+      if (cur === source) return true;
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      const next = adj.get(cur);
+      if (next) stack.push(...next);
+    }
+    return false;
+  };
+
+  /**
+   * Handle edge reconnection - allows users to change which handles edges connect to
+   */
+  const onEdgeUpdate = (oldEdge: Edge, newConnection: Connection) => {
+    const nextSource = newConnection.source ?? "";
+    const nextTarget = newConnection.target ?? "";
+    // Reject updates that would create cycles (or invalid connections).
+    if (wouldCreateCycle(edges as any, nextSource, nextTarget, oldEdge.id)) {
+      return;
+    }
+    const updatedEdges = edges.map((edge: Edge) => {
+      if (edge.id === oldEdge.id) {
+        return {
+          ...edge,
+          source: nextSource || edge.source,
+          target: nextTarget || edge.target,
+          sourceHandle: newConnection.sourceHandle,
+          targetHandle: newConnection.targetHandle,
+        };
+      }
+      return edge;
+    });
+    setEdges(updatedEdges);
+  };
+
+  /**
+   * Handle new edge connections
+   */
+  const onConnect = (connection: Connection) => {
+    const edgeId = `e_${connection.source}_${connection.target}`;
+    const source = connection.source ?? "";
+    const target = connection.target ?? "";
+    // Reject invalid connections / self-loops / cycles.
+    if (wouldCreateCycle(edges as any, source, target)) return;
+    // Avoid duplicate edges by id.
+    if ((edges as any).some((e: any) => e?.id === edgeId)) return;
+    const newEdge: Edge = {
+      id: edgeId,
+      source,
+      target,
+      sourceHandle: connection.sourceHandle,
+      targetHandle: connection.targetHandle,
+      type: "default",
+    };
+    setEdges([...edges, newEdge]);
+  };
+
+  /**
    * Keep selected node id in the global store so the right panel can show details.
    */
   const onNodeClick = (_: unknown, node: Node) => {
@@ -158,13 +244,15 @@ export default function MindMap() {
    * so the parent context is preserved through the deferred-commit flow.
    */
   const onPaneContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
     closeContextMenu();
 
-    // If no parent is selected, do nothing (matches existing "no menu" expectations).
+    // If no parent is selected, allow default browser behavior (no custom menu).
     if (!selectedNodeId) return;
     if (!rf) return;
+
+    // Only prevent default when we're showing our custom menu
+    e.preventDefault();
+    e.stopPropagation();
 
     const container = canvasBodyRef.current?.getBoundingClientRect();
     const x = container ? e.clientX - container.left : e.clientX;
@@ -177,18 +265,16 @@ export default function MindMap() {
   };
 
   /**
-   * Right-click context menu for nodes (desktop only for file explorer actions).
+   * Right-click context menu for nodes.
+   * Shows menu for selected nodes with options like "Add Handle" and "Open Folder" (Tauri only).
    */
   const onNodeContextMenu = (e: React.MouseEvent, node: Node) => {
     e.preventDefault();
     e.stopPropagation();
     closePaneMenu();
 
-    // Only show the context menu when we can actually perform desktop actions.
-    if (!isTauri()) return;
-    if (!isFolderNode(node)) return;
-    const path = getNodeFolderPath(node);
-    if (!path) return;
+    // Show context menu for selected nodes
+    if (node.id !== selectedNodeId) return;
 
     const container = canvasBodyRef.current?.getBoundingClientRect();
     const x = container ? e.clientX - container.left : e.clientX;
@@ -326,43 +412,6 @@ export default function MindMap() {
               gap: "var(--space-3)",
             }}
           >
-            <div
-              role="radiogroup"
-              aria-label="Node display mode"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--space-3)",
-                fontSize: "0.9em",
-              }}
-            >
-              {(["icons", "titles", "names"] as const).map((mode) => (
-                <label
-                  key={mode}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "var(--space-2)",
-                    cursor: "pointer",
-                    userSelect: "none",
-                  }}
-                  title={uiText.canvas.displayModeTooltips[mode]}
-                >
-                  <input
-                    type="radio"
-                    name="nodeDisplayMode"
-                    value={mode}
-                    checked={nodeDisplayMode === mode}
-                    onChange={() => setNodeDisplayMode(mode)}
-                    aria-label={uiText.canvas.displayMode[mode]}
-                    style={{
-                      cursor: "pointer",
-                    }}
-                  />
-                  <span>{uiText.canvas.displayMode[mode]}</span>
-                </label>
-              ))}
-            </div>
             <button
               type="button"
               onClick={toggleCanvasMenu}
@@ -407,7 +456,7 @@ export default function MindMap() {
               top: "var(--panel-header-height)",
               right: "var(--panel-header-padding-x)",
               zIndex: 50,
-              minWidth: 180,
+              minWidth: 200,
               borderRadius: "var(--radius-md)",
               border: "var(--border-width) solid var(--border)",
               background: "var(--surface-2)",
@@ -416,64 +465,15 @@ export default function MindMap() {
               padding: "6px",
             }}
           >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                closeCanvasMenu();
-                // Add menu actions here
-              }}
+            <div
               style={{
-                width: "100%",
-                textAlign: "left",
                 padding: "8px 10px",
-                borderRadius: "var(--radius-sm)",
-                border: "none",
-                background: "transparent",
-                color: "inherit",
-                cursor: "pointer",
-                fontFamily: "var(--font-family)",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background =
-                  "var(--surface-1)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background =
-                  "transparent";
+                fontSize: "0.85em",
+                opacity: 0.85,
               }}
             >
-              Menu Item 1
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                closeCanvasMenu();
-                // Add menu actions here
-              }}
-              style={{
-                width: "100%",
-                textAlign: "left",
-                padding: "8px 10px",
-                borderRadius: "var(--radius-sm)",
-                border: "none",
-                background: "transparent",
-                color: "inherit",
-                cursor: "pointer",
-                fontFamily: "var(--font-family)",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background =
-                  "var(--surface-1)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background =
-                  "transparent";
-              }}
-            >
-              Menu Item 2
-            </button>
+              View: Details
+            </div>
           </div>
         )}
 
@@ -483,9 +483,25 @@ export default function MindMap() {
             edges={edges}
             fitView
             nodeTypes={nodeTypes}
+            zoomOnScroll={true}
+            onWheel={(event) => {
+              if (rf) {
+                // Increase zoom sensitivity by using a larger delta multiplier
+                const zoom = rf.getZoom();
+                // Adjust these values to change zoom speed:
+                // - Smaller values (e.g., 0.80/1.20) = faster zoom
+                // - Larger values (e.g., 0.98/1.02) = slower zoom
+                const delta = event.deltaY > 0 ? 0.8 : 1.2;
+                const newZoom = Math.max(0.1, Math.min(2, zoom * delta));
+                rf.zoomTo(newZoom + 3.5);
+                event.preventDefault();
+              }
+            }}
             onInit={setRf}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onEdgeUpdate={onEdgeUpdate}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             onPaneContextMenu={onPaneContextMenu}
@@ -536,6 +552,7 @@ export default function MindMap() {
                       type: "folder",
                       node_type: "folder",
                       name: "",
+                      header: "",
                       title: "",
                       description: "",
                       // Preserve parent context for finalize step (in-memory only).
@@ -602,49 +619,55 @@ export default function MindMap() {
                 padding: "6px",
               }}
             >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={async () => {
-                  const node = contextMenu.node;
-                  closeContextMenu();
-                  if (!node) return;
-                  if (!isTauri()) return;
-                  if (!isFolderNode(node)) return;
-                  const path = getNodeFolderPath(node);
-                  if (!path) return;
-                  try {
-                    const { openPath } = await import(
-                      "@tauri-apps/plugin-opener"
-                    );
-                    await openPath(path);
-                  } catch (err) {
-                    // Keep UX silent (no alerts/toasts), but log for debugging.
-                    console.error("[MindMap] Context menu open failed:", err);
-                  }
-                }}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "8px 10px",
-                  borderRadius: "var(--radius-sm)",
-                  border: "none",
-                  background: "transparent",
-                  color: "inherit",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-family)",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "var(--surface-1)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "transparent";
-                }}
-              >
-                {uiText.contextMenus.folder.openFolder}
-              </button>
+              {isTauri() &&
+                contextMenu.node &&
+                isFolderNode(contextMenu.node) && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={async () => {
+                      const node = contextMenu.node;
+                      closeContextMenu();
+                      if (!node) return;
+                      if (!isFolderNode(node)) return;
+                      const path = getNodeFolderPath(node);
+                      if (!path) return;
+                      try {
+                        const { openPath } = await import(
+                          "@tauri-apps/plugin-opener"
+                        );
+                        await openPath(path);
+                      } catch (err) {
+                        // Keep UX silent (no alerts/toasts), but log for debugging.
+                        console.error(
+                          "[MindMap] Context menu open failed:",
+                          err
+                        );
+                      }
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "none",
+                      background: "transparent",
+                      color: "inherit",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-family)",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "transparent";
+                    }}
+                  >
+                    {uiText.contextMenus.folder.openFolder}
+                  </button>
+                )}
             </div>
           )}
         </div>
