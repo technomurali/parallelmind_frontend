@@ -15,10 +15,8 @@
 
 import { TreeView } from "../../components/TreeView";
 import { useMindMapStore } from "../../store/mindMapStore";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { uiText } from "../../constants/uiText";
-import { FileManager } from "../../data/fileManager";
-import { FiFolder } from "react-icons/fi";
 
 /**
  * LeftPanel component
@@ -29,11 +27,6 @@ import { FiFolder } from "react-icons/fi";
 export default function LeftPanel() {
   const leftPanelWidth = useMindMapStore((s) => s.leftPanelWidth);
   const setLeftPanelWidth = useMindMapStore((s) => s.setLeftPanelWidth);
-  const rootDirectoryHandle = useMindMapStore((s) => s.rootDirectoryHandle);
-  const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
-  const setRoot = useMindMapStore((s) => s.setRoot);
-
-  const fileManager = useMemo(() => new FileManager(), []);
 
   const dragRef = useRef<{
     startX: number;
@@ -47,51 +40,6 @@ export default function LeftPanel() {
   const MIN_WIDTH = 56;
   const MAX_WIDTH = 600;
   const isReduced = leftPanelWidth <= MIN_WIDTH;
-
-  /**
-   * Handles root folder selection via File System Access API
-   *
-   * If a root folder already exists, prompts user for confirmation before replacing.
-   * If root-folder.json already exists in the selected directory, it is loaded (not overwritten).
-   * root-folder.json is only created the first time (when missing).
-   */
-  const onSelectRootFolder = async () => {
-    const selection = await fileManager.pickRootDirectory();
-    if (!selection) return; // Silent cancel - user closed picker
-
-    // If a root already exists and the user picked a different folder, confirm replacement.
-    if (rootDirectoryHandle || rootFolderJson?.path) {
-      let isSame = false;
-      if (typeof selection === "string") {
-        isSame = rootFolderJson?.path === selection;
-      } else if (rootDirectoryHandle) {
-        try {
-          if (typeof rootDirectoryHandle.isSameEntry === "function") {
-            isSame = await rootDirectoryHandle.isSameEntry(selection);
-          }
-        } catch {
-          // If comparison fails, treat as different and require confirmation.
-          isSame = false;
-        }
-      }
-
-      if (!isSame) {
-        const ok = window.confirm(uiText.alerts.confirmReplaceRootFolder);
-        if (!ok) return;
-      }
-    }
-
-    if (typeof selection === "string") {
-      const { root } = await fileManager.loadOrCreateRootFolderJsonFromPath(
-        selection
-      );
-      setRoot(null, root);
-      return;
-    }
-
-    const { root } = await fileManager.loadOrCreateRootFolderJson(selection);
-    setRoot(selection, root);
-  };
 
   /**
    * Initiates panel resize operation
@@ -177,49 +125,6 @@ export default function LeftPanel() {
       }}
     >
       <div className="pm-panel__header">
-        {!isReduced && (
-          <div className="pm-panel__title">{uiText.panels.files}</div>
-        )}
-
-        <div
-          style={{
-            display: "flex",
-            gap: "var(--space-2)",
-            alignItems: "center",
-          }}
-        >
-          <button
-            type="button"
-            onClick={onSelectRootFolder}
-            aria-label={
-              rootDirectoryHandle || rootFolderJson?.path
-                ? uiText.tooltips.changeRootFolder
-                : uiText.tooltips.selectRootFolder
-            }
-            title={
-              rootDirectoryHandle || rootFolderJson?.path
-                ? uiText.tooltips.changeRootFolder
-                : uiText.tooltips.selectRootFolder
-            }
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "var(--control-size-sm)",
-              width: "var(--control-size-sm)",
-              borderRadius: "var(--radius-md)",
-              border: "none",
-              background: "transparent",
-              color: "var(--text)",
-              cursor: "pointer",
-            }}
-          >
-            <FiFolder
-              style={{ fontSize: "var(--icon-size-md)" }}
-              aria-hidden="true"
-            />
-          </button>
-        </div>
       </div>
 
       {!isReduced ? (

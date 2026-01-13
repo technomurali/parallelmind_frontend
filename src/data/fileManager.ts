@@ -7,7 +7,7 @@
  * - Reading file contents and folder structures
  * - Updating file contents and metadata
  * - Deleting files and folders
- * - Synchronizing changes with the root-folder.json structure
+ * - Synchronizing changes with the parallelmind_index.json structure
  */
 
 export interface FileNode {
@@ -27,8 +27,7 @@ export type RootFolderJson = {
   update_date: string; // ISO timestamp
   path: string; // absolute path when available from runtime; otherwise preserved if already present
   name: string;
-  title: string;
-  description: string;
+  purpose: string;
   children: unknown[];
 };
 
@@ -37,10 +36,10 @@ export type RootFolderJson = {
  * 
  * Manages all CRUD operations for files and folders in the mind map.
  * Provides methods to interact with the file system structure and
- * maintain consistency with root-folder.json.
+ * maintain consistency with parallelmind_index.json.
  */
 export class FileManager {
-  private static ROOT_FILE_NAME = 'root-folder.json' as const;
+  private static ROOT_FILE_NAME = 'parallelmind_index.json' as const;
 
   private nowIso(): string {
     return new Date().toISOString();
@@ -63,7 +62,7 @@ export class FileManager {
   }
 
   /**
-   * Normalizes any parsed JSON into the strict root-folder schema.
+   * Normalizes any parsed JSON into the strict root folder index schema.
    * Important: this does NOT write to disk; it only shapes data in-memory.
    */
   private normalizeRootFolderJson(input: unknown, fallbackFolderName: string): RootFolderJson {
@@ -81,14 +80,13 @@ export class FileManager {
       update_date: updated,
       path,
       name: typeof obj.name === 'string' ? obj.name : fallbackFolderName,
-      title: typeof obj.title === 'string' ? obj.title : '',
-      description: typeof obj.description === 'string' ? obj.description : '',
+      purpose: typeof obj.purpose === 'string' ? obj.purpose : (typeof obj.description === 'string' ? obj.description : ''),
       children,
     };
   }
 
   /**
-   * Reads root-folder.json from the selected directory if it exists.
+   * Reads parallelmind_index.json from the selected directory if it exists.
    * Returns null when the file does not exist or cannot be read.
    *
    * We keep failures silent by design (no alerts/toasts).
@@ -111,7 +109,7 @@ export class FileManager {
   }
 
   /**
-   * Loads existing root-folder.json if present; otherwise creates it.
+   * Loads existing parallelmind_index.json if present; otherwise creates it.
    * This prevents "recreating" the root when the file already exists.
    */
   async loadOrCreateRootFolderJson(
@@ -155,7 +153,7 @@ export class FileManager {
   }
 
   /**
-   * Reads root-folder.json from an absolute directory path (Tauri).
+   * Reads parallelmind_index.json from an absolute directory path (Tauri).
    * Returns null when missing/unreadable. Silent by design.
    */
   async readRootFolderJsonFromPath(dirPath: string): Promise<RootFolderJson | null> {
@@ -174,7 +172,7 @@ export class FileManager {
   async writeRootFolderJsonFromPath(dirPath: string, root: RootFolderJson): Promise<void> {
     if (!dirPath || typeof dirPath !== 'string' || dirPath.trim() === '') {
       console.error('[FileManager] writeRootFolderJsonFromPath: dirPath is empty or invalid', dirPath);
-      throw new Error('Directory path is required for saving root-folder.json');
+      throw new Error('Directory path is required for saving parallelmind_index.json');
     }
 
     try {
@@ -191,18 +189,17 @@ export class FileManager {
         update_date: now,
         path: dirPath,
         name: root.name ?? this.baseNameFromPath(dirPath),
-        title: root.title ?? '',
-        description: root.description ?? '',
+        purpose: root.purpose ?? '',
         children: Array.isArray(root.children) ? root.children : existing?.children ?? [],
       };
 
       const { writeTextFile } = await import('@tauri-apps/plugin-fs');
       const filePath = this.joinPath(dirPath, FileManager.ROOT_FILE_NAME);
-      console.log('[FileManager] Writing root-folder.json to:', filePath);
+      console.log('[FileManager] Writing parallelmind_index.json to:', filePath);
       await writeTextFile(filePath, JSON.stringify(normalized, null, 2), { create: true });
-      console.log('[FileManager] Successfully wrote root-folder.json');
+      console.log('[FileManager] Successfully wrote parallelmind_index.json');
     } catch (error) {
-      console.error('[FileManager] Failed to write root-folder.json:', error);
+      console.error('[FileManager] Failed to write parallelmind_index.json:', error);
       throw error;
     }
   }
@@ -211,14 +208,14 @@ export class FileManager {
     dirPath: string,
   ): Promise<{ root: RootFolderJson; created: boolean }> {
     if (!dirPath || typeof dirPath !== 'string' || dirPath.trim() === '') {
-      throw new Error('Directory path is required for loading root-folder.json');
+      throw new Error('Directory path is required for loading parallelmind_index.json');
     }
 
     const existing = await this.readRootFolderJsonFromPath(dirPath);
     if (existing) {
       // Always ensure path is set, even if it wasn't in the file
       const rootWithPath = { ...existing, path: dirPath };
-      console.log('[FileManager] Loaded existing root-folder.json from:', dirPath);
+      console.log('[FileManager] Loaded existing parallelmind_index.json from:', dirPath);
       return { root: rootWithPath, created: false };
     }
 
@@ -232,17 +229,16 @@ export class FileManager {
       update_date: now,
       path: dirPath,
       name: this.baseNameFromPath(dirPath),
-      title: '',
-      description: '',
+      purpose: '',
       children: [],
     };
-    console.log('[FileManager] Creating new root-folder.json at:', dirPath);
+    console.log('[FileManager] Creating new parallelmind_index.json at:', dirPath);
     await this.writeRootFolderJsonFromPath(dirPath, createdRoot);
     return { root: createdRoot, created: true };
   }
 
   /**
-   * Creates (or overwrites) `root-folder.json` in the selected folder with the strict initial structure.
+   * Creates (or overwrites) `parallelmind_index.json` in the selected folder with the strict initial structure.
    * This JSON file is the single source of truth (no extra keys).
    */
   async createRootFolderJson(
@@ -266,8 +262,7 @@ export class FileManager {
       update_date: now,
       path,
       name: dirHandle.name,
-      title: '',
-      description: '',
+      purpose: '',
       children: [],
     };
     await this.writeRootFolderJson(dirHandle, root);
@@ -305,8 +300,7 @@ export class FileManager {
       update_date: now,
       path,
       name: root.name ?? '',
-      title: root.title ?? '',
-      description: root.description ?? '',
+      purpose: root.purpose ?? '',
       children: Array.isArray(root.children) ? root.children : [],
     };
 
@@ -355,7 +349,7 @@ export class FileManager {
   }
 
   /**
-   * Synchronizes the current state with root-folder.json
+   * Synchronizes the current state with parallelmind_index.json
    * Ensures all changes are persisted to the master structure file
    */
   sync(): void {

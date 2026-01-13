@@ -55,8 +55,7 @@ export default function RightPanel() {
   // Draft state lives only in this container to satisfy "single container rule".
   const [draft, setDraft] = useState({
     name: "",
-    title: "",
-    description: "",
+    purpose: "",
   });
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
@@ -77,7 +76,7 @@ export default function RightPanel() {
       lastHydratedSelectedIdRef.current !== selectedNodeId;
 
     if (!selectedNodeId) {
-      setDraft({ name: "", title: "", description: "" });
+      setDraft({ name: "", purpose: "" });
       setSaveStatus("idle");
       setDirty(false);
       lastHydratedSelectedIdRef.current = null;
@@ -93,9 +92,8 @@ export default function RightPanel() {
     if (selectionChanged || !dirty) {
       setDraft({
         name: typeof data.name === "string" ? data.name : "",
-        title: typeof data.title === "string" ? data.title : "",
-        description:
-          typeof data.description === "string" ? data.description : "",
+        purpose:
+          typeof data.purpose === "string" ? data.purpose : "",
       });
     }
     if (selectionChanged) {
@@ -198,11 +196,10 @@ export default function RightPanel() {
     updateNodeData(selectedNodeId, {
       // Store trimmed name to match filesystem expectation and conflict checks.
       name: draft.name.trim(),
-      title: draft.title,
-      description: draft.description,
+      purpose: draft.purpose,
     });
 
-    // Persist to root-folder.json only for the root node (existing mechanism).
+    // Persist to parallelmind_index.json only for the root node (existing mechanism).
     if (selectedNodeId === "00") {
       // Check if we have a valid persistence mechanism
       const hasDirectoryHandle = !!rootDirectoryHandle;
@@ -234,8 +231,7 @@ export default function RightPanel() {
         update_date: rootFolderJson?.update_date ?? "",
         path: rootFolderJson?.path ?? "",
         name: draft.name,
-        title: draft.title,
-        description: draft.description,
+        purpose: draft.purpose,
         // Preserve existing children (depth logic is out of scope, but we must not wipe it).
         children: rootFolderJson?.children ?? [],
       };
@@ -267,7 +263,7 @@ export default function RightPanel() {
         setDirty(false);
         setSaveStatus("saved");
       } catch (error) {
-        console.error("[RightPanel] Failed to save root-folder.json:", error);
+        console.error("[RightPanel] Failed to save parallelmind_index.json:", error);
         setDirty(true); // Keep dirty state so user knows save failed
         setSaveStatus("idle");
       }
@@ -297,12 +293,12 @@ export default function RightPanel() {
       void commitSave();
     },
     3000,
-    [draft.name, draft.title, draft.description, selectedNodeId, dirty],
+    [draft.name, draft.purpose, selectedNodeId, dirty],
     dirty
   );
 
   const onFieldChange =
-    (field: "name" | "title" | "description") => (value: string) => {
+    (field: "name" | "purpose") => (value: string) => {
       setDraft((d) => ({ ...d, [field]: value }));
       // Only show "Saving..." when the user has actually made edits.
       setDirty(true);
@@ -527,49 +523,15 @@ export default function RightPanel() {
                   }}
                 >
                   <div style={{ fontWeight: 600 }}>
-                    {uiText.fields.nodeDetails.title}
-                  </div>
-                  <input
-                    value={draft.title}
-                    onChange={(e) => onFieldChange("title")(e.target.value)}
-                    placeholder={uiText.placeholders.nodeTitle}
-                    aria-label={uiText.fields.nodeDetails.title}
-                    style={{
-                      // Input fills 100% of its label container.
-                      width: "100%",
-                      minWidth: 0,
-                      // Border-box ensures padding/border are included in width calculation.
-                      boxSizing: "border-box",
-                      borderRadius: "var(--radius-md)",
-                      border: "var(--border-width) solid var(--border)",
-                      padding: "var(--space-2)",
-                      background: "var(--surface-1)",
-                      color: "var(--text)",
-                      fontFamily: "var(--font-family)",
-                    }}
-                  />
-                </label>
-
-                {/* Label container: must span full grid column width. */}
-                <label
-                  style={{
-                    display: "grid",
-                    gap: "var(--space-2)",
-                    // Critical: label must be 100% width to fill its grid column.
-                    width: "100%",
-                    minWidth: 0,
-                  }}
-                >
-                  <div style={{ fontWeight: 600 }}>
-                    {uiText.fields.nodeDetails.description}
+                    {uiText.fields.nodeDetails.purpose}
                   </div>
                   <textarea
-                    value={draft.description}
+                    value={draft.purpose}
                     onChange={(e) =>
-                      onFieldChange("description")(e.target.value)
+                      onFieldChange("purpose")(e.target.value)
                     }
-                    placeholder={uiText.placeholders.nodeDescription}
-                    aria-label={uiText.fields.nodeDetails.description}
+                    placeholder={uiText.placeholders.nodePurpose}
+                    aria-label={uiText.fields.nodeDetails.purpose}
                     rows={6}
                     style={{
                       // Textarea fills 100% of its label container.

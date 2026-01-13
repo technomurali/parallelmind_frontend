@@ -31,13 +31,20 @@ export const uiText = {
   },
 
   /**
+   * Menu labels
+   */
+  menus: {
+    file: 'File',
+    configRootFolder: 'Configure Root Folder',
+  },
+
+  /**
    * Form field labels (keep user-facing text centralized here)
    */
   fields: {
     nodeDetails: {
       name: 'Name',
-      title: 'Title',
-      description: 'Description',
+      purpose: 'Purpose',
       createdTime: 'Created',
       updatedTime: 'Updated',
     },
@@ -240,14 +247,13 @@ export const uiText = {
    */
   placeholders: {
     nodeDetails: 'Select a node to see details / editor here (placeholder).',
-    folderTreePlaceholder: '(placeholder) Hook this up to fileManager + root-folder.json later.',
+    folderTreePlaceholder: '(placeholder) Hook this up to fileManager + parallelmind_index.json later.',
     search: 'Search files and folders...',
     fileName: 'Enter file name',
     folderName: 'Enter folder name',
     nodeName: 'Enter node name',
     nodeContent: 'Enter node content...',
-    nodeTitle: 'Enter title',
-    nodeDescription: 'Enter description',
+    nodePurpose: 'Enter purpose',
     settingsContainer: 'Settings Container',
   },
 } as const;

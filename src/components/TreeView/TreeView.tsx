@@ -4,7 +4,7 @@
  * TreeView component for displaying folder and file hierarchy.
  * 
  * This is a placeholder component that will be expanded to:
- * - Display folder structure from root-folder.json
+ * - Display folder structure from parallelmind_index.json
  * - Support file/folder navigation
  * - Handle selection and expansion/collapse
  * - Integrate with FileManager for CRUD operations

@@ -25,7 +25,7 @@ parallelmind_frontend/
 │   │   └── Settings/               # Theme, font, LLM model, and appearance options
 │   │
 │   ├── data/                       # JSON file handling and helpers
-│   │   ├── root-folder.json        # Central JSON file tracking all nodes, folders, files
+│   │   ├── parallelmind_index.json # Central JSON file tracking all nodes, folders, files
 │   │   └── fileManager.ts          # Logic for create, read, update, delete (CRUD) operations
 │   │
 │   ├── hooks/                      # Custom React hooks
@@ -66,9 +66,9 @@ parallelmind_frontend/
 
 ### Data Management
 
-- **`src/data/root-folder.json`** - Central JSON file tracking all nodes, folders, and files. This is the master structure file that maintains the hierarchical organization of the entire mind map.
+- **`src/data/parallelmind_index.json`** - Central JSON file tracking all nodes, folders, and files. This is the master structure file that maintains the hierarchical organization of the entire mind map.
 
-- **`src/data/fileManager.ts`** - Logic for create, read, update, delete (CRUD) operations. Handles all file system operations including creating, reading, updating, and deleting files/folders, plus synchronizing changes with root-folder.json.
+- **`src/data/fileManager.ts`** - Logic for create, read, update, delete (CRUD) operations. Handles all file system operations including creating, reading, updating, and deleting files/folders, plus synchronizing changes with parallelmind_index.json.
 
 ### LLM Integration
 

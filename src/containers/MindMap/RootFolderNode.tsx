@@ -42,19 +42,20 @@ export default function RootFolderNode({
   };
 
   // Extract text content from node data based on display mode.
-  const nodeTitle =
-    typeof data?.title === "string" && data.title.trim() ? data.title : null;
   const nodeName =
     typeof data?.name === "string" && data.name.trim()
       ? data.name.trim()
       : null;
-  const nodeDescription =
-    typeof (data as any)?.description === "string" &&
-    (data as any).description.trim()
-      ? (data as any).description.trim()
-      : null;
+  const nodePurpose =
+    typeof (data as any)?.purpose === "string" &&
+    (data as any).purpose.trim()
+      ? (data as any).purpose.trim()
+      : (typeof (data as any)?.description === "string" &&
+        (data as any).description.trim()
+          ? (data as any).description.trim()
+          : null);
 
-  // Build tooltip with name, title, and description on separate lines.
+  // Build tooltip with name and purpose on separate lines.
   // Each field wraps to multiple lines with approximately 8 words per line.
   const tooltipText = (() => {
     // Wrap text to approximately 8 words per line, preserving all content.
@@ -71,11 +72,13 @@ export default function RootFolderNode({
     if (typeof data?.name === "string" && data.name.trim()) {
       parts.push(wrapWords(data.name, 8));
     }
-    if (typeof data?.title === "string" && data.title.trim()) {
-      parts.push(wrapWords(data.title, 8));
-    }
-    if (typeof data?.description === "string" && data.description.trim()) {
-      parts.push(wrapWords(data.description, 8));
+    const purpose = typeof (data as any)?.purpose === "string" && (data as any).purpose.trim()
+      ? (data as any).purpose
+      : (typeof (data as any)?.description === "string" && (data as any).description.trim()
+          ? (data as any).description
+          : null);
+    if (purpose) {
+      parts.push(wrapWords(purpose, 8));
     }
     return parts.length > 0 ? parts.join("\n") : undefined;
   })();
@@ -363,37 +366,7 @@ export default function RootFolderNode({
                 </div>
               </div>
 
-              {/* Title section */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "2px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "var(--node-details-label-font-size, 5px)",
-                    opacity: 0.75,
-                    fontWeight: 600,
-                  }}
-                >
-                  Title
-                </div>
-                <div
-                  style={{
-                    fontSize: "var(--node-details-content-font-size, 9px)",
-                    lineHeight: "1.25",
-                    wordBreak: "break-word",
-                    overflowWrap: "break-word",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {nodeTitle ?? ""}
-                </div>
-              </div>
-
-              {/* Description section */}
+              {/* Purpose section */}
               <div
                 style={{
                   display: "flex",
@@ -408,7 +381,7 @@ export default function RootFolderNode({
                     fontWeight: 600,
                   }}
                 >
-                  Description
+                  Purpose
                 </div>
                 <div
                   style={{
@@ -419,7 +392,7 @@ export default function RootFolderNode({
                     whiteSpace: "pre-wrap",
                   }}
                 >
-                  {nodeDescription ?? ""}
+                  {nodePurpose ?? ""}
                 </div>
               </div>
             </>

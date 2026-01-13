@@ -554,7 +554,7 @@ export default function MindMap() {
                       name: "",
                       header: "",
                       title: "",
-                      description: "",
+                      purpose: "",
                       // Preserve parent context for finalize step (in-memory only).
                       parentId: parentNodeId,
                       // Marks the node as temporary until the required name is saved.
