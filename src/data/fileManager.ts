@@ -18,17 +18,55 @@ export interface FileNode {
   content?: string;
 }
 
-export type RootFolderJson = {
-  id: number; // root must be 0 (number type) when written
-  node_id: '00'; // root node id (string)
-  level_id: number; // root must be 0 (number type) when written
-  node_type: 'root_folder';
-  created_date: string; // ISO timestamp
-  update_date: string; // ISO timestamp
-  path: string; // absolute path when available from runtime; otherwise preserved if already present
+export type FolderTypeByLevel = "folder_A" | "folder_B" | "folder_C" | "folder_D";
+export type FileTypeByLevel = "file_A" | "file_B" | "file_C" | "file_D";
+
+export type IndexFolderNode = {
+  id: string;
   name: string;
   purpose: string;
-  children: unknown[];
+  type: FolderTypeByLevel;
+  level: 1 | 2 | 3 | 4;
+  path: string; // absolute (desktop) or relative-from-root (web)
+  created_on: string;
+  updated_on: string;
+  last_viewed_on: string;
+  views: number;
+  child: IndexNode[];
+};
+
+export type IndexFileNode = {
+  id: string;
+  name: string; // filename without extension
+  extension: string; // e.g. "txt", "pdf"; empty string if no extension
+  purpose: string;
+  type: FileTypeByLevel;
+  level: 1 | 2 | 3 | 4;
+  path: string; // absolute (desktop) or relative-from-root (web)
+  created_on: string;
+  updated_on: string;
+  last_viewed_on: string;
+  views: number;
+};
+
+export type IndexNode = IndexFolderNode | IndexFileNode;
+
+export type RootFolderJson = {
+  schema_version: "1.0.0";
+  id: string; // UUID
+  name: string; // folder name of ROOT_PATH
+  purpose: string; // user provides later
+  type: "root_folder";
+  level: 0;
+  path: string; // absolute path in desktop mode; empty string in browser mode
+  created_on: string; // ISO UTC timestamp
+  updated_on: string; // ISO UTC timestamp
+  last_viewed_on: string; // ISO UTC timestamp
+  views: number;
+  notifications: string[];
+  recommendations: string[];
+  error_messages: string[];
+  child: IndexNode[];
 };
 
 /**
@@ -40,9 +78,19 @@ export type RootFolderJson = {
  */
 export class FileManager {
   private static ROOT_FILE_NAME = 'parallelmind_index.json' as const;
+  private static MAX_LEVEL = 4 as const;
 
   private nowIso(): string {
     return new Date().toISOString();
+  }
+
+  private generateUuid(): string {
+    // Browser + Tauri frontend should support crypto.randomUUID in modern runtimes.
+    // Fallback kept lightweight.
+    const c = (globalThis as any)?.crypto;
+    if (c?.randomUUID) return c.randomUUID();
+    // Fallback: not a true UUIDv4, but unique enough for local ids if crypto.randomUUID is unavailable.
+    return `pm_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   }
 
   private isTauri(): boolean {
@@ -61,28 +109,433 @@ export class FileManager {
     return parts[parts.length - 1] || trimmed;
   }
 
-  /**
-   * Normalizes any parsed JSON into the strict root folder index schema.
-   * Important: this does NOT write to disk; it only shapes data in-memory.
-   */
-  private normalizeRootFolderJson(input: unknown, fallbackFolderName: string): RootFolderJson {
-    const obj = (input ?? {}) as any;
-    const children = Array.isArray(obj.children) ? obj.children : [];
-    const created = typeof obj.created_date === 'string' ? obj.created_date : this.nowIso();
-    const updated = typeof obj.update_date === 'string' ? obj.update_date : created;
-    const path = typeof obj.path === 'string' ? obj.path : '';
+  private folderTypeForLevel(level: number): FolderTypeByLevel {
+    if (level === 1) return "folder_A";
+    if (level === 2) return "folder_B";
+    if (level === 3) return "folder_C";
+    return "folder_D";
+  }
+
+  private fileTypeForLevel(level: number): FileTypeByLevel {
+    if (level === 1) return "file_A";
+    if (level === 2) return "file_B";
+    if (level === 3) return "file_C";
+    return "file_D";
+  }
+
+  private splitFileName(fileName: string): { name: string; extension: string } {
+    const trimmed = (fileName ?? "").trim();
+    const lastDot = trimmed.lastIndexOf(".");
+    if (lastDot <= 0 || lastDot === trimmed.length - 1) {
+      return { name: trimmed, extension: "" };
+    }
     return {
-      id: 0,
-      node_id: '00',
-      level_id: 0,
-      node_type: 'root_folder',
-      created_date: created,
-      update_date: updated,
-      path,
-      name: typeof obj.name === 'string' ? obj.name : fallbackFolderName,
-      purpose: typeof obj.purpose === 'string' ? obj.purpose : (typeof obj.description === 'string' ? obj.description : ''),
-      children,
+      name: trimmed.slice(0, lastDot),
+      extension: trimmed.slice(lastDot + 1),
     };
+  }
+
+  private joinRel(parent: string, childName: string): string {
+    const p = (parent ?? "").replace(/\/+$/, "");
+    const c = (childName ?? "").replace(/^\/+/, "");
+    return p ? `${p}/${c}` : c;
+  }
+
+  /**
+   * Validates parsed JSON as the strict v1.0.0 root folder index schema.
+   * Returns null when the schema is missing/invalid (treated as "no index").
+   *
+   * Note: We intentionally do NOT support old schemas anymore.
+   */
+  private parseRootFolderJsonV1(input: unknown): RootFolderJson | null {
+    const obj = (input ?? {}) as any;
+    if (!obj || typeof obj !== "object") return null;
+    if (obj.schema_version !== "1.0.0") return null;
+    if (obj.type !== "root_folder") return null;
+    if (obj.level !== 0) return null;
+
+    const requiredString = (v: unknown) => typeof v === "string" && v.trim().length > 0;
+    if (!requiredString(obj.id)) return null;
+    if (!requiredString(obj.name)) return null;
+
+    // purpose can be empty (user gives later)
+    const purpose = typeof obj.purpose === "string" ? obj.purpose : "";
+
+    const path = typeof obj.path === "string" ? obj.path : "";
+
+    const created_on = typeof obj.created_on === "string" ? obj.created_on : "";
+    const updated_on = typeof obj.updated_on === "string" ? obj.updated_on : created_on;
+    const last_viewed_on =
+      typeof obj.last_viewed_on === "string" ? obj.last_viewed_on : created_on;
+
+    const views = typeof obj.views === "number" && Number.isFinite(obj.views) ? obj.views : 0;
+
+    const notifications = Array.isArray(obj.notifications)
+      ? obj.notifications.filter((x: any) => typeof x === "string")
+      : [];
+    const recommendations = Array.isArray(obj.recommendations)
+      ? obj.recommendations.filter((x: any) => typeof x === "string")
+      : [];
+    const error_messages = Array.isArray(obj.error_messages)
+      ? obj.error_messages.filter((x: any) => typeof x === "string")
+      : [];
+
+    const child = Array.isArray(obj.child) ? (obj.child as IndexNode[]) : [];
+
+    return {
+      schema_version: "1.0.0",
+      id: obj.id,
+      name: obj.name,
+      purpose,
+      type: "root_folder",
+      level: 0,
+      path,
+      created_on,
+      updated_on,
+      last_viewed_on,
+      views,
+      notifications,
+      recommendations,
+      error_messages,
+      child,
+    };
+  }
+
+  private buildNewRootFolderJson(args: {
+    name: string;
+    path: string;
+    now?: string;
+  }): RootFolderJson {
+    const now = args.now ?? this.nowIso();
+    return {
+      schema_version: "1.0.0",
+      id: this.generateUuid(),
+      name: args.name,
+      purpose: "",
+      type: "root_folder",
+      level: 0,
+      path: args.path,
+      created_on: now,
+      updated_on: now,
+      last_viewed_on: now,
+      views: 0,
+      notifications: [],
+      recommendations: [],
+      error_messages: [],
+      child: [],
+    };
+  }
+
+  /**
+   * Initialize (rebuild) the ParallelMind index by scanning the selected folder.
+   * This always constructs from scratch and only writes to disk at the end.
+   */
+  async initializeIndexFromHandle(
+    dirHandle: FileSystemDirectoryHandle,
+  ): Promise<RootFolderJson> {
+    const now = this.nowIso();
+    // Web mode: root path is not available; use empty string.
+    const root = this.buildNewRootFolderJson({ name: dirHandle.name, path: "", now });
+
+    // Root notification: if any non-index FILE exists at root before initialization.
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === "file" && entry.name !== FileManager.ROOT_FILE_NAME) {
+        root.notifications.push("Root folder contained files before initialization");
+        break;
+      }
+    }
+
+    // Build children (level 1).
+    root.child = await this.scanDirectoryHandle(
+      dirHandle,
+      1,
+      "",
+      root.notifications,
+      now,
+    );
+
+    // Persist once at the end.
+    await this.writeRootFolderJson(dirHandle, root);
+    return root;
+  }
+
+  async initializeIndexFromPath(rootPath: string): Promise<RootFolderJson> {
+    const now = this.nowIso();
+    const rootName = this.baseNameFromPath(rootPath);
+    const root = this.buildNewRootFolderJson({ name: rootName, path: rootPath, now });
+
+    try {
+      const { readDir } = await import("@tauri-apps/plugin-fs");
+      const entries = await readDir(rootPath);
+      if (entries.some((e: any) => e?.isFile && e?.name !== FileManager.ROOT_FILE_NAME)) {
+        root.notifications.push("Root folder contained files before initialization");
+      }
+      root.child = await this.scanDirPath(rootPath, 1, rootPath, root.notifications, now);
+    } catch (err) {
+      // If scanning fails, do not write partial results. Surface as root error message.
+      root.error_messages.push(`Failed to scan root folder: ${String(err)}`);
+      root.child = [];
+    }
+
+    await this.writeRootFolderJsonFromPathAtomic(rootPath, root);
+    return root;
+  }
+
+  private async scanDirectoryHandle(
+    dirHandle: FileSystemDirectoryHandle,
+    level: number,
+    parentRel: string,
+    rootNotifications: string[],
+    now: string,
+  ): Promise<IndexNode[]> {
+    // If the branch is beyond max depth, do not create nodes.
+    if (level > FileManager.MAX_LEVEL) return [];
+
+    const nodes: IndexNode[] = [];
+
+    // Prefer stable order: folders first, then files (by name).
+    const dirs: FileSystemDirectoryHandle[] = [];
+    const files: FileSystemFileHandle[] = [];
+    for await (const entry of dirHandle.values()) {
+      if (level === 1 && entry.name === FileManager.ROOT_FILE_NAME) continue;
+      if (entry.kind === "directory") dirs.push(entry);
+      else if (entry.kind === "file") files.push(entry);
+    }
+    dirs.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    files.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+    for (const d of dirs) {
+      const relPath = this.joinRel(parentRel, d.name);
+      const folderNode: IndexFolderNode = {
+        id: this.generateUuid(),
+        name: d.name,
+        purpose: "",
+        type: this.folderTypeForLevel(level),
+        level: level as 1 | 2 | 3 | 4,
+        path: relPath,
+        created_on: now,
+        updated_on: now,
+        last_viewed_on: now,
+        views: 0,
+        child: [],
+      };
+      if (level < FileManager.MAX_LEVEL) {
+        folderNode.child = await this.scanDirectoryHandle(
+          d,
+          level + 1,
+          relPath,
+          rootNotifications,
+          now,
+        );
+      } else {
+        // folder_D: do not descend into subfolders, but files are allowed.
+        folderNode.child = await this.scanDirectoryHandleFilesOnlyAtMaxLevel(
+          d,
+          relPath,
+          rootNotifications,
+          now,
+        );
+      }
+      nodes.push(folderNode);
+    }
+
+    for (const f of files) {
+      const relPath = this.joinRel(parentRel, f.name);
+      const parts = this.splitFileName(f.name);
+      const fileNode: IndexFileNode = {
+        id: this.generateUuid(),
+        name: parts.name,
+        extension: parts.extension,
+        purpose: "",
+        type: this.fileTypeForLevel(level),
+        level: level as 1 | 2 | 3 | 4,
+        path: relPath,
+        created_on: now,
+        updated_on: now,
+        last_viewed_on: now,
+        views: 0,
+      };
+      nodes.push(fileNode);
+    }
+
+    return nodes;
+  }
+
+  private async scanDirectoryHandleFilesOnlyAtMaxLevel(
+    dirHandle: FileSystemDirectoryHandle,
+    parentRel: string,
+    rootNotifications: string[],
+    now: string,
+  ): Promise<IndexNode[]> {
+    const files: FileSystemFileHandle[] = [];
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === "directory") {
+        const relPath = this.joinRel(parentRel, entry.name);
+        rootNotifications.push(`Maximum folder depth exceeded at ${relPath}`);
+        continue;
+      }
+      if (entry.kind === "file") files.push(entry);
+    }
+    files.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    return files.map((f) => {
+      const relPath = this.joinRel(parentRel, f.name);
+      const parts = this.splitFileName(f.name);
+      const fileNode: IndexFileNode = {
+        id: this.generateUuid(),
+        name: parts.name,
+        extension: parts.extension,
+        purpose: "",
+        type: this.fileTypeForLevel(FileManager.MAX_LEVEL),
+        level: FileManager.MAX_LEVEL,
+        path: relPath,
+        created_on: now,
+        updated_on: now,
+        last_viewed_on: now,
+        views: 0,
+      };
+      return fileNode;
+    });
+  }
+
+  private async scanDirPath(
+    dirPath: string,
+    level: number,
+    parentPath: string,
+    rootNotifications: string[],
+    now: string,
+  ): Promise<IndexNode[]> {
+    if (level > FileManager.MAX_LEVEL) return [];
+
+    const nodes: IndexNode[] = [];
+    const { readDir } = await import("@tauri-apps/plugin-fs");
+
+    const entries = await readDir(dirPath);
+    const dirs = entries.filter((e: any) => e?.isDirectory && !e?.isSymlink);
+    const files = entries.filter((e: any) => e?.isFile && !e?.isSymlink);
+
+    dirs.sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)));
+    files.sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)));
+
+    for (const d of dirs) {
+      const absPath = this.joinPath(parentPath, d.name);
+
+      const folderNode: IndexFolderNode = {
+        id: this.generateUuid(),
+        name: d.name,
+        purpose: "",
+        type: this.folderTypeForLevel(level),
+        level: level as 1 | 2 | 3 | 4,
+        path: absPath,
+        created_on: now,
+        updated_on: now,
+        last_viewed_on: now,
+        views: 0,
+        child: [],
+      };
+      if (level < FileManager.MAX_LEVEL) {
+        folderNode.child = await this.scanDirPath(
+          absPath,
+          level + 1,
+          absPath,
+          rootNotifications,
+          now,
+        );
+      } else {
+        folderNode.child = await this.scanDirPathFilesOnlyAtMaxLevel(
+          absPath,
+          absPath,
+          rootNotifications,
+          now,
+        );
+      }
+      nodes.push(folderNode);
+    }
+
+    for (const f of files) {
+      if (level === 1 && f.name === FileManager.ROOT_FILE_NAME) continue;
+      const absPath = this.joinPath(parentPath, f.name);
+      const parts = this.splitFileName(f.name);
+      const fileNode: IndexFileNode = {
+        id: this.generateUuid(),
+        name: parts.name,
+        extension: parts.extension,
+        purpose: "",
+        type: this.fileTypeForLevel(level),
+        level: level as 1 | 2 | 3 | 4,
+        path: absPath,
+        created_on: now,
+        updated_on: now,
+        last_viewed_on: now,
+        views: 0,
+      };
+      nodes.push(fileNode);
+    }
+
+    return nodes;
+  }
+
+  private async scanDirPathFilesOnlyAtMaxLevel(
+    dirPath: string,
+    parentPath: string,
+    rootNotifications: string[],
+    now: string,
+  ): Promise<IndexNode[]> {
+    const { readDir } = await import("@tauri-apps/plugin-fs");
+    const entries = await readDir(dirPath);
+    const nodes: IndexNode[] = [];
+
+    // Any subfolder at level 4 -> notification, skip it.
+    for (const e of entries as any[]) {
+      if (e?.isSymlink) continue;
+      if (e?.isDirectory) {
+        const absPath = this.joinPath(parentPath, e.name);
+        rootNotifications.push(`Maximum folder depth exceeded at ${absPath}`);
+      }
+    }
+
+    const files = (entries as any[]).filter((e) => e?.isFile && !e?.isSymlink);
+    files.sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)));
+    for (const f of files) {
+      const absPath = this.joinPath(parentPath, f.name);
+      const parts = this.splitFileName(f.name);
+      const fileNode: IndexFileNode = {
+        id: this.generateUuid(),
+        name: parts.name,
+        extension: parts.extension,
+        purpose: "",
+        type: this.fileTypeForLevel(FileManager.MAX_LEVEL),
+        level: FileManager.MAX_LEVEL,
+        path: absPath,
+        created_on: now,
+        updated_on: now,
+        last_viewed_on: now,
+        views: 0,
+      };
+      nodes.push(fileNode);
+    }
+    return nodes;
+  }
+
+  private async writeRootFolderJsonFromPathAtomic(
+    dirPath: string,
+    root: RootFolderJson,
+  ): Promise<void> {
+    const { writeTextFile, rename, remove } = await import("@tauri-apps/plugin-fs");
+    const finalPath = this.joinPath(dirPath, FileManager.ROOT_FILE_NAME);
+    const tmpPath = this.joinPath(dirPath, `${FileManager.ROOT_FILE_NAME}.tmp`);
+    const payload = JSON.stringify(root, null, 2);
+    await writeTextFile(tmpPath, payload, { create: true });
+    try {
+      await rename(tmpPath, finalPath);
+    } catch {
+      // Fallback: write directly, then best-effort cleanup.
+      await writeTextFile(finalPath, payload, { create: true });
+      try {
+        await remove(tmpPath);
+      } catch {
+        // ignore
+      }
+    }
   }
 
   /**
@@ -99,7 +552,7 @@ export class FileManager {
       const file = await fileHandle.getFile();
       const text = await file.text();
       const parsed = JSON.parse(text);
-      return this.normalizeRootFolderJson(parsed, dirHandle.name);
+      return this.parseRootFolderJsonV1(parsed);
     } catch (err) {
       // Missing file is expected for first-time roots.
       if (err instanceof DOMException && err.name === 'NotFoundError') return null;
@@ -163,7 +616,7 @@ export class FileManager {
       if (!(await exists(filePath))) return null;
       const text = await readTextFile(filePath);
       const parsed = JSON.parse(text);
-      return this.normalizeRootFolderJson(parsed, this.baseNameFromPath(dirPath));
+      return this.parseRootFolderJsonV1(parsed);
     } catch {
       return null;
     }
@@ -176,28 +629,55 @@ export class FileManager {
     }
 
     try {
+      // Enforce strict v1.0.0 schema on write.
       const now = this.nowIso();
       const existing = await this.readRootFolderJsonFromPath(dirPath);
-      const createdDate = root.created_date || existing?.created_date || now;
+      const created_on =
+        (root.created_on && typeof root.created_on === "string" && root.created_on) ||
+        existing?.created_on ||
+        now;
+      const last_viewed_on =
+        (root.last_viewed_on && typeof root.last_viewed_on === "string" && root.last_viewed_on) ||
+        existing?.last_viewed_on ||
+        created_on;
 
       const normalized: RootFolderJson = {
-        id: 0,
-        node_id: '00',
-        level_id: 0,
-        node_type: 'root_folder',
-        created_date: createdDate,
-        update_date: now,
+        schema_version: "1.0.0",
+        id:
+          (typeof root.id === "string" && root.id) ||
+          existing?.id ||
+          this.generateUuid(),
+        name:
+          (typeof root.name === "string" && root.name) ||
+          existing?.name ||
+          this.baseNameFromPath(dirPath),
+        purpose: typeof root.purpose === "string" ? root.purpose : existing?.purpose ?? "",
+        type: "root_folder",
+        level: 0,
         path: dirPath,
-        name: root.name ?? this.baseNameFromPath(dirPath),
-        purpose: root.purpose ?? '',
-        children: Array.isArray(root.children) ? root.children : existing?.children ?? [],
+        created_on,
+        updated_on:
+          (typeof root.updated_on === "string" && root.updated_on) ||
+          existing?.updated_on ||
+          now,
+        last_viewed_on,
+        views:
+          typeof root.views === "number" && Number.isFinite(root.views)
+            ? root.views
+            : existing?.views ?? 0,
+        notifications: Array.isArray(root.notifications)
+          ? root.notifications
+          : existing?.notifications ?? [],
+        recommendations: Array.isArray(root.recommendations)
+          ? root.recommendations
+          : existing?.recommendations ?? [],
+        error_messages: Array.isArray(root.error_messages)
+          ? root.error_messages
+          : existing?.error_messages ?? [],
+        child: Array.isArray(root.child) ? (root.child as IndexNode[]) : existing?.child ?? [],
       };
 
-      const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-      const filePath = this.joinPath(dirPath, FileManager.ROOT_FILE_NAME);
-      console.log('[FileManager] Writing parallelmind_index.json to:', filePath);
-      await writeTextFile(filePath, JSON.stringify(normalized, null, 2), { create: true });
-      console.log('[FileManager] Successfully wrote parallelmind_index.json');
+      await this.writeRootFolderJsonFromPathAtomic(dirPath, normalized);
     } catch (error) {
       console.error('[FileManager] Failed to write parallelmind_index.json:', error);
       throw error;
@@ -213,26 +693,14 @@ export class FileManager {
 
     const existing = await this.readRootFolderJsonFromPath(dirPath);
     if (existing) {
-      // Always ensure path is set, even if it wasn't in the file
-      const rootWithPath = { ...existing, path: dirPath };
-      console.log('[FileManager] Loaded existing parallelmind_index.json from:', dirPath);
-      return { root: rootWithPath, created: false };
+      // Ensure path is set (desktop mode should always have absolute path).
+      return { root: { ...existing, path: dirPath }, created: false };
     }
 
-    const now = this.nowIso();
-    const createdRoot: RootFolderJson = {
-      id: 0,
-      node_id: '00',
-      level_id: 0,
-      node_type: 'root_folder',
-      created_date: now,
-      update_date: now,
-      path: dirPath,
+    const createdRoot = this.buildNewRootFolderJson({
       name: this.baseNameFromPath(dirPath),
-      purpose: '',
-      children: [],
-    };
-    console.log('[FileManager] Creating new parallelmind_index.json at:', dirPath);
+      path: dirPath,
+    });
     await this.writeRootFolderJsonFromPath(dirPath, createdRoot);
     return { root: createdRoot, created: true };
   }
@@ -244,27 +712,11 @@ export class FileManager {
   async createRootFolderJson(
     dirHandle: FileSystemDirectoryHandle,
   ): Promise<RootFolderJson> {
-    const now = this.nowIso();
-    // Note: Standard browsers do not expose absolute OS paths for security reasons.
-    // Some desktop runtimes/wrappers may add a non-standard `path` field to the handle.
-    const path =
-      typeof (dirHandle as any)?.path === 'string'
-        ? (dirHandle as any).path
-        : typeof (dirHandle as any)?.fullPath === 'string'
-          ? (dirHandle as any).fullPath
-          : '';
-    const root: RootFolderJson = {
-      id: 0,
-      node_id: '00',
-      level_id: 0,
-      node_type: 'root_folder',
-      created_date: now,
-      update_date: now,
-      path,
+    // Browser mode: we cannot reliably know an absolute path. Per spec, store "".
+    const root = this.buildNewRootFolderJson({
       name: dirHandle.name,
-      purpose: '',
-      children: [],
-    };
+      path: "",
+    });
     await this.writeRootFolderJson(dirHandle, root);
     return root;
   }
@@ -274,34 +726,52 @@ export class FileManager {
     root: RootFolderJson,
   ): Promise<void> {
     const now = this.nowIso();
-
-    // Normalize to the strict schema (no extra keys; correct id/node_id/level_id types).
-    // NOTE: children are preserved to avoid wiping existing tree data.
-    // created_date is preserved when possible; update_date is always refreshed on write.
-    let createdDate = root.created_date;
-    if (typeof createdDate !== 'string' || !createdDate) {
       const existing = await this.readRootFolderJson(dirHandle);
-      createdDate = existing?.created_date ?? now;
-    }
 
-    // Preserve path when not provided (avoid clobbering a previously known absolute path).
-    let path = root.path;
-    if (typeof path !== 'string' || !path) {
-      const existing = await this.readRootFolderJson(dirHandle);
-      path = existing?.path ?? '';
-    }
+    const created_on =
+      (root.created_on && typeof root.created_on === "string" && root.created_on) ||
+      existing?.created_on ||
+      now;
+    const last_viewed_on =
+      (root.last_viewed_on && typeof root.last_viewed_on === "string" && root.last_viewed_on) ||
+      existing?.last_viewed_on ||
+      created_on;
 
     const normalized: RootFolderJson = {
-      id: 0,
-      node_id: '00',
-      level_id: 0,
-      node_type: 'root_folder',
-      created_date: createdDate,
-      update_date: now,
-      path,
-      name: root.name ?? '',
-      purpose: root.purpose ?? '',
-      children: Array.isArray(root.children) ? root.children : [],
+      schema_version: "1.0.0",
+      id:
+        (typeof root.id === "string" && root.id) ||
+        existing?.id ||
+        this.generateUuid(),
+      name:
+        (typeof root.name === "string" && root.name) ||
+        existing?.name ||
+        dirHandle.name,
+      purpose: typeof root.purpose === "string" ? root.purpose : existing?.purpose ?? "",
+      type: "root_folder",
+      level: 0,
+      // Browser mode: keep empty string. (Do not attempt to infer absolute path.)
+      path: "",
+      created_on,
+      updated_on:
+        (typeof root.updated_on === "string" && root.updated_on) ||
+        existing?.updated_on ||
+        now,
+      last_viewed_on,
+      views:
+        typeof root.views === "number" && Number.isFinite(root.views)
+          ? root.views
+          : existing?.views ?? 0,
+      notifications: Array.isArray(root.notifications)
+        ? root.notifications
+        : existing?.notifications ?? [],
+      recommendations: Array.isArray(root.recommendations)
+        ? root.recommendations
+        : existing?.recommendations ?? [],
+      error_messages: Array.isArray(root.error_messages)
+        ? root.error_messages
+        : existing?.error_messages ?? [],
+      child: Array.isArray(root.child) ? (root.child as IndexNode[]) : existing?.child ?? [],
     };
 
     const fileHandle = await dirHandle.getFileHandle(FileManager.ROOT_FILE_NAME, {

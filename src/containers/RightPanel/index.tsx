@@ -222,18 +222,23 @@ export default function RightPanel() {
 
       const nowIso = new Date().toISOString();
       const payload = {
-        id: 0,
-        node_id: "00",
-        level_id: 0,
-        node_type: "root_folder",
-        // Dates are finalized by FileManager.writeRootFolderJson (created preserved, update refreshed).
-        created_date: rootFolderJson?.created_date ?? "",
-        update_date: rootFolderJson?.update_date ?? "",
-        path: rootFolderJson?.path ?? "",
-        name: draft.name,
+        schema_version: "1.0.0",
+        id: rootFolderJson?.id ?? "",
+        name: draft.name.trim(),
         purpose: draft.purpose,
-        // Preserve existing children (depth logic is out of scope, but we must not wipe it).
-        children: rootFolderJson?.children ?? [],
+        type: "root_folder",
+        level: 0,
+        // Browser mode keeps path empty; desktop mode uses absolute path.
+        path: rootFolderJson?.path ?? "",
+        created_on: rootFolderJson?.created_on ?? "",
+        updated_on: nowIso,
+        // Views logic handled later; keep as-is.
+        last_viewed_on: rootFolderJson?.last_viewed_on ?? rootFolderJson?.created_on ?? "",
+        views: rootFolderJson?.views ?? 0,
+        notifications: rootFolderJson?.notifications ?? [],
+        recommendations: rootFolderJson?.recommendations ?? [],
+        error_messages: rootFolderJson?.error_messages ?? [],
+        child: rootFolderJson?.child ?? [],
       };
 
       try {
@@ -259,7 +264,7 @@ export default function RightPanel() {
         }
 
         // Update in-memory model timestamp so the panel reflects the latest save immediately.
-        updateNodeData(selectedNodeId, { update_date: nowIso });
+        updateNodeData(selectedNodeId, { updated_on: nowIso });
         setDirty(false);
         setSaveStatus("saved");
       } catch (error) {
@@ -563,11 +568,11 @@ export default function RightPanel() {
                 >
                   <div style={{ width: "100%" }}>
                     {uiText.fields.nodeDetails.createdTime}: "
-                    {formatDateTime(rootFolderJson?.created_date)}"
+                    {formatDateTime(rootFolderJson?.created_on)}"
                   </div>
                   <div style={{ width: "100%" }}>
                     {uiText.fields.nodeDetails.updatedTime}: "
-                    {formatDateTime(rootFolderJson?.update_date)}"
+                    {formatDateTime(rootFolderJson?.updated_on)}"
                   </div>
                 </div>
               )}

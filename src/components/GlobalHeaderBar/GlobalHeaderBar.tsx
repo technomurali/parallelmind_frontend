@@ -12,11 +12,13 @@ type GlobalHeaderBarProps = {
   title?: string;
 };
 
-export function GlobalHeaderBar({ title }: GlobalHeaderBarProps) {
+export function GlobalHeaderBar({ title: _title }: GlobalHeaderBarProps) {
   const toggleSettings = useMindMapStore((s) => s.toggleSettings);
   const rootDirectoryHandle = useMindMapStore((s) => s.rootDirectoryHandle);
   const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
   const setRoot = useMindMapStore((s) => s.setRoot);
+  const clearRoot = useMindMapStore((s) => s.clearRoot);
+  const selectNode = useMindMapStore((s) => s.selectNode);
   const fileManager = useMemo(() => new FileManager(), []);
   
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
@@ -42,11 +44,19 @@ export function GlobalHeaderBar({ title }: GlobalHeaderBarProps) {
    */
   const onConfigRootFolder = async () => {
     setFileMenuOpen(false);
-    const selection = await fileManager.pickRootDirectory();
+    let selection: FileSystemDirectoryHandle | string | null = null;
+    try {
+      selection = await fileManager.pickRootDirectory();
+    } catch (err) {
+      // Silent by UX rules; keep a console breadcrumb for debugging.
+      console.error("[GlobalHeaderBar] pickRootDirectory failed:", err);
+      return;
+    }
     if (!selection) return; // Silent cancel - user closed picker
 
     // If a root already exists and the user picked a different folder, confirm replacement.
-    if (rootDirectoryHandle || rootFolderJson?.path) {
+    // Note: in browser mode `rootFolderJson.path` can be empty by design.
+    if (rootDirectoryHandle || rootFolderJson) {
       let isSame = false;
       if (typeof selection === "string") {
         isSame = rootFolderJson?.path === selection;
@@ -64,19 +74,28 @@ export function GlobalHeaderBar({ title }: GlobalHeaderBarProps) {
       if (!isSame) {
         const ok = window.confirm(uiText.alerts.confirmReplaceRootFolder);
         if (!ok) return;
+        // Switching to a new root must reset the in-memory graph and selection state,
+        // otherwise nodes/edges from the previous root can leak into the new workspace.
+        clearRoot();
       }
     }
 
-    if (typeof selection === "string") {
-      const { root } = await fileManager.loadOrCreateRootFolderJsonFromPath(
-        selection
-      );
-      setRoot(null, root);
-      return;
-    }
+    try {
+      // Spec-confirmed behavior: ALWAYS rebuild from scratch by scanning and overwrite index.
+      if (typeof selection === "string") {
+        const root = await fileManager.initializeIndexFromPath(selection);
+        setRoot(null, root);
+      } else {
+        const root = await fileManager.initializeIndexFromHandle(selection);
+        setRoot(selection, root);
+      }
 
-    const { root } = await fileManager.loadOrCreateRootFolderJson(selection);
-    setRoot(selection, root);
+      // Immediately focus the new root in the UI so the details panel is usable right away.
+      selectNode("00");
+    } catch (err) {
+      // Silent by UX rules; keep a console breadcrumb for debugging.
+      console.error("[GlobalHeaderBar] configure root failed:", err);
+    }
   };
 
   return (

@@ -328,6 +328,10 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
     set({
       rootDirectoryHandle: null,
       rootFolderJson: null,
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      pendingChildCreation: null,
+      inlineEditNodeId: null,
       nodes: [],
       edges: [],
     }),
