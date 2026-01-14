@@ -182,106 +182,63 @@ export default function RootFolderNode({
   const svgWidth = 200;
   const svgHeight = 150;
 
+  // Handle placement: align to the SVG folder outline (not the SVG bounds).
+  // The folder path's x/y extents were authored in the `SvgFolderNode` viewBox (0..512 x 0..384).
+  //
+  // Important: the folder "tab/bump" is on the left, so the TOP handle should not share the
+  // same x-center as the bottom handle (which is centered on the overall folder body).
+  const viewBoxWidth = 512;
+  const viewBoxHeight = 384;
+  const outlineTopY = 24;
+  const outlineBottomY = 332;
+
+  // These x positions are derived from the path:
+  // - Tab top segment runs roughly from x=146..204 => center ~175
+  // - Bottom body runs roughly from x=96..440 => center ~268
+  const topHandleX = 175;
+  const bottomHandleX = 268;
+
+  const topHandleLeft = `${(topHandleX / viewBoxWidth) * 100}%`;
+  const bottomHandleLeft = `${(bottomHandleX / viewBoxWidth) * 100}%`;
+  const topHandleY = (outlineTopY / viewBoxHeight) * svgHeight;
+  const bottomHandleY = (outlineBottomY / viewBoxHeight) * svgHeight;
+
+  // User-requested: 50% of current size.
+  const handleSize = 5;
+  const handleStyleBase: React.CSSProperties = {
+    width: handleSize,
+    height: handleSize,
+    borderRadius: "50%",
+    // User-requested: always gray (no selection/primary tint).
+    background: "transparent",
+    border: "2px solid var(--border)",
+    opacity: 1,
+    transform: "translate(-50%, -50%)",
+    zIndex: 5,
+  };
+
   return (
-    <>
-      {/* Outer wrapper div: transparent container that centers the node content and provides space for connection handles */}
-      <div
-        style={{
-          background: "transparent",
-          border: "none",
-          borderRadius: "var(--radius-md)",
-          color: "var(--text)",
-          padding: 0,
-          display: "grid",
-          justifyItems: "center",
-        }}
-      >
-      {/* 
-        Connection handles for edges - visible and interactive on all sides.
-        Handles allow connections from any direction for flexible node linking.
-      */}
+    <div
+      style={{
+        background: "transparent",
+        border: "none",
+        borderRadius: "var(--radius-md)",
+        color: "var(--text)",
+        padding: 0,
+        display: "grid",
+        justifyItems: "center",
+        position: "relative",
+      }}
+    >
+      {/* Handles: exactly top-center (bump) + bottom-center (as in the screenshot). */}
       <Handle
         type="target"
         position={Position.Top}
         id="target-top"
         style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          top: -3,
-        }}
-      />
-      <Handle
-        type="target"
-        position={Position.Right}
-        id="target-right"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          right: -3,
-        }}
-      />
-      <Handle
-        type="target"
-        position={Position.Bottom}
-        id="target-bottom"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          bottom: -3,
-        }}
-      />
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="target-left"
-        style={{
-          width: 3,
-          height: 3,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          left: -3,
-        }}
-      />
-      <Handle
-        type="source"
-        position={Position.Top}
-        id="source-top"
-        style={{
-          width: 3,
-          height: 3,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          top: -3,
-        }}
-      />
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="source-right"
-        style={{
-          width: 3,
-          height: 3,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          right: -3,
+          ...handleStyleBase,
+          left: topHandleLeft,
+          top: topHandleY,
         }}
       />
       <Handle
@@ -289,29 +246,12 @@ export default function RootFolderNode({
         position={Position.Bottom}
         id="source-bottom"
         style={{
-          width: 3,
-          height: 3,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          bottom: -3,
+          ...handleStyleBase,
+          left: bottomHandleLeft,
+          top: bottomHandleY,
         }}
       />
-      <Handle
-        type="source"
-        position={Position.Left}
-        id="source-left"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          left: -3,
-        }}
-      />
+
       {/* Main SVG node: folder outline + foreignObject content */}
       <SvgFolderNode
         width={svgWidth}
@@ -416,7 +356,6 @@ export default function RootFolderNode({
           </>
         )}
       </SvgFolderNode>
-      </div>
-    </>
+    </div>
   );
 }

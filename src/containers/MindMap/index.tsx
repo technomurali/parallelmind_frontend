@@ -15,7 +15,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
-  type Connection,
   type Edge,
   type EdgeChange,
   type Node,
@@ -135,92 +134,6 @@ export default function MindMap() {
 
   const onEdgesChange = (changes: EdgeChange[]) => {
     setEdges(applyEdgeChanges(changes, edges));
-  };
-
-  /**
-   * Prevent creating cycles in the directed graph.
-   * We treat edges as directed source -> target, and disallow any edge that would create a cycle.
-   */
-  const wouldCreateCycle = (
-    existingEdges: Edge[],
-    source: string,
-    target: string,
-    ignoreEdgeId?: string
-  ): boolean => {
-    if (!source || !target) return true;
-    // Disallow self-loop
-    if (source === target) return true;
-
-    // Build adjacency list excluding the edge we're updating (if any)
-    const adj = new Map<string, string[]>();
-    for (const e of existingEdges) {
-      if (ignoreEdgeId && e.id === ignoreEdgeId) continue;
-      const s = (e as any)?.source;
-      const t = (e as any)?.target;
-      if (typeof s !== "string" || typeof t !== "string") continue;
-      if (!adj.has(s)) adj.set(s, []);
-      adj.get(s)!.push(t);
-    }
-
-    // Adding source -> target creates a cycle iff target can already reach source.
-    const stack: string[] = [target];
-    const visited = new Set<string>();
-    while (stack.length) {
-      const cur = stack.pop()!;
-      if (cur === source) return true;
-      if (visited.has(cur)) continue;
-      visited.add(cur);
-      const next = adj.get(cur);
-      if (next) stack.push(...next);
-    }
-    return false;
-  };
-
-  /**
-   * Handle edge reconnection - allows users to change which handles edges connect to
-   */
-  const onEdgeUpdate = (oldEdge: Edge, newConnection: Connection) => {
-    const nextSource = newConnection.source ?? "";
-    const nextTarget = newConnection.target ?? "";
-    // Reject updates that would create cycles (or invalid connections).
-    if (wouldCreateCycle(edges as any, nextSource, nextTarget, oldEdge.id)) {
-      return;
-    }
-    const updatedEdges = edges.map((edge: Edge) => {
-      if (edge.id === oldEdge.id) {
-        return {
-          ...edge,
-          source: nextSource || edge.source,
-          target: nextTarget || edge.target,
-          sourceHandle: newConnection.sourceHandle,
-          targetHandle: newConnection.targetHandle,
-        };
-      }
-      return edge;
-    });
-    setEdges(updatedEdges);
-  };
-
-  /**
-   * Handle new edge connections
-   */
-  const onConnect = (connection: Connection) => {
-    const edgeId = `e_${connection.source}_${connection.target}`;
-    const source = connection.source ?? "";
-    const target = connection.target ?? "";
-    // Reject invalid connections / self-loops / cycles.
-    if (wouldCreateCycle(edges as any, source, target)) return;
-    // Avoid duplicate edges by id.
-    if ((edges as any).some((e: any) => e?.id === edgeId)) return;
-    const newEdge: Edge = {
-      id: edgeId,
-      source,
-      target,
-      sourceHandle: connection.sourceHandle,
-      targetHandle: connection.targetHandle,
-      type: "default",
-    };
-    setEdges([...edges, newEdge]);
   };
 
   /**
@@ -505,8 +418,6 @@ export default function MindMap() {
             onInit={setRf}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onEdgeUpdate={onEdgeUpdate}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             onPaneContextMenu={onPaneContextMenu}

@@ -6,7 +6,7 @@
  * Still shows Name + Purpose and supports minimize + connection handles.
  */
 
-import { Handle, Position, type NodeProps } from "reactflow";
+import type { NodeProps } from "reactflow";
 import { useMindMapStore } from "../../store/mindMapStore";
 
 export default function FileNode({ id, data, selected }: NodeProps<any>) {
@@ -67,120 +67,6 @@ export default function FileNode({ id, data, selected }: NodeProps<any>) {
         justifyItems: "center",
       }}
     >
-      <Handle
-        type="target"
-        position={Position.Top}
-        id="target-top"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          top: -3,
-        }}
-      />
-      <Handle
-        type="target"
-        position={Position.Right}
-        id="target-right"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          right: -3,
-        }}
-      />
-      <Handle
-        type="target"
-        position={Position.Bottom}
-        id="target-bottom"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          bottom: -3,
-        }}
-      />
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="target-left"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          left: -3,
-        }}
-      />
-
-      <Handle
-        type="source"
-        position={Position.Top}
-        id="source-top"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          top: -3,
-        }}
-      />
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="source-right"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          right: -3,
-        }}
-      />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="source-bottom"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          bottom: -3,
-        }}
-      />
-      <Handle
-        type="source"
-        position={Position.Left}
-        id="source-left"
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          opacity: 1,
-          left: -3,
-        }}
-      />
-
       <div
         title={tooltipText}
         style={{
