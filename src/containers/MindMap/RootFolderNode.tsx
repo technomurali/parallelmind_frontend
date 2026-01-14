@@ -88,7 +88,7 @@ const SvgFolderNode = ({
       />
 
       {/* HTML Content */}
-      <foreignObject x="90" y="110" width="300" height={contentHeight}>
+      <foreignObject x="90" y="110" width="350" height={contentHeight}>
         {/* foreignObject wrapper div: lays out the node inner UI */}
         <div
           style={{
@@ -283,7 +283,7 @@ export default function RootFolderNode({
             style={{
               fontWeight: 800,
               fontSize: `${toSvgPx(bodyFontSize)}px`,
-              lineHeight: "1.1",
+              lineHeight: "1.8",
             }}
           >
             {nodeName ?? ""}
