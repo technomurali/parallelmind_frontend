@@ -238,7 +238,7 @@ export class FileManager {
     const root = this.buildNewRootFolderJson({ name: dirHandle.name, path: "", now });
 
     // Root notification: if any non-index FILE exists at root before initialization.
-    for await (const entry of dirHandle.values()) {
+    for await (const entry of (dirHandle as any).values()) {
       if (entry.kind === "file" && entry.name !== FileManager.ROOT_FILE_NAME) {
         root.notifications.push("Root folder contained files before initialization");
         break;
@@ -296,7 +296,7 @@ export class FileManager {
     // Prefer stable order: folders first, then files (by name).
     const dirs: FileSystemDirectoryHandle[] = [];
     const files: FileSystemFileHandle[] = [];
-    for await (const entry of dirHandle.values()) {
+    for await (const entry of (dirHandle as any).values()) {
       if (level === 1 && entry.name === FileManager.ROOT_FILE_NAME) continue;
       if (entry.kind === "directory") dirs.push(entry);
       else if (entry.kind === "file") files.push(entry);
@@ -368,7 +368,7 @@ export class FileManager {
     now: string,
   ): Promise<IndexNode[]> {
     const files: FileSystemFileHandle[] = [];
-    for await (const entry of dirHandle.values()) {
+    for await (const entry of (dirHandle as any).values()) {
       if (entry.kind === "directory") {
         const relPath = this.joinRel(parentRel, entry.name);
         rootNotifications.push(`Maximum folder depth exceeded at ${relPath}`);

@@ -27,6 +27,7 @@ import { FiMenu } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import { useMindMapStore } from "../../store/mindMapStore";
 import RootFolderNode from "./RootFolderNode";
+import FileNode from "./FileNode";
 
 /**
  * MindMap component
@@ -54,7 +55,10 @@ export default function MindMap() {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasBodyRef = useRef<HTMLDivElement | null>(null);
   const [rf, setRf] = useState<ReactFlowInstance | null>(null);
-  const nodeTypes = useMemo(() => ({ rootFolder: RootFolderNode }), []);
+  const nodeTypes = useMemo(
+    () => ({ rootFolder: RootFolderNode, file: FileNode }),
+    []
+  );
 
   const isTauri = () =>
     typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
@@ -239,15 +243,13 @@ export default function MindMap() {
   /**
    * Right-click context menu for the canvas/pane.
    *
-   * Requirement: Only show "New Folder" when a parent node is selected.
-   * We also snapshot the parent node id at the moment the user opens the menu,
-   * so the parent context is preserved through the deferred-commit flow.
+   * Shows a lightweight creation menu ("New File", "New Folder") at the click point.
+   * We snapshot the parent node id at the moment the user opens the menu so the
+   * parent context is preserved through the deferred-commit flow.
    */
   const onPaneContextMenu = (e: React.MouseEvent) => {
     closeContextMenu();
 
-    // If no parent is selected, allow default browser behavior (no custom menu).
-    if (!selectedNodeId) return;
     if (!rf) return;
 
     // Only prevent default when we're showing our custom menu
@@ -261,7 +263,10 @@ export default function MindMap() {
     // Convert the click to flow coordinates so the new node appears exactly
     // where the user right-clicked on the canvas.
     const flowPos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
-    setPaneMenu({ open: true, x, y, flowPos, parentNodeId: selectedNodeId });
+    // If nothing is selected, fall back to root ("00") when available.
+    const parentNodeId =
+      selectedNodeId ?? (rootFolderJson ? "00" : null);
+    setPaneMenu({ open: true, x, y, flowPos, parentNodeId });
   };
 
   /**
@@ -528,6 +533,7 @@ export default function MindMap() {
                 padding: "6px",
               }}
             >
+              {/* New File */}
               <button
                 type="button"
                 role="menuitem"
@@ -545,7 +551,78 @@ export default function MindMap() {
 
                   const tempNode: Node = {
                     id: tempNodeId,
-                    // Reuse existing circular folder renderer for now.
+                    type: "file",
+                    position: flowPos,
+                    data: {
+                      type: "file",
+                      node_type: "file",
+                      name: "",
+                      purpose: "",
+                      // Preserve parent context for finalize step (in-memory only).
+                      parentId: parentNodeId,
+                      // Marks the node as temporary until the required name is saved.
+                      isDraft: true,
+                    },
+                    selected: true,
+                  };
+
+                  const existing = useMindMapStore.getState().nodes ?? [];
+                  const next = [
+                    ...existing.map((n: any) => ({
+                      ...n,
+                      selected: n?.id === tempNodeId,
+                    })),
+                    tempNode,
+                  ];
+                  setNodes(next);
+                  setPendingChildCreation({ tempNodeId, parentNodeId });
+                  selectNode(tempNodeId);
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: paneMenu.parentNodeId ? "pointer" : "not-allowed",
+                  fontFamily: "var(--font-family)",
+                  opacity: paneMenu.parentNodeId ? 1 : 0.5,
+                }}
+                onMouseEnter={(e) => {
+                  if (!paneMenu.parentNodeId) return;
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+                disabled={!paneMenu.parentNodeId}
+              >
+                {uiText.contextMenus.canvas.newFile}
+              </button>
+
+              {/* New Folder (existing behavior) */}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const flowPos = paneMenu.flowPos;
+                  const parentNodeId = paneMenu.parentNodeId;
+                  closePaneMenu();
+                  if (!flowPos || !parentNodeId) return;
+
+                  // Create a temporary node with no name. It will not be committed (and no edge is created)
+                  // until the user enters a valid name and it is saved from the Node Details panel.
+                  const tempNodeId = `tmp_${Date.now()}_${Math.random()
+                    .toString(16)
+                    .slice(2)}`;
+
+                  const tempNode: Node = {
+                    id: tempNodeId,
+                    // Reuse existing folder renderer for now.
                     type: "rootFolder",
                     position: flowPos,
                     data: {
@@ -583,10 +660,12 @@ export default function MindMap() {
                   border: "none",
                   background: "transparent",
                   color: "inherit",
-                  cursor: "pointer",
+                  cursor: paneMenu.parentNodeId ? "pointer" : "not-allowed",
                   fontFamily: "var(--font-family)",
+                  opacity: paneMenu.parentNodeId ? 1 : 0.5,
                 }}
                 onMouseEnter={(e) => {
+                  if (!paneMenu.parentNodeId) return;
                   (e.currentTarget as HTMLButtonElement).style.background =
                     "var(--surface-1)";
                 }}
@@ -594,6 +673,7 @@ export default function MindMap() {
                   (e.currentTarget as HTMLButtonElement).style.background =
                     "transparent";
                 }}
+                disabled={!paneMenu.parentNodeId}
               >
                 {uiText.contextMenus.canvas.newFolder}
               </button>

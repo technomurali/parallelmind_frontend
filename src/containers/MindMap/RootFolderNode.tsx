@@ -8,9 +8,104 @@
  * the entry point for the folder structure visualization.
  */
 
+import type { ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import type { RootFolderJson } from "../../data/fileManager";
 import { useMindMapStore } from "../../store/mindMapStore";
+
+type SvgFolderNodeProps = {
+  width: number;
+  height: number;
+  isMinimized: boolean;
+  tooltipText?: string;
+  selected: boolean;
+  children: ReactNode;
+};
+
+const SvgFolderNode = ({
+  width,
+  height,
+  isMinimized,
+  tooltipText,
+  selected,
+  children,
+}: SvgFolderNodeProps) => {
+  // Content area height in SVG coordinates (viewBox units).
+  const contentHeight = isMinimized ? 110 : 230;
+
+  const stroke = selected ? "var(--primary-color)" : "var(--border)";
+  const strokeWidth = selected ? 6 : 4;
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      viewBox="0 0 512 384"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-hidden="true"
+      style={{
+        display: "block",
+        overflow: "visible",
+        color: "var(--text)",
+      }}
+    >
+      {/* Tooltip */}
+      <title>{tooltipText}</title>
+
+      {/* Node Shape */}
+      <path
+        d="
+          M 96 332
+          H 416
+          A 28 28 0 0 0 444 304
+          V 132
+          A 28 28 0 0 0 416 104
+          H 268
+          C 258 104 252 100 248 92
+          L 230 56
+          C 224 44 214 36 200 36
+          H 146
+          C 132 36 120 44 114 56
+          L 104 76
+          C 100 84 94 88 84 88
+          H 80
+          A 28 28 0 0 0 52 116
+          V 304
+          A 28 28 0 0 0 80 332
+          H 96
+          Z
+        "
+        fill="var(--surface-2)"
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* HTML Content */}
+      <foreignObject x="90" y="110" width="300" height={contentHeight}>
+        {/* foreignObject wrapper div: lays out the node inner UI */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "18px",
+            padding: "8px",
+            boxSizing: "border-box",
+            height: "100%",
+            position: "relative",
+            fontFamily: "var(--font-family)",
+            fontSize: "14px",
+            color: "var(--text)",
+          }}
+        >
+          {children}
+        </div>
+      </foreignObject>
+    </svg>
+  );
+};
 
 /**
  * RootFolderNode component
@@ -55,10 +150,8 @@ export default function RootFolderNode({
           ? (data as any).description.trim()
           : null);
 
-  // Build tooltip with name and purpose on separate lines.
-  // Each field wraps to multiple lines with approximately 8 words per line.
+  // Build tooltip with name and purpose on separate lines, wrapped to ~8 words/line.
   const tooltipText = (() => {
-    // Wrap text to approximately 8 words per line, preserving all content.
     const wrapWords = (text: string, wordsPerLine: number): string => {
       const words = text.trim().split(/\s+/);
       const lines: string[] = [];
@@ -72,45 +165,37 @@ export default function RootFolderNode({
     if (typeof data?.name === "string" && data.name.trim()) {
       parts.push(wrapWords(data.name, 8));
     }
-    const purpose = typeof (data as any)?.purpose === "string" && (data as any).purpose.trim()
-      ? (data as any).purpose
-      : (typeof (data as any)?.description === "string" && (data as any).description.trim()
-          ? (data as any).description
-          : null);
+    const purpose =
+      typeof (data as any)?.purpose === "string" && (data as any).purpose.trim()
+        ? (data as any).purpose
+        : typeof (data as any)?.description === "string" &&
+          (data as any).description.trim()
+        ? (data as any).description
+        : null;
     if (purpose) {
       parts.push(wrapWords(purpose, 8));
     }
     return parts.length > 0 ? parts.join("\n") : undefined;
   })();
 
-  // Selection visual indicator: thicker border with accent color when selected.
-  // Uses theme variables to ensure consistency across light/dark themes.
-  const borderStyle = selected
-    ? {
-        // Thicker border (2px) with primary accent color for clear selection indication.
-        borderWidth: "2px",
-        borderStyle: "solid",
-        borderColor: "var(--primary-color)",
-        // Subtle box-shadow provides additional depth without being distracting.
-        boxShadow: "0 0 0 2px rgba(100, 108, 255, 0.2)",
-      }
-    : {
-        // Default border styling for unselected state.
-        border: "var(--border-width) solid var(--border)",
-      };
+  // Visual size (CSS px) for the SVG node.
+  const svgWidth = 200;
+  const svgHeight = 150;
 
   return (
-    <div
-      style={{
-        background: "transparent",
-        border: "none",
-        borderRadius: "var(--radius-md)",
-        color: "var(--text)",
-        padding: 0,
-        display: "grid",
-        justifyItems: "center",
-      }}
-    >
+    <>
+      {/* Outer wrapper div: transparent container that centers the node content and provides space for connection handles */}
+      <div
+        style={{
+          background: "transparent",
+          border: "none",
+          borderRadius: "var(--radius-md)",
+          color: "var(--text)",
+          padding: 0,
+          display: "grid",
+          justifyItems: "center",
+        }}
+      >
       {/* 
         Connection handles for edges - visible and interactive on all sides.
         Handles allow connections from any direction for flexible node linking.
@@ -227,178 +312,111 @@ export default function RootFolderNode({
           left: -3,
         }}
       />
-      <div
-        title={tooltipText}
-        style={{
-          width: 100,
-          minWidth: 100,
-          maxWidth: 100,
-          minHeight: isMinimized ? "auto" : 100,
-          height: "auto",
-          borderRadius: "var(--radius-md)",
-          ...borderStyle,
-          background: "var(--surface-2)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "stretch",
-          justifyContent: "flex-start",
-          position: "relative",
-          padding: "8px",
-          boxSizing: "border-box",
-          gap: "6px",
-          transition: "border-color 0.15s ease, box-shadow 0.15s ease",
-        }}
-        aria-hidden="true"
+      {/* Main SVG node: folder outline + foreignObject content */}
+      <SvgFolderNode
+        width={svgWidth}
+        height={svgHeight}
+        isMinimized={isMinimized}
+        tooltipText={tooltipText}
+        selected={selected}
       >
-        {/* Details card (only supported node view) */}
-        <>
-          {/* Minimize/Maximize button */}
-          <button
-            type="button"
-            onClick={toggleMinimize}
-            aria-label={isMinimized ? "Maximize node" : "Minimize node"}
-            title={isMinimized ? "Maximize" : "Minimize"}
-            style={{
-              position: "absolute",
-              top: "2px",
-              right: "2px",
-              width: "16px",
-              height: "16px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "transparent",
-              border: "none",
-              color: "var(--text)",
-              cursor: "pointer",
-              opacity: 0.6,
-              borderRadius: "var(--radius-sm)",
-              padding: 0,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = "1";
-              e.currentTarget.style.background = "var(--surface-1)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = "0.6";
-              e.currentTarget.style.background = "transparent";
-            }}
-          >
-            {isMinimized ? (
-              // Up arrow icon: to maximize/expand
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 10 10"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M5 2 L2 6 L8 6 Z" />
-              </svg>
-            ) : (
-              // Down arrow icon: to minimize/collapse
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 10 10"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M5 8 L2 4 L8 4 Z" />
-              </svg>
-            )}
-          </button>
-
-          {/* When minimized: show only Name */}
+        {/* Minimize/Maximize button */}
+        <button
+          type="button"
+          onClick={toggleMinimize}
+          aria-label={isMinimized ? "Maximize node" : "Minimize node"}
+          title={isMinimized ? "Maximize" : "Minimize"}
+          style={{
+            position: "absolute",
+            top: 2,
+            right: 2,
+            width: 18,
+            height: 18,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "transparent",
+            border: "none",
+            color: "var(--text)",
+            cursor: "pointer",
+            opacity: 0.8,
+            borderRadius: "var(--radius-sm)",
+            padding: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = "1";
+            e.currentTarget.style.background = "var(--surface-1)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = "0.8";
+            e.currentTarget.style.background = "transparent";
+          }}
+        >
           {isMinimized ? (
-            <div
-              style={{
-                fontWeight: 600,
-                fontSize: "var(--node-details-header-font-size, 10px)",
-                lineHeight: "1.2",
-                wordBreak: "break-word",
-                overflowWrap: "break-word",
-                whiteSpace: "pre-wrap",
-                paddingRight: "20px", // Space for minimize/maximize button
-              }}
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
             >
-              {nodeName ?? "(no name)"}
-            </div>
+              <path d="M5 2 L2 6 L8 6 Z" />
+            </svg>
           ) : (
-            <>
-              {/* Name section */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "2px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "var(--node-details-label-font-size, 10px)",
-                    opacity: 0.75,
-                    fontWeight: 100,
-                  }}
-                >
-                  Name
-                </div>
-                <div
-                  style={{
-                    fontWeight: 600,
-                    fontSize: "var(--node-details-header-font-size, 10px)",
-                    lineHeight: "1.2",
-                    wordBreak: "break-word",
-                    overflowWrap: "break-word",
-                    whiteSpace: "pre-wrap",
-                    paddingRight: "20px", // Space for minimize/maximize button
-                  }}
-                >
-                  {nodeName ?? "(no name)"}
-                </div>
-              </div>
-
-              {/* Purpose section */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "2px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "var(--node-details-label-font-size, 9px)",
-                    opacity: 0.75,
-                    fontWeight: 600,
-                  }}
-                >
-                  Purpose
-                </div>
-                <div
-                  style={{
-                    fontSize: "var(--node-details-content-font-size, 9px)",
-                    lineHeight: "1.25",
-                    wordBreak: "break-word",
-                    overflowWrap: "break-word",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {nodePurpose ?? ""}
-                </div>
-              </div>
-            </>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 8 L2 4 L8 4 Z" />
+            </svg>
           )}
-        </>
+        </button>
+
+        {isMinimized ? (
+          // Minimized view div: shows only the node name when collapsed
+          <div style={{ fontWeight: 700, fontSize: "14px", lineHeight: "1.2" }}>
+            {nodeName ?? ""}
+          </div>
+        ) : (
+          <>
+            {/* Name section container */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {/* Name label div */}
+              <div style={{ opacity: 0.75, fontWeight: 600, fontSize: "12px" }}>
+                Name
+              </div>
+              {/* Name value div */}
+              <div style={{ fontWeight: 800, fontSize: "16px", lineHeight: "1.1" }}>
+                {nodeName ?? ""}
+              </div>
+            </div>
+
+            {/* Purpose section container */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {/* Purpose label div */}
+              <div style={{ opacity: 0.75, fontWeight: 600, fontSize: "12px" }}>
+                Purpose
+              </div>
+              {/* Purpose value div */}
+              <div style={{ fontSize: "13px", lineHeight: "1.25" }}>
+                {nodePurpose ?? ""}
+              </div>
+            </div>
+          </>
+        )}
+      </SvgFolderNode>
       </div>
-    </div>
+    </>
   );
 }

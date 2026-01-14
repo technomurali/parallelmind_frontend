@@ -13,6 +13,9 @@
   --border: rgba(255, 255, 255, 0.12);
   --border-width: 1px;
 
+  /* Component-specific tokens */
+  --pm-file-node-control: var(--text);
+
   /* Typography */
   --font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   --font-size-sm: 14px;
@@ -52,6 +55,8 @@
   --surface-2: #ffffff;
   --text: #213547;
   --border: rgba(0, 0, 0, 0.12);
+  /* Ensure File node top-right control/icon is pure black in light theme */
+  --pm-file-node-control: #000000;
 }
 
 @media (prefers-color-scheme: light) {
@@ -62,5 +67,6 @@
     --surface-2: #ffffff;
     --text: #213547;
     --border: rgba(0, 0, 0, 0.12);
+    --pm-file-node-control: #000000;
   }
 }
