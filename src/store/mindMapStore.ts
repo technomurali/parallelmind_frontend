@@ -86,6 +86,8 @@ export interface AppSettings {
     nodeSize: number;
     edgeStyle: string;
     showMinimap: boolean;
+    nodeHeaderFontSize: number;
+    nodeBodyFontSize: number;
   };
 }
 
@@ -186,6 +188,8 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
         nodeSize: 200,
         edgeStyle: 'default',
         showMinimap: true,
+        nodeHeaderFontSize: 4,
+        nodeBodyFontSize: 7,
       },
     };
 

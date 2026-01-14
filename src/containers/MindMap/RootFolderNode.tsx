@@ -16,22 +16,26 @@ import { useMindMapStore } from "../../store/mindMapStore";
 type SvgFolderNodeProps = {
   width: number;
   height: number;
-  isMinimized: boolean;
   tooltipText?: string;
   selected: boolean;
+  contentFontSize: number;
+  contentPadding: number;
+  contentGap: number;
   children: ReactNode;
 };
 
 const SvgFolderNode = ({
   width,
   height,
-  isMinimized,
   tooltipText,
   selected,
+  contentFontSize,
+  contentPadding,
+  contentGap,
   children,
 }: SvgFolderNodeProps) => {
   // Content area height in SVG coordinates (viewBox units).
-  const contentHeight = isMinimized ? 110 : 230;
+  const contentHeight = 230;
 
   const stroke = selected ? "var(--primary-color)" : "var(--border)";
   const strokeWidth = selected ? 6 : 4;
@@ -90,13 +94,13 @@ const SvgFolderNode = ({
           style={{
             display: "flex",
             flexDirection: "column",
-            gap: "18px",
-            padding: "8px",
+            gap: `${contentGap}px`,
+            padding: `${contentPadding}px`,
             boxSizing: "border-box",
             height: "100%",
             position: "relative",
             fontFamily: "var(--font-family)",
-            fontSize: "14px",
+            fontSize: `${contentFontSize}px`,
             color: "var(--text)",
           }}
         >
@@ -121,20 +125,10 @@ const SvgFolderNode = ({
  * @param props - ReactFlow NodeProps containing node id, data, and selected state
  */
 export default function RootFolderNode({
-  id,
   data,
   selected,
 }: NodeProps<RootFolderJson>) {
-  const updateNodeData = useMindMapStore((s) => s.updateNodeData);
-
-  // Check if node is minimized (default to false/maximized)
-  const isMinimized = (data as any)?.isMinimized === true;
-
-  // Toggle minimize/maximize state
-  const toggleMinimize = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent node selection when clicking button
-    updateNodeData(id, { isMinimized: !isMinimized });
-  };
+  const settings = useMindMapStore((s) => s.settings);
 
   // Extract text content from node data based on display mode.
   const nodeName =
@@ -203,6 +197,16 @@ export default function RootFolderNode({
   const topHandleY = (outlineTopY / viewBoxHeight) * svgHeight;
   const bottomHandleY = (outlineBottomY / viewBoxHeight) * svgHeight;
 
+  // Convert intended screen px into SVG user units so text renders at the desired size
+  // after the SVG is scaled down by its viewBox.
+  const svgScale = svgWidth / viewBoxWidth;
+  const toSvgPx = (px: number) => px / svgScale;
+  const headerFontSize =
+    settings.appearance.nodeHeaderFontSize ??
+    settings.appearance.nodeBodyFontSize ??
+    14;
+  const bodyFontSize = settings.appearance.nodeBodyFontSize ?? 18;
+
   // User-requested: 50% of current size.
   const handleSize = 5;
   const handleStyleBase: React.CSSProperties = {
@@ -256,105 +260,58 @@ export default function RootFolderNode({
       <SvgFolderNode
         width={svgWidth}
         height={svgHeight}
-        isMinimized={isMinimized}
         tooltipText={tooltipText}
         selected={selected}
+        contentFontSize={toSvgPx(bodyFontSize)}
+        contentPadding={toSvgPx(0.5)}
+        contentGap={toSvgPx(4)}
       >
-        {/* Minimize/Maximize button */}
-        <button
-          type="button"
-          onClick={toggleMinimize}
-          aria-label={isMinimized ? "Maximize node" : "Minimize node"}
-          title={isMinimized ? "Maximize" : "Minimize"}
-          style={{
-            position: "absolute",
-            top: 2,
-            right: 2,
-            width: 18,
-            height: 18,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "transparent",
-            border: "none",
-            color: "var(--text)",
-            cursor: "pointer",
-            opacity: 0.8,
-            borderRadius: "var(--radius-sm)",
-            padding: 0,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = "1";
-            e.currentTarget.style.background = "var(--surface-1)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = "0.8";
-            e.currentTarget.style.background = "transparent";
-          }}
-        >
-          {isMinimized ? (
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M5 2 L2 6 L8 6 Z" />
-            </svg>
-          ) : (
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M5 8 L2 4 L8 4 Z" />
-            </svg>
-          )}
-        </button>
-
-        {isMinimized ? (
-          // Minimized view div: shows only the node name when collapsed
-          <div style={{ fontWeight: 700, fontSize: "14px", lineHeight: "1.2" }}>
+        {/* Name section container */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {/* Name label div */}
+          <div
+            style={{
+              opacity: 0.75,
+              fontWeight: 600,
+              fontSize: `${toSvgPx(headerFontSize)}px`,
+            }}
+          >
+            Name
+          </div>
+          {/* Name value div */}
+          <div
+            style={{
+              fontWeight: 800,
+              fontSize: `${toSvgPx(bodyFontSize)}px`,
+              lineHeight: "1.1",
+            }}
+          >
             {nodeName ?? ""}
           </div>
-        ) : (
-          <>
-            {/* Name section container */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              {/* Name label div */}
-              <div style={{ opacity: 0.75, fontWeight: 600, fontSize: "12px" }}>
-                Name
-              </div>
-              {/* Name value div */}
-              <div style={{ fontWeight: 800, fontSize: "16px", lineHeight: "1.1" }}>
-                {nodeName ?? ""}
-              </div>
-            </div>
+        </div>
 
-            {/* Purpose section container */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              {/* Purpose label div */}
-              <div style={{ opacity: 0.75, fontWeight: 600, fontSize: "12px" }}>
-                Purpose
-              </div>
-              {/* Purpose value div */}
-              <div style={{ fontSize: "13px", lineHeight: "1.25" }}>
-                {nodePurpose ?? ""}
-              </div>
-            </div>
-          </>
-        )}
+        {/* Purpose section container */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {/* Purpose label div */}
+          <div
+            style={{
+              opacity: 0.75,
+              fontWeight: 600,
+              fontSize: `${toSvgPx(headerFontSize)}px`,
+            }}
+          >
+            Purpose
+          </div>
+          {/* Purpose value div */}
+          <div
+            style={{
+              fontSize: `${toSvgPx(bodyFontSize)}px`,
+              lineHeight: "1.25",
+            }}
+          >
+            {nodePurpose ?? ""}
+          </div>
+        </div>
       </SvgFolderNode>
     </div>
   );

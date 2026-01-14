@@ -105,6 +105,66 @@ export default function Settings() {
 
               <div className="pm-settings__row">
                 <div className="pm-settings__rowText">
+                  <div className="pm-settings__rowTitle">Node header size</div>
+                  <div className="pm-settings__rowDesc">
+                    Size for node labels like Name and Purpose.
+                  </div>
+                </div>
+                <input
+                  className="pm-settings__control"
+                  type="number"
+                  min={2}
+                  max={28}
+                  value={settings.appearance.nodeHeaderFontSize}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    updateSettings({
+                      appearance: {
+                        ...settings.appearance,
+                        nodeHeaderFontSize: Number.isFinite(n)
+                          ? n
+                          : settings.appearance.nodeHeaderFontSize,
+                      },
+                    });
+                  }}
+                  aria-label="Node header size"
+                />
+              </div>
+
+              <div className="pm-settings__divider" />
+
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
+                  <div className="pm-settings__rowTitle">Node body size</div>
+                  <div className="pm-settings__rowDesc">
+                    Size for node content like Name and Purpose values.
+                  </div>
+                </div>
+                <input
+                  className="pm-settings__control"
+                  type="number"
+                  min={2}
+                  max={32}
+                  value={settings.appearance.nodeBodyFontSize}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    updateSettings({
+                      appearance: {
+                        ...settings.appearance,
+                        nodeBodyFontSize: Number.isFinite(n)
+                          ? n
+                          : settings.appearance.nodeBodyFontSize,
+                      },
+                    });
+                  }}
+                  aria-label="Node body size"
+                />
+              </div>
+
+              <div className="pm-settings__divider" />
+
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
                   <div className="pm-settings__rowTitle">Show minimap</div>
                   <div className="pm-settings__rowDesc">
                     Toggle the minimap on the canvas.
