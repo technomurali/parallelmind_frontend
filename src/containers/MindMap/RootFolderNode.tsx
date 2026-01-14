@@ -8,7 +8,7 @@
  * the entry point for the folder structure visualization.
  */
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import type { RootFolderJson } from "../../data/fileManager";
 import { useMindMapStore } from "../../store/mindMapStore";
@@ -21,6 +21,7 @@ type SvgFolderNodeProps = {
   contentFontSize: number;
   contentPadding: number;
   contentGap: number;
+  isExpanded: boolean;
   children: ReactNode;
 };
 
@@ -32,10 +33,54 @@ const SvgFolderNode = ({
   contentFontSize,
   contentPadding,
   contentGap,
+  isExpanded,
   children,
 }: SvgFolderNodeProps) => {
   // Content area height in SVG coordinates (viewBox units).
   const contentHeight = 230;
+  const expandedPathD = `
+    M 96 332
+    H 440
+    A 32 32 0 0 0 472 300
+    V 128
+    A 32 32 0 0 0 440 96
+    H 282
+    C 270 96 262 92 256 82
+    L 244 48
+    C 236 34 222 24 204 24
+    H 146
+    C 128 24 116 34 108 48
+    L 98 68
+    C 94 76 88 80 78 80
+    H 80
+    A 28 28 0 0 0 52 108
+    V 300
+    A 28 28 0 0 0 80 332
+    H 96
+    Z
+  `;
+
+  const collapsedPathD = `
+    M 96 172
+    H 440
+    A 32 32 0 0 0 472 140
+    V 128
+    A 32 32 0 0 0 440 96
+    H 282
+    C 270 96 262 92 256 82
+    L 244 48
+    C 236 34 222 24 204 24
+    H 146
+    C 128 24 116 34 108 48
+    L 98 68
+    C 94 76 88 80 78 80
+    H 80
+    A 28 28 0 0 0 52 108
+    V 140
+    A 28 28 0 0 0 80 172
+    H 96
+    Z
+  `;
 
   const stroke = selected ? "var(--primary-color)" : "var(--border)";
   const strokeWidth = selected ? 6 : 4;
@@ -59,32 +104,13 @@ const SvgFolderNode = ({
 
       {/* Node Shape */}
       <path
-        d="
-          M 96 332
-          H 440
-          A 32 32 0 0 0 472 300
-          V 128
-          A 32 32 0 0 0 440 96
-          H 282
-          C 270 96 262 92 256 82
-          L 244 48
-          C 236 34 222 24 204 24
-          H 146
-          C 128 24 116 34 108 48
-          L 98 68
-          C 94 76 88 80 78 80
-          H 80
-          A 28 28 0 0 0 52 108
-          V 300
-          A 28 28 0 0 0 80 332
-          H 96
-          Z
-        "
+        d={isExpanded ? expandedPathD : collapsedPathD}
         fill="var(--surface-2)"
         stroke={stroke}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
+        style={{ transition: "d 180ms ease-in-out" }}
       />
 
       {/* HTML Content */}
@@ -129,6 +155,7 @@ export default function RootFolderNode({
   selected,
 }: NodeProps<RootFolderJson>) {
   const settings = useMindMapStore((s) => s.settings);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   // Extract text content from node data based on display mode.
   const nodeName =
@@ -195,7 +222,9 @@ export default function RootFolderNode({
   const topHandleLeft = `${(topHandleX / viewBoxWidth) * 100}%`;
   const bottomHandleLeft = `${(bottomHandleX / viewBoxWidth) * 100}%`;
   const topHandleY = (outlineTopY / viewBoxHeight) * svgHeight;
-  const bottomHandleY = (outlineBottomY / viewBoxHeight) * svgHeight;
+  const collapsedBottomY = 172;
+  const bottomHandleY =
+    (isExpanded ? outlineBottomY : collapsedBottomY) / viewBoxHeight * svgHeight;
 
   // Convert intended screen px into SVG user units so text renders at the desired size
   // after the SVG is scaled down by its viewBox.
@@ -208,7 +237,7 @@ export default function RootFolderNode({
   const bodyFontSize = settings.appearance.nodeBodyFontSize ?? 18;
 
   // User-requested: 50% of current size.
-  const handleSize = 5;
+  const handleSize = 6;
   const handleStyleBase: React.CSSProperties = {
     width: handleSize,
     height: handleSize,
@@ -223,6 +252,9 @@ export default function RootFolderNode({
 
   return (
     <div
+      role="button"
+      aria-label="Toggle folder node size"
+      onClick={() => setIsExpanded((prev) => !prev)}
       style={{
         background: "transparent",
         border: "none",
@@ -265,6 +297,7 @@ export default function RootFolderNode({
         contentFontSize={toSvgPx(bodyFontSize)}
         contentPadding={toSvgPx(0.5)}
         contentGap={toSvgPx(4)}
+        isExpanded={isExpanded}
       >
         {/* Name section container */}
         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -290,28 +323,29 @@ export default function RootFolderNode({
           </div>
         </div>
 
-        {/* Purpose section container */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          {/* Purpose label div */}
-          <div
-            style={{
-              opacity: 0.75,
-              fontWeight: 600,
-              fontSize: `${toSvgPx(headerFontSize)}px`,
-            }}
-          >
-            Purpose
+        {isExpanded && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            {/* Purpose label div */}
+            <div
+              style={{
+                opacity: 0.75,
+                fontWeight: 600,
+                fontSize: `${toSvgPx(headerFontSize)}px`,
+              }}
+            >
+              Purpose
+            </div>
+            {/* Purpose value div */}
+            <div
+              style={{
+                fontSize: `${toSvgPx(bodyFontSize)}px`,
+                lineHeight: "1.25",
+              }}
+            >
+              {nodePurpose ?? ""}
+            </div>
           </div>
-          {/* Purpose value div */}
-          <div
-            style={{
-              fontSize: `${toSvgPx(bodyFontSize)}px`,
-              lineHeight: "1.25",
-            }}
-          >
-            {nodePurpose ?? ""}
-          </div>
-        </div>
+        )}
       </SvgFolderNode>
     </div>
   );
