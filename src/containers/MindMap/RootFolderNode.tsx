@@ -37,7 +37,7 @@ const SvgFolderNode = ({
   children,
 }: SvgFolderNodeProps) => {
   // Content area height in SVG coordinates (viewBox units).
-  const contentHeight = 230;
+  const contentHeight = isExpanded ? 300 : 140;
   const expandedPathD = `
     M 96 332
     H 440
@@ -122,12 +122,13 @@ const SvgFolderNode = ({
             flexDirection: "column",
             gap: `${contentGap}px`,
             padding: `${contentPadding}px`,
+            paddingBottom: `${contentPadding + 12}px`,
             boxSizing: "border-box",
-            height: "100%",
             position: "relative",
             fontFamily: "var(--font-family)",
             fontSize: `${contentFontSize}px`,
             color: "var(--text)",
+            overflow: "visible",
           }}
         >
           {children}
