@@ -16,8 +16,6 @@ import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
   type EdgeChange,
-  getNodesBounds,
-  getViewportForBounds,
   type Node,
   type NodeChange,
   type ReactFlowInstance,
@@ -27,6 +25,11 @@ import { FiMenu } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import { useMindMapStore } from "../../store/mindMapStore";
 import { composeMindMapGraphFromRoot } from "../../utils/mindMapComposer";
+import {
+  areAllNodesVisible,
+  getFitViewport,
+  shouldBlockZoomOut,
+} from "../../utils/viewportGuards";
 import RootFolderNode from "./RootFolderNode";
 import FileNode from "./FileNode";
 
@@ -61,6 +64,13 @@ export default function MindMap() {
     () => ({ rootFolder: RootFolderNode, file: FileNode }),
     []
   );
+  const renderedEdges = useMemo(() => {
+    const edgeType = settings.appearance.edgeStyle || "default";
+    return (edges ?? []).map((edge: any) => ({
+      ...edge,
+      type: edgeType,
+    }));
+  }, [edges, settings.appearance.edgeStyle]);
 
   const isTauri = () =>
     typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
@@ -119,6 +129,25 @@ export default function MindMap() {
 
     return false;
   };
+
+  const showAllNodesInCanvas = () => {
+    if (!rf) return;
+    const rect = canvasBodyRef.current?.getBoundingClientRect();
+    if (!rect || !nodes.length) return;
+    const padding = isTauri() ? 0 : 0.05;
+    const fitViewport = getFitViewport({
+      nodes,
+      canvasRect: rect,
+      maxZoom: 6,
+      padding,
+    });
+    rf.setViewport(fitViewport);
+  };
+
+  useEffect(() => {
+    if (!rootFolderJson || !rf) return;
+    showAllNodesInCanvas();
+  }, [rootFolderJson, rf]);
 
   const getNodeFolderPath = (node: Node): string | null => {
     const path = (node?.data as any)?.path;
@@ -404,47 +433,92 @@ export default function MindMap() {
             >
               View: Details
             </div>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeCanvasMenu();
+                showAllNodesInCanvas();
+              }}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                cursor: "pointer",
+                fontFamily: "var(--font-family)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "transparent";
+              }}
+            >
+              {uiText.canvas.viewMenu.showAllNodes}
+            </button>
           </div>
         )}
 
         <div className="pm-canvas__body" ref={canvasBodyRef}>
           <ReactFlow
             nodes={nodes}
-            edges={edges}
+            edges={renderedEdges}
             fitView
             nodeTypes={nodeTypes}
-            maxZoom={5}
+            maxZoom={6}
             zoomOnScroll={true}
             onWheel={(event) => {
               if (!rf) return;
               const zoom = rf.getZoom();
               const isZoomingOut = event.deltaY > 0;
-              const maxZoom = 5;
+              const maxZoom = 6;
 
-              const minZoomToFit = (() => {
-                if (!nodes.length) return 0.1;
-                const rect = canvasBodyRef.current?.getBoundingClientRect();
-                if (!rect || rect.width <= 0 || rect.height <= 0) return 0.1;
-                const bounds = getNodesBounds(nodes);
-                const viewport = getViewportForBounds(
-                  bounds,
-                  rect.width,
-                  rect.height,
-                  0.1,
-                  maxZoom,
-                  0.1
-                );
-                return viewport.zoom;
-              })();
+              const rect = canvasBodyRef.current?.getBoundingClientRect();
+              if (!rect) return;
+              const viewport = rf.getViewport();
+              const allVisible = areAllNodesVisible({
+                nodes,
+                viewport,
+                canvasRect: rect,
+              });
+              const padding = isTauri() ? 0 : 0.05;
+              const fitViewport = getFitViewport({
+                nodes,
+                canvasRect: rect,
+                maxZoom,
+                padding,
+              });
+              const minFitZoom = fitViewport.zoom;
 
-              if (isZoomingOut && zoom <= minZoomToFit) {
-                // Stop zooming out once all nodes fit inside the canvas.
+              if (
+                shouldBlockZoomOut({
+                  nodes,
+                  viewport,
+                  canvasRect: rect,
+                  minFitZoom,
+                  isZoomingOut,
+                })
+              ) {
+                // Snap only if not already exactly at fit.
+                if (
+                  isZoomingOut &&
+                  !allVisible &&
+                  Math.abs(viewport.zoom - minFitZoom) > 0.0001
+                ) {
+                  rf.setViewport(fitViewport);
+                }
                 return;
               }
 
               const delta = isZoomingOut ? 0.8 : 1.2;
               const clampedZoom = Math.max(
-                minZoomToFit,
+                minFitZoom,
                 Math.min(maxZoom, zoom * delta)
               );
               rf.zoomTo(clampedZoom);

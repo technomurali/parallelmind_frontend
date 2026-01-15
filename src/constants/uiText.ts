@@ -29,6 +29,19 @@ export const uiText = {
     mindMap: 'Mind Map',
     folderTree: 'Folder Tree',
   },
+  settings: {
+    appearance: {
+      edgeTypeLabel: 'Edge type',
+      edgeTypeDesc: 'Choose how connections between nodes are drawn.',
+      edgeTypeOptions: {
+        bezier: 'Bezier',
+        straight: 'Straight',
+        simpleBezier: 'Simple Bezier',
+        step: 'Step',
+        smoothstep: 'Smoothstep',
+      },
+    },
+  },
 
   /**
    * Menu labels
@@ -93,6 +106,9 @@ export const uiText = {
     },
     displayModeTooltips: {
       details: 'Show node details',
+    },
+    viewMenu: {
+      showAllNodes: 'Show all nodes',
     },
   },
 

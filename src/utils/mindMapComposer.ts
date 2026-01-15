@@ -40,7 +40,7 @@ type NodeInfo = {
 };
 
 const DEFAULT_NODE_SIZE = 200;
-const DEFAULT_VERTICAL_GAP = 30;
+const DEFAULT_VERTICAL_GAP = 80;
 const DEFAULT_HORIZONTAL_GAP_RATIO = 1.4;
 
 const normalizeTypeKind = (typeValue: unknown): NormalizedKind => {
@@ -91,11 +91,13 @@ export const composeMindMapGraphFromRoot = (
     typeof options.nodeSize === "number" && Number.isFinite(options.nodeSize)
       ? options.nodeSize
       : DEFAULT_NODE_SIZE;
-  const rowGap =
+  const rowGapCandidate =
     typeof options.levelSpacing === "number" &&
     Number.isFinite(options.levelSpacing)
       ? options.levelSpacing
       : DEFAULT_VERTICAL_GAP;
+  // Enforce a minimum 30px vertical gap between rows.
+  const rowGap = Math.max(DEFAULT_VERTICAL_GAP, rowGapCandidate);
   const columnGap =
     typeof options.siblingSpacing === "number" &&
     Number.isFinite(options.siblingSpacing)

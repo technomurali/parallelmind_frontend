@@ -186,7 +186,7 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
       llmProvider: 'openai',
       appearance: {
         nodeSize: 200,
-        edgeStyle: 'default',
+        edgeStyle: 'step',
         showMinimap: true,
         nodeHeaderFontSize: 4,
         nodeBodyFontSize: 7,
