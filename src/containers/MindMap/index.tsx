@@ -15,8 +15,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
-  type Edge,
   type EdgeChange,
+  getNodesBounds,
+  getViewportForBounds,
   type Node,
   type NodeChange,
   type ReactFlowInstance,
@@ -412,19 +413,42 @@ export default function MindMap() {
             edges={edges}
             fitView
             nodeTypes={nodeTypes}
+            maxZoom={5}
             zoomOnScroll={true}
             onWheel={(event) => {
-              if (rf) {
-                // Increase zoom sensitivity by using a larger delta multiplier
-                const zoom = rf.getZoom();
-                // Adjust these values to change zoom speed:
-                // - Smaller values (e.g., 0.80/1.20) = faster zoom
-                // - Larger values (e.g., 0.98/1.02) = slower zoom
-                const delta = event.deltaY > 0 ? 0.8 : 1.2;
-                const newZoom = Math.max(0.1, Math.min(2, zoom * delta));
-                rf.zoomTo(newZoom + 3.5);
-                event.preventDefault();
+              if (!rf) return;
+              const zoom = rf.getZoom();
+              const isZoomingOut = event.deltaY > 0;
+              const maxZoom = 5;
+
+              const minZoomToFit = (() => {
+                if (!nodes.length) return 0.1;
+                const rect = canvasBodyRef.current?.getBoundingClientRect();
+                if (!rect || rect.width <= 0 || rect.height <= 0) return 0.1;
+                const bounds = getNodesBounds(nodes);
+                const viewport = getViewportForBounds(
+                  bounds,
+                  rect.width,
+                  rect.height,
+                  0.1,
+                  maxZoom,
+                  0.1
+                );
+                return viewport.zoom;
+              })();
+
+              if (isZoomingOut && zoom <= minZoomToFit) {
+                // Stop zooming out once all nodes fit inside the canvas.
+                return;
               }
+
+              const delta = isZoomingOut ? 0.8 : 1.2;
+              const clampedZoom = Math.max(
+                minZoomToFit,
+                Math.min(maxZoom, zoom * delta)
+              );
+              rf.zoomTo(clampedZoom);
+              event.preventDefault();
             }}
             onInit={setRf}
             onNodesChange={onNodesChange}
