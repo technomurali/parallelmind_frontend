@@ -226,6 +226,39 @@ export default function Settings() {
                   aria-label="Show minimap"
                 />
               </div>
+
+              <div className="pm-settings__divider" />
+
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
+                  <div
+                    className="pm-settings__rowTitle"
+                    id="pm-lock-node-positions-label"
+                  >
+                    Lock node positions
+                  </div>
+                  <div
+                    className="pm-settings__rowDesc"
+                    id="pm-lock-node-positions-desc"
+                  >
+                    Prevent dragging nodes on the canvas.
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={!!settings.interaction.lockNodePositions}
+                  onChange={(e) =>
+                    updateSettings({
+                      interaction: {
+                        ...settings.interaction,
+                        lockNodePositions: e.target.checked,
+                      },
+                    })
+                  }
+                  aria-labelledby="pm-lock-node-positions-label"
+                  aria-describedby="pm-lock-node-positions-desc"
+                />
+              </div>
             </div>
           </div>
         )}

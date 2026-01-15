@@ -161,6 +161,12 @@ export default function MindMap() {
    * and other interactions to work correctly.
    */
   const onNodesChange = (changes: NodeChange[]) => {
+    if (settings.interaction.lockNodePositions) {
+      const filtered = changes.filter((change) => change.type !== "position");
+      if (!filtered.length) return;
+      setNodes(applyNodeChanges(filtered, nodes));
+      return;
+    }
     setNodes(applyNodeChanges(changes, nodes));
   };
 
@@ -473,6 +479,7 @@ export default function MindMap() {
             nodeTypes={nodeTypes}
             maxZoom={6}
             zoomOnScroll={true}
+            nodesDraggable={!settings.interaction.lockNodePositions}
             onWheel={(event) => {
               if (!rf) return;
               const zoom = rf.getZoom();

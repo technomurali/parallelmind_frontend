@@ -89,6 +89,9 @@ export interface AppSettings {
     nodeHeaderFontSize: number;
     nodeBodyFontSize: number;
   };
+  interaction: {
+    lockNodePositions: boolean;
+  };
 }
 
 /**
@@ -191,6 +194,9 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
         nodeHeaderFontSize: 4,
         nodeBodyFontSize: 7,
       },
+      interaction: {
+        lockNodePositions: false,
+      },
     };
 
     const persisted = readPersistedSettings();
@@ -203,6 +209,10 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
       appearance: {
         ...defaults.appearance,
         ...(persisted as any).appearance,
+      },
+      interaction: {
+        ...defaults.interaction,
+        ...(persisted as any).interaction,
       },
     };
   })(),
@@ -316,6 +326,10 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
         appearance: {
           ...state.settings.appearance,
           ...(newSettings.appearance ?? {}),
+        },
+        interaction: {
+          ...state.settings.interaction,
+          ...(newSettings.interaction ?? {}),
         },
       };
       persistSettings(next);
