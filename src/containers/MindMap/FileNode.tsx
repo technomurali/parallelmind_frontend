@@ -59,7 +59,7 @@ export default function FileNode({
   };
   const viewBoxMinY = 55;
   const viewBoxHeight = 420;
-  const svgHeight = 150;
+  const svgHeight = 130;
   const pathTopY = 60;
   const expandedPathBottomY = 420;
   const collapsedPathBottomY = 120;
@@ -117,9 +117,9 @@ export default function FileNode({
       <div
         title={tooltipText}
         style={{
-          width: 130,
-          minWidth: 130,
-          maxWidth: 130,
+          width: 125,
+          minWidth: 125,
+          maxWidth: 125,
           background: "transparent",
           display: "flex",
           flexDirection: "column",
@@ -159,7 +159,7 @@ export default function FileNode({
           <svg
             width="100%"
             height="100%"
-            viewBox="80 20 240 420"
+            viewBox="80 20 240 410"
             preserveAspectRatio="none"
             xmlns="http://www.w3.org/2000/svg"
             role="img"
@@ -185,7 +185,7 @@ export default function FileNode({
               position: "absolute",
               inset: 0,
               padding: "8px",
-              paddingTop: "16px",
+              paddingTop: "13px",
               paddingRight: 20, // leave space under the fold
               display: "flex",
               flexDirection: "column",
@@ -213,6 +213,7 @@ export default function FileNode({
                 wordBreak: "break-word",
                 overflowWrap: "break-word",
                 whiteSpace: "pre-wrap",
+                marginBottom: "2px",
               }}
             >
               {nodeName ?? "(no name)"}
