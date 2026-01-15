@@ -221,10 +221,19 @@ export default function RootFolderNode({
 
   const topHandleLeft = `${(topHandleX / viewBoxWidth) * 100}%`;
   const bottomHandleLeft = `${(bottomHandleX / viewBoxWidth) * 100}%`;
-  const topHandleY = (outlineTopY / viewBoxHeight) * svgHeight;
   const collapsedBottomY = 172;
-  const bottomHandleY =
-    (isExpanded ? outlineBottomY : collapsedBottomY) / viewBoxHeight * svgHeight;
+  const handleWidth = 12;
+  const handleHeight = 6;
+  const handleStrokeWidth = selected ? 6 : 4;
+  const toHandlePx = (y: number) =>
+    Math.round((y / viewBoxHeight) * svgHeight);
+  const topHandleTop =
+    toHandlePx(outlineTopY) - Math.round(handleStrokeWidth / 2) - 3;
+  const bottomHandleTop =
+    toHandlePx(isExpanded ? outlineBottomY : collapsedBottomY) -
+    handleHeight +
+    Math.round(handleStrokeWidth / 2) +
+    3;
 
   // Convert intended screen px into SVG user units so text renders at the desired size
   // after the SVG is scaled down by its viewBox.
@@ -236,17 +245,12 @@ export default function RootFolderNode({
     14;
   const bodyFontSize = settings.appearance.nodeBodyFontSize ?? 18;
 
-  // User-requested: 50% of current size.
-  const handleSize = 6;
   const handleStyleBase: React.CSSProperties = {
-    width: handleSize,
-    height: handleSize,
-    borderRadius: "50%",
-    // User-requested: always gray (no selection/primary tint).
-    background: "transparent",
-    border: "2px solid var(--border)",
+    width: handleWidth,
+    height: handleHeight,
+    background: "var(--border)",
+    border: "none",
     opacity: 1,
-    transform: "translate(-50%, -50%)",
     zIndex: 5,
   };
 
@@ -274,7 +278,9 @@ export default function RootFolderNode({
         style={{
           ...handleStyleBase,
           left: topHandleLeft,
-          top: topHandleY,
+          top: topHandleTop,
+          transform: "translate(-50%, 0)",
+          borderRadius: "9px 9px 0 0",
         }}
       />
       <Handle
@@ -284,7 +290,9 @@ export default function RootFolderNode({
         style={{
           ...handleStyleBase,
           left: bottomHandleLeft,
-          top: bottomHandleY,
+          top: bottomHandleTop,
+          transform: "translate(-50%, 0)",
+          borderRadius: "0 0 9px 9px",
         }}
       />
 
@@ -309,7 +317,7 @@ export default function RootFolderNode({
               fontSize: `${toSvgPx(headerFontSize)}px`,
             }}
           >
-            Name
+            Folder Name
           </div>
           {/* Name value div */}
           <div

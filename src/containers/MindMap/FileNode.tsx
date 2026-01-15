@@ -2,22 +2,19 @@
  * FileNode.tsx
  *
  * ReactFlow custom node component for displaying a file node in the mind map.
- * Visual style: "document/file" outline with a folded corner (like the provided sample).
- * Still shows Name + Purpose and supports minimize + connection handles.
+ * Visual style: SVG document outline with a rounded tab.
+ * Still shows Name + Purpose.
  */
 
-import type { NodeProps } from "reactflow";
-import { useMindMapStore } from "../../store/mindMapStore";
+import { Handle, Position, type NodeProps } from "reactflow";
 
-export default function FileNode({ id, data, selected }: NodeProps<any>) {
-  const updateNodeData = useMindMapStore((s) => s.updateNodeData);
-
-  const isMinimized = (data as any)?.isMinimized === true;
-
-  const toggleMinimize = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    updateNodeData(id, { isMinimized: !isMinimized });
-  };
+export default function FileNode({
+  data,
+  selected,
+  dragging,
+  xPos,
+  yPos,
+}: NodeProps<any>) {
 
   const nodeName =
     typeof (data as any)?.name === "string" && (data as any).name.trim()
@@ -44,16 +41,38 @@ export default function FileNode({ id, data, selected }: NodeProps<any>) {
     return parts.length > 0 ? parts.join("\n") : undefined;
   })();
 
-  const borderStyle = selected
-    ? {
-        borderWidth: "2px",
-        borderStyle: "solid",
-        borderColor: "var(--primary-color)",
-        boxShadow: "0 0 0 2px rgba(100, 108, 255, 0.2)",
-      }
-    : {
-        border: "var(--border-width) solid var(--border)",
-      };
+  const stroke = selected ? "var(--primary-color)" : "var(--border)";
+  const strokeWidth = selected ? 6 : 4;
+  const fillColor = "var(--surface-2)";
+  const fillOpacity = 0.98;
+  const handleWidth = 12;
+  const handleHeight = 6;
+  const handleBaseStyle: React.CSSProperties = {
+    width: handleWidth,
+    height: handleHeight,
+    background: "var(--border)",
+    border: "none",
+    opacity: 1,
+    zIndex: 3,
+  };
+  const viewBoxMinY = 55;
+  const viewBoxHeight = 420;
+  const svgHeight = 150;
+  const pathTopY = 60;
+  const pathBottomY = 475;
+  const toSvgPx = (y: number) =>
+    Math.round(((y - viewBoxMinY) / viewBoxHeight) * svgHeight);
+  const topHandleTop = toSvgPx(pathTopY) - Math.round(strokeWidth / 2) + 2;
+  const bottomHandleTop =
+    toSvgPx(pathBottomY) - handleHeight + Math.round(strokeWidth / 2) - 3;
+  const detailedPathD =
+    "M 80 60 H 150 C 165 60 175 40 200 40 C 225 40 235 60 250 60 H 320 V 120 H 80 Z M 80 120 V 420 H 320 V 120 Z";
+  const simplifiedPathD =
+    "M 80 60 H 150 L 175 40 H 225 L 250 60 H 320 V 420 H 80 Z";
+  const snapOffsetX =
+    dragging && typeof xPos === "number" ? Math.round(xPos) - xPos : 0;
+  const snapOffsetY =
+    dragging && typeof yPos === "number" ? Math.round(yPos) - yPos : 0;
 
   return (
     <div
@@ -65,16 +84,18 @@ export default function FileNode({ id, data, selected }: NodeProps<any>) {
         padding: 0,
         display: "grid",
         justifyItems: "center",
+        transform:
+          snapOffsetX !== 0 || snapOffsetY !== 0
+            ? `translate(${snapOffsetX}px, ${snapOffsetY}px)`
+            : undefined,
       }}
     >
       <div
         title={tooltipText}
         style={{
-          width: 80,
-          minWidth: 80,
-          maxWidth: 80,
-          borderRadius: "var(--radius-md)",
-          ...borderStyle,
+          width: 130,
+          minWidth: 130,
+          maxWidth: 130,
           background: "transparent",
           display: "flex",
           flexDirection: "column",
@@ -84,104 +105,73 @@ export default function FileNode({ id, data, selected }: NodeProps<any>) {
           padding: 0,
           boxSizing: "border-box",
           gap: "6px",
-          transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+          transition: dragging ? "none" : "border-color 0.15s ease, box-shadow 0.15s ease",
         }}
         aria-hidden="true"
       >
-        <button
-          type="button"
-          onClick={toggleMinimize}
-          aria-label={isMinimized ? "Maximize node" : "Minimize node"}
-          title={isMinimized ? "Maximize" : "Minimize"}
+        <Handle
+          type="target"
+          position={Position.Top}
+          id="target-top"
           style={{
-            position: "absolute",
-            top: "6px",
-            right: "6px",
-            width: "16px",
-            height: "16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "transparent",
-            border: "none",
-            color: "var(--pm-file-node-control, var(--text))",
-            cursor: "pointer",
-            opacity: 0.6,
-            borderRadius: "var(--radius-sm)",
-            padding: 0,
-            zIndex: 2,
+            ...handleBaseStyle,
+            left: "50%",
+            top: topHandleTop,
+            transform: "translate(-50%, 0)",
+            borderRadius: "9px 9px 0 0",
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = "1";
-            e.currentTarget.style.background = "var(--surface-1)";
+        />
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id="source-bottom"
+          style={{
+            ...handleBaseStyle,
+            left: "50%",
+            top: bottomHandleTop,
+            transform: "translate(-50%, 0)",
+            borderRadius: "0 0 9px 9px",
           }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = "0.6";
-            e.currentTarget.style.background = "transparent";
-          }}
-        >
-          {isMinimized ? (
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M5 2 L2 6 L8 6 Z" />
-            </svg>
-          ) : (
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M5 8 L2 4 L8 4 Z" />
-            </svg>
-          )}
-        </button>
-
-        {/* Document/file shape (outline + folded corner) */}
+        />
+        {/* Document/file SVG shape */}
         <div
           style={{
             position: "relative",
             width: "100%",
-            height: isMinimized ? 60 : 100,
+            height: 150,
             borderRadius: "var(--radius-md)",
-            background: "var(--surface-2)",
             overflow: "hidden",
           }}
         >
-          {/* Folded corner */}
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              right: 0,
-              width: 18,
-              height: 18,
-              background: "var(--surface-1)",
-              borderLeft: "var(--border-width) solid var(--border)",
-              borderBottom: "var(--border-width) solid var(--border)",
-              clipPath: "polygon(0 0, 100% 0, 100% 100%)",
-              opacity: 0.95,
-            }}
-          />
+          <svg
+            width="100%"
+            height="100%"
+            viewBox="80 20 240 420"
+            preserveAspectRatio="none"
+            xmlns="http://www.w3.org/2000/svg"
+            role="img"
+            aria-hidden="true"
+            shapeRendering={dragging ? "crispEdges" : "geometricPrecision"}
+            style={{ display: "block" }}
+          >
+            <path
+              d={dragging ? simplifiedPathD : detailedPathD}
+              fill={fillColor}
+              fillOpacity={fillOpacity}
+              stroke={stroke}
+              strokeWidth={strokeWidth}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          </svg>
 
           {/* Inner content */}
           <div
             style={{
+              position: "absolute",
+              inset: 0,
               padding: "8px",
+              paddingTop: "16px",
               paddingRight: 20, // leave space under the fold
               display: "flex",
               flexDirection: "column",
@@ -190,19 +180,19 @@ export default function FileNode({ id, data, selected }: NodeProps<any>) {
           >
             <div
               style={{
-                fontSize: "8px",
-                fontWeight: 700,
+                fontSize: "5px",
+                fontWeight: 400,
                 letterSpacing: "0.02em",
                 opacity: 0.85,
               }}
             >
-              FILE
+              File Name
             </div>
 
             <div
               style={{
                 fontWeight: 700,
-                fontSize: "9px",
+                fontSize: "7px",
                 lineHeight: "1.2",
                 wordBreak: "break-word",
                 overflowWrap: "break-word",
@@ -212,30 +202,31 @@ export default function FileNode({ id, data, selected }: NodeProps<any>) {
               {nodeName ?? "(no name)"}
             </div>
 
-            {!isMinimized && (
-              <>
-                <div
-                  style={{
-                    height: 1,
-                    background: "var(--border)",
-                    opacity: 0.6,
-                    margin: "2px 0",
-                  }}
-                />
-                <div
-                  style={{
-                    fontSize: "8px",
-                    lineHeight: "1.25",
-                    wordBreak: "break-word",
-                    overflowWrap: "break-word",
-                    whiteSpace: "pre-wrap",
-                    opacity: 0.95,
-                  }}
-                >
-                  {nodePurpose ?? ""}
-                </div>
-              </>
-            )}
+            <div
+              style={{
+                fontSize: "5px",
+                fontWeight: 400,
+                letterSpacing: "0.02em",
+                opacity: 0.85,
+                marginTop: "3px",
+              }}
+            >
+              Purpose
+            </div>
+            <div
+              style={{
+                fontSize: "7px",
+                lineHeight: "1.25",
+                wordBreak: "break-word",
+                overflowWrap: "break-word",
+                whiteSpace: "pre-wrap",
+                opacity: 0.95,
+                position: "relative",
+                top: "3px",
+              }}
+            >
+              {nodePurpose ?? ""}
+            </div>
           </div>
         </div>
       </div>
