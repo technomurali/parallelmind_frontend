@@ -81,13 +81,22 @@ export function GlobalHeaderBar({ title: _title }: GlobalHeaderBarProps) {
     }
 
     try {
-      // Spec-confirmed behavior: ALWAYS rebuild from scratch by scanning and overwrite index.
       if (typeof selection === "string") {
-        const root = await fileManager.initializeIndexFromPath(selection);
-        setRoot(null, root);
+        const result = await fileManager.loadOrCreateRootFolderJsonFromPath(
+          selection
+        );
+        if (!result.created) {
+          // TODO: define the "existing root" flow (e.g., merge, refresh, or re-scan)
+          // when a parallelmind_index.json file already exists in the chosen folder.
+        }
+        setRoot(null, result.root);
       } else {
-        const root = await fileManager.initializeIndexFromHandle(selection);
-        setRoot(selection, root);
+        const result = await fileManager.loadOrCreateRootFolderJson(selection);
+        if (!result.created) {
+          // TODO: define the "existing root" flow (e.g., merge, refresh, or re-scan)
+          // when a parallelmind_index.json file already exists in the chosen folder.
+        }
+        setRoot(selection, result.root);
       }
 
       // Immediately focus the new root in the UI so the details panel is usable right away.

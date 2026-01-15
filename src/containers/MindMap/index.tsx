@@ -25,6 +25,7 @@ import "reactflow/dist/style.css";
 import { FiMenu } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import { useMindMapStore } from "../../store/mindMapStore";
+import { composeMindMapGraphFromRoot } from "../../utils/mindMapComposer";
 import RootFolderNode from "./RootFolderNode";
 import FileNode from "./FileNode";
 
@@ -41,6 +42,7 @@ export default function MindMap() {
   const setNodes = useMindMapStore((s) => s.setNodes);
   const setEdges = useMindMapStore((s) => s.setEdges);
   const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
+  const settings = useMindMapStore((s) => s.settings);
   const setInlineEditNodeId = useMindMapStore((s) => s.setInlineEditNodeId);
   const selectNode = useMindMapStore((s) => s.selectNode);
   const selectedNodeId = useMindMapStore((s) => s.selectedNodeId);
@@ -278,43 +280,52 @@ export default function MindMap() {
     const existing = useMindMapStore.getState().nodes ?? [];
     const existingRoot = existing.find((n: any) => n?.id === "00");
 
-    // If root node already exists, preserve its position; otherwise center it
-    let pos: { x: number; y: number };
+    // If root node already exists, preserve its position; otherwise center it.
+    let rootPosition: { x: number; y: number };
     if (existingRoot?.position) {
-      pos = existingRoot.position;
+      rootPosition = existingRoot.position;
     } else {
       const el = wrapperRef.current;
       const rect = el?.getBoundingClientRect();
-      const centerClient = rect
-        ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
-        : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-      pos = rf.screenToFlowPosition(centerClient);
+      const topPadding = Math.max(
+        20,
+        Math.round(settings.appearance.nodeSize * 0.2)
+      );
+      const topCenterClient = rect
+        ? { x: rect.left + rect.width / 2, y: rect.top + topPadding }
+        : { x: window.innerWidth / 2, y: topPadding };
+      rootPosition = rf.screenToFlowPosition(topCenterClient);
     }
 
-    const rootNode: Node = {
-      id: "00",
-      type: "rootFolder",
-      position: pos,
-      data: rootFolderJson,
-      // Sync selection state with store: mark node as selected if it matches selectedNodeId.
-      // ReactFlow will also manage selection on click, but this ensures consistency.
-      selected: selectedNodeId === "00",
-    };
+    const { nodes: composedNodes, edges: composedEdges, warnings } =
+      composeMindMapGraphFromRoot(rootFolderJson, {
+        rootNodeId: "00",
+        rootPosition,
+        nodeSize: settings.appearance.nodeSize,
+      });
 
-    /**
-     * Preserve non-root nodes when updating the root node.
-     *
-     * Previously this component enforced a single-node canvas by calling `setNodes([rootNode])`,
-     * which would wipe any newly created children. For the guided child-creation flow we must
-     * keep the rest of the graph in memory and only replace/update the root node.
-     *
-     * We intentionally read the latest nodes from the Zustand store here to avoid adding `nodes`
-     * as an effect dependency (which would re-center the root on every node mutation).
-     */
-    const nonRoot = existing.filter((n: any) => n?.id !== "00");
-    setNodes([rootNode, ...nonRoot]);
+    if (warnings.length > 0) {
+      console.warn("[MindMap] Compose warnings:", warnings);
+    }
+
+    // Sync selection state with store: mark node as selected if it matches selectedNodeId.
+    const withSelection = composedNodes.map((node) => ({
+      ...node,
+      selected: node.id === selectedNodeId,
+    }));
+
+    setNodes(withSelection);
+    setEdges(composedEdges);
     setInlineEditNodeId("00");
-  }, [rf, rootFolderJson, selectedNodeId, setInlineEditNodeId, setNodes]);
+  }, [
+    rf,
+    rootFolderJson,
+    selectedNodeId,
+    settings.appearance.nodeSize,
+    setInlineEditNodeId,
+    setNodes,
+    setEdges,
+  ]);
 
   return (
     <main className="pm-center" aria-label={uiText.ariaLabels.mindMapCanvas}>
