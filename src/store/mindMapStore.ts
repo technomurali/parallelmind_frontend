@@ -88,6 +88,14 @@ export interface AppSettings {
     showMinimap: boolean;
     nodeHeaderFontSize: number;
     nodeBodyFontSize: number;
+    enableNodeFillColors: boolean;
+    nodeFillColors: {
+      root: string;
+      level1: string;
+      level2: string;
+      level3: string;
+      level4: string;
+    };
   };
   interaction: {
     lockNodePositions: boolean;
@@ -193,6 +201,14 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
         showMinimap: true,
         nodeHeaderFontSize: 4,
         nodeBodyFontSize: 7,
+        enableNodeFillColors: false,
+        nodeFillColors: {
+          root: '#1E1B4B',
+          level1: '#312E81',
+          level2: '#4F46E5',
+          level3: '#60A5FA',
+          level4: '#BFDBFE',
+        },
       },
       interaction: {
         lockNodePositions: false,

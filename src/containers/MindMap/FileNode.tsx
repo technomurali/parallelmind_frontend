@@ -8,6 +8,8 @@
 
 import { useState } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
+import { useMindMapStore } from "../../store/mindMapStore";
+import { getNodeFillColor } from "../../utils/nodeFillColors";
 
 export default function FileNode({
   data,
@@ -16,6 +18,7 @@ export default function FileNode({
   xPos,
   yPos,
 }: NodeProps<any>) {
+  const settings = useMindMapStore((s) => s.settings);
   const [isExpanded, setIsExpanded] = useState(true);
 
   const nodeName =
@@ -27,25 +30,17 @@ export default function FileNode({
       ? (data as any).purpose.trim()
       : null;
 
-  const tooltipText = (() => {
-    const wrapWords = (text: string, wordsPerLine: number): string => {
-      const words = text.trim().split(/\s+/);
-      const lines: string[] = [];
-      for (let i = 0; i < words.length; i += wordsPerLine) {
-        lines.push(words.slice(i, i + wordsPerLine).join(" "));
-      }
-      return lines.join("\n");
-    };
-
-    const parts: string[] = [];
-    if (nodeName) parts.push(wrapWords(nodeName, 8));
-    if (nodePurpose) parts.push(wrapWords(nodePurpose, 8));
-    return parts.length > 0 ? parts.join("\n") : undefined;
-  })();
 
   const stroke = selected ? "var(--primary-color)" : "var(--border)";
   const strokeWidth = selected ? 6 : 4;
-  const fillColor = "var(--surface-2)";
+  const levelValue =
+    typeof (data as any)?.level === "number" ? (data as any).level : 0;
+  const fillColor = getNodeFillColor(
+    settings,
+    levelValue,
+    "var(--surface-2)",
+    { variant: "file" }
+  );
   const fillOpacity = 0.98;
   const handleWidth = 12;
   const handleHeight = 6;
@@ -115,7 +110,6 @@ export default function FileNode({
       {/* Root container: Clickable wrapper for the entire file node that handles expand/collapse toggle and integer pixel snapping during drag */}
       {/* Node content wrapper: Fixed-width container (130px) that holds the SVG shape and handles, with relative positioning for handle placement */}
       <div
-        title={tooltipText}
         style={{
           width: 125,
           minWidth: 125,

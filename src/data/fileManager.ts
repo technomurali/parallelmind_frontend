@@ -571,7 +571,8 @@ export class FileManager {
     const existing = await this.readRootFolderJson(dirHandle);
     if (existing) return { root: existing, created: false };
 
-    const createdRoot = await this.createRootFolderJson(dirHandle);
+    // Initialize by scanning the directory structure recursively up to 4 levels
+    const createdRoot = await this.initializeIndexFromHandle(dirHandle);
     return { root: createdRoot, created: true };
   }
 
@@ -697,11 +698,8 @@ export class FileManager {
       return { root: { ...existing, path: dirPath }, created: false };
     }
 
-    const createdRoot = this.buildNewRootFolderJson({
-      name: this.baseNameFromPath(dirPath),
-      path: dirPath,
-    });
-    await this.writeRootFolderJsonFromPath(dirPath, createdRoot);
+    // Initialize by scanning the directory structure recursively up to 4 levels
+    const createdRoot = await this.initializeIndexFromPath(dirPath);
     return { root: createdRoot, created: true };
   }
 

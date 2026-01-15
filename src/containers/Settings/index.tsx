@@ -7,6 +7,7 @@ type SettingsSection = "appearance";
 export default function Settings() {
   const settings = useMindMapStore((s) => s.settings);
   const updateSettings = useMindMapStore((s) => s.updateSettings);
+  const nodeFillEnabled = !!settings.appearance.enableNodeFillColors;
 
   const [section, setSection] = useState<SettingsSection>("appearance");
 
@@ -224,6 +225,175 @@ export default function Settings() {
                     })
                   }
                   aria-label="Show minimap"
+                />
+              </div>
+
+              <div className="pm-settings__divider" />
+
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
+                  <div className="pm-settings__rowTitle">Node fill colors</div>
+                  <div className="pm-settings__rowDesc">
+                    Apply colors by node level using the data.level field.
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={nodeFillEnabled}
+                  onChange={(e) =>
+                    updateSettings({
+                      appearance: {
+                        ...settings.appearance,
+                        enableNodeFillColors: e.target.checked,
+                      },
+                    })
+                  }
+                  aria-label="Enable node fill colors"
+                />
+              </div>
+
+              <div className="pm-settings__divider" />
+
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
+                  <div className="pm-settings__rowTitle">Root color</div>
+                  <div className="pm-settings__rowDesc">
+                    Used when level is 0 or missing.
+                  </div>
+                </div>
+                <input
+                  className="pm-settings__control"
+                  type="color"
+                  value={settings.appearance.nodeFillColors.root}
+                  onChange={(e) =>
+                    updateSettings({
+                      appearance: {
+                        ...settings.appearance,
+                        nodeFillColors: {
+                          ...settings.appearance.nodeFillColors,
+                          root: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                  aria-label="Root node color"
+                  disabled={!nodeFillEnabled}
+                />
+              </div>
+
+              <div className="pm-settings__divider" />
+
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
+                  <div className="pm-settings__rowTitle">Level 1 color</div>
+                  <div className="pm-settings__rowDesc">
+                    Applied to nodes with level 1.
+                  </div>
+                </div>
+                <input
+                  className="pm-settings__control"
+                  type="color"
+                  value={settings.appearance.nodeFillColors.level1}
+                  onChange={(e) =>
+                    updateSettings({
+                      appearance: {
+                        ...settings.appearance,
+                        nodeFillColors: {
+                          ...settings.appearance.nodeFillColors,
+                          level1: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                  aria-label="Level 1 node color"
+                  disabled={!nodeFillEnabled}
+                />
+              </div>
+
+              <div className="pm-settings__divider" />
+
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
+                  <div className="pm-settings__rowTitle">Level 2 color</div>
+                  <div className="pm-settings__rowDesc">
+                    Applied to nodes with level 2.
+                  </div>
+                </div>
+                <input
+                  className="pm-settings__control"
+                  type="color"
+                  value={settings.appearance.nodeFillColors.level2}
+                  onChange={(e) =>
+                    updateSettings({
+                      appearance: {
+                        ...settings.appearance,
+                        nodeFillColors: {
+                          ...settings.appearance.nodeFillColors,
+                          level2: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                  aria-label="Level 2 node color"
+                  disabled={!nodeFillEnabled}
+                />
+              </div>
+
+              <div className="pm-settings__divider" />
+
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
+                  <div className="pm-settings__rowTitle">Level 3 color</div>
+                  <div className="pm-settings__rowDesc">
+                    Applied to nodes with level 3.
+                  </div>
+                </div>
+                <input
+                  className="pm-settings__control"
+                  type="color"
+                  value={settings.appearance.nodeFillColors.level3}
+                  onChange={(e) =>
+                    updateSettings({
+                      appearance: {
+                        ...settings.appearance,
+                        nodeFillColors: {
+                          ...settings.appearance.nodeFillColors,
+                          level3: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                  aria-label="Level 3 node color"
+                  disabled={!nodeFillEnabled}
+                />
+              </div>
+
+              <div className="pm-settings__divider" />
+
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
+                  <div className="pm-settings__rowTitle">Level 4 color</div>
+                  <div className="pm-settings__rowDesc">
+                    Applied to nodes with level 4 and deeper.
+                  </div>
+                </div>
+                <input
+                  className="pm-settings__control"
+                  type="color"
+                  value={settings.appearance.nodeFillColors.level4}
+                  onChange={(e) =>
+                    updateSettings({
+                      appearance: {
+                        ...settings.appearance,
+                        nodeFillColors: {
+                          ...settings.appearance.nodeFillColors,
+                          level4: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                  aria-label="Level 4 node color"
+                  disabled={!nodeFillEnabled}
                 />
               </div>
 

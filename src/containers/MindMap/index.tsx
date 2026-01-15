@@ -21,10 +21,11 @@ import ReactFlow, {
   type ReactFlowInstance,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { FiMenu } from "react-icons/fi";
+import { FiMenu, FiZoomIn } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import { useMindMapStore } from "../../store/mindMapStore";
 import { composeMindMapGraphFromRoot } from "../../utils/mindMapComposer";
+import { getNodeFillColor } from "../../utils/nodeFillColors";
 import {
   areAllNodesVisible,
   getFitViewport,
@@ -93,6 +94,14 @@ export default function MindMap() {
   const [canvasMenu, setCanvasMenu] = useState<{
     open: boolean;
   }>({ open: false });
+
+  const [zoomViewActive, setZoomViewActive] = useState(true);
+  const [zoomPreview, setZoomPreview] = useState<{
+    node: Node;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
 
   const closeContextMenu = () =>
     setContextMenu((s) =>
@@ -189,6 +198,45 @@ export default function MindMap() {
     // naming/saving, discard the temporary node (reversible-before-save behavior).
     discardPendingChildCreationIfSelected();
     selectNode(null);
+  };
+
+  const isZoomPreviewNode = (node: Node | null): boolean =>
+    !!node && (node.type === "rootFolder" || node.type === "file");
+
+  const getPreviewPosition = (clientX: number, clientY: number) => {
+    const rect = canvasBodyRef.current?.getBoundingClientRect();
+    if (!rect) return { x: clientX, y: clientY };
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  };
+
+  const onNodeMouseEnter = (event: any, node: Node) => {
+    if (!zoomViewActive || !isZoomPreviewNode(node)) return;
+    const pos = getPreviewPosition(event.clientX, event.clientY);
+    setZoomPreview({ node, ...pos });
+  };
+
+  const onNodeMouseMove = (event: any, node: Node) => {
+    if (!zoomViewActive || !isZoomPreviewNode(node)) return;
+    const pos = getPreviewPosition(event.clientX, event.clientY);
+    setZoomPreview({ node, ...pos });
+  };
+
+  const onNodeMouseLeave = () => {
+    if (!zoomViewActive) return;
+    setZoomPreview(null);
+  };
+
+  const onCanvasMouseDown = (event: any) => {
+    if (!zoomViewActive) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest(".react-flow__pane")) {
+      setIsPanning(true);
+    }
+  };
+
+  const onCanvasMouseUp = () => {
+    if (!zoomViewActive) return;
+    setIsPanning(false);
   };
 
   /**
@@ -299,6 +347,20 @@ export default function MindMap() {
     };
   }, [contextMenu.open, paneMenu.open, canvasMenu.open]);
 
+  useEffect(() => {
+    if (!zoomViewActive) {
+      setZoomPreview(null);
+      setIsPanning(false);
+      return;
+    }
+
+    const onWindowMouseUp = () => setIsPanning(false);
+    window.addEventListener("mouseup", onWindowMouseUp);
+    return () => {
+      window.removeEventListener("mouseup", onWindowMouseUp);
+    };
+  }, [zoomViewActive]);
+
   /**
    * Effect: Create/replace root node when root folder is selected
    *
@@ -377,6 +439,93 @@ export default function MindMap() {
               gap: "var(--space-3)",
             }}
           >
+            <button
+              type="button"
+              onClick={showAllNodesInCanvas}
+              aria-label="Show all nodes"
+              title="Show all nodes"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "var(--control-size-sm)",
+                width: "var(--control-size-sm)",
+                borderRadius: "var(--radius-md)",
+                border: "none",
+                background: "transparent",
+                color: "var(--text)",
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "transparent";
+              }}
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="2" />
+                <rect
+                  x="7"
+                  y="7"
+                  width="6"
+                  height="6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  fill="none"
+                />
+                <line
+                  x1="14.5"
+                  y1="14.5"
+                  x2="20"
+                  y2="20"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoomViewActive((prev) => !prev)}
+              aria-label="Toggle Zoom View mode"
+              aria-pressed={zoomViewActive}
+              title="Zoom View mode"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "var(--control-size-sm)",
+                width: "var(--control-size-sm)",
+                borderRadius: "var(--radius-md)",
+                border: "none",
+                background: zoomViewActive ? "var(--surface-1)" : "transparent",
+                color: "var(--text)",
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  zoomViewActive ? "var(--surface-1)" : "transparent";
+              }}
+            >
+              <FiZoomIn
+                style={{ fontSize: "var(--icon-size-md)" }}
+                aria-hidden="true"
+              />
+            </button>
             <button
               type="button"
               onClick={toggleCanvasMenu}
@@ -471,7 +620,19 @@ export default function MindMap() {
           </div>
         )}
 
-        <div className="pm-canvas__body" ref={canvasBodyRef}>
+        <div
+          className="pm-canvas__body"
+          ref={canvasBodyRef}
+          style={{
+            cursor: zoomViewActive
+              ? isPanning
+                ? "grabbing"
+                : "zoom-in"
+              : undefined,
+          }}
+          onMouseDown={onCanvasMouseDown}
+          onMouseUp={onCanvasMouseUp}
+        >
           <ReactFlow
             nodes={nodes}
             edges={renderedEdges}
@@ -539,7 +700,67 @@ export default function MindMap() {
             onPaneContextMenu={onPaneContextMenu}
             onNodeDoubleClick={onNodeDoubleClick}
             onNodeContextMenu={onNodeContextMenu}
+            onNodeMouseEnter={onNodeMouseEnter}
+            onNodeMouseMove={onNodeMouseMove}
+            onNodeMouseLeave={onNodeMouseLeave}
           />
+
+          {zoomViewActive && zoomPreview && (
+            <div
+              role="presentation"
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: zoomPreview.x + 18,
+                top: zoomPreview.y + 18,
+                zIndex: 55,
+                minWidth: 220,
+                maxWidth: 280,
+                padding: "12px 14px",
+                borderRadius: "var(--radius-md)",
+                border: "var(--border-width) solid var(--border)",
+                background: getNodeFillColor(
+                  settings,
+                  typeof (zoomPreview.node.data as any)?.level === "number"
+                    ? (zoomPreview.node.data as any).level
+                    : 0,
+                  "var(--surface-2)"
+                ),
+                color: "var(--text)",
+                boxShadow: "0 12px 28px rgba(0,0,0,0.35)",
+                pointerEvents: "none",
+                transform: "scale(1.05)",
+                transformOrigin: "top left",
+              }}
+            >
+              <div style={{ fontSize: "0.9rem", fontWeight: 700 }}>
+                {zoomPreview.node.type === "rootFolder" ? "Folder" : "File"}
+              </div>
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: "0.95rem",
+                  fontWeight: 600,
+                  wordBreak: "break-word",
+                }}
+              >
+                {(zoomPreview.node.data as any)?.name ?? ""}
+              </div>
+              {(zoomPreview.node.data as any)?.purpose && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: "0.85rem",
+                    lineHeight: 1.35,
+                    opacity: 0.9,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {(zoomPreview.node.data as any)?.purpose}
+                </div>
+              )}
+            </div>
+          )}
 
           {paneMenu.open && (
             <div

@@ -12,12 +12,13 @@ import { useState, type ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import type { RootFolderJson } from "../../data/fileManager";
 import { useMindMapStore } from "../../store/mindMapStore";
+import { getNodeFillColor } from "../../utils/nodeFillColors";
 
 type SvgFolderNodeProps = {
   width: number;
   height: number;
-  tooltipText?: string;
   selected: boolean;
+  fillColor: string;
   contentFontSize: number;
   contentPadding: number;
   contentGap: number;
@@ -28,8 +29,8 @@ type SvgFolderNodeProps = {
 const SvgFolderNode = ({
   width,
   height,
-  tooltipText,
   selected,
+  fillColor,
   contentFontSize,
   contentPadding,
   contentGap,
@@ -99,13 +100,10 @@ const SvgFolderNode = ({
         color: "var(--text)",
       }}
     >
-      {/* Tooltip */}
-      <title>{tooltipText}</title>
-
       {/* Node Shape */}
       <path
         d={isExpanded ? expandedPathD : collapsedPathD}
-        fill="var(--surface-2)"
+        fill={fillColor}
         stroke={stroke}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
@@ -157,6 +155,13 @@ export default function RootFolderNode({
 }: NodeProps<RootFolderJson>) {
   const settings = useMindMapStore((s) => s.settings);
   const [isExpanded, setIsExpanded] = useState(true);
+  const levelValue =
+    typeof (data as any)?.level === "number" ? (data as any).level : 0;
+  const fillColor = getNodeFillColor(
+    settings,
+    levelValue,
+    "var(--surface-2)"
+  );
 
   // Extract text content from node data based on display mode.
   const nodeName =
@@ -172,33 +177,6 @@ export default function RootFolderNode({
           ? (data as any).description.trim()
           : null);
 
-  // Build tooltip with name and purpose on separate lines, wrapped to ~8 words/line.
-  const tooltipText = (() => {
-    const wrapWords = (text: string, wordsPerLine: number): string => {
-      const words = text.trim().split(/\s+/);
-      const lines: string[] = [];
-      for (let i = 0; i < words.length; i += wordsPerLine) {
-        lines.push(words.slice(i, i + wordsPerLine).join(" "));
-      }
-      return lines.join("\n");
-    };
-
-    const parts: string[] = [];
-    if (typeof data?.name === "string" && data.name.trim()) {
-      parts.push(wrapWords(data.name, 8));
-    }
-    const purpose =
-      typeof (data as any)?.purpose === "string" && (data as any).purpose.trim()
-        ? (data as any).purpose
-        : typeof (data as any)?.description === "string" &&
-          (data as any).description.trim()
-        ? (data as any).description
-        : null;
-    if (purpose) {
-      parts.push(wrapWords(purpose, 8));
-    }
-    return parts.length > 0 ? parts.join("\n") : undefined;
-  })();
 
   // Visual size (CSS px) for the SVG node.
   const svgWidth = 200;
@@ -301,8 +279,8 @@ export default function RootFolderNode({
       <SvgFolderNode
         width={svgWidth}
         height={svgHeight}
-        tooltipText={tooltipText}
         selected={selected}
+        fillColor={fillColor}
         contentFontSize={toSvgPx(bodyFontSize)}
         contentPadding={toSvgPx(0.5)}
         contentGap={toSvgPx(4)}

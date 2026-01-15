@@ -274,6 +274,35 @@ export const composeMindMapGraphFromRoot = (
 
   const nodes: Node[] = [];
   const positionedById = new Map<string, { x: number; y: number }>();
+  const minNodeGap = Math.max(40, Math.round(nodeSize * 0.2));
+  const minSpacing = nodeSize + minNodeGap;
+
+  const resolveRowOverlaps = (rowIds: string[]) => {
+    const row = rowIds
+      .map((id) => ({ id, pos: positionedById.get(id) }))
+      .filter((item) => item.pos) as { id: string; pos: { x: number; y: number } }[];
+    if (row.length < 2) return;
+
+    row.sort((a, b) => a.pos.x - b.pos.x);
+    for (let i = 1; i < row.length; i += 1) {
+      const prev = row[i - 1];
+      const cur = row[i];
+      const delta = cur.pos.x - prev.pos.x;
+      if (delta < minSpacing) {
+        cur.pos.x = prev.pos.x + minSpacing;
+      }
+    }
+
+    const minX = Math.min(...row.map((item) => item.pos.x));
+    const maxX = Math.max(...row.map((item) => item.pos.x));
+    const centerShift = rootPosition.x - (minX + maxX) / 2;
+    if (Math.abs(centerShift) > 0.001) {
+      row.forEach((item) => {
+        item.pos.x += centerShift;
+        positionedById.set(item.id, item.pos);
+      });
+    }
+  };
 
   rowOrder.forEach((row, rowIndex) => {
     if (row.length === 0) return;
@@ -320,6 +349,8 @@ export const composeMindMapGraphFromRoot = (
       });
     }
 
+    resolveRowOverlaps(row);
+
     infos.forEach((info) => {
       const pos = positionedById.get(info.id) ?? { x: rootPosition.x, y: rowY };
       nodes.push({
@@ -364,6 +395,8 @@ export const composeMindMapGraphFromRoot = (
         });
       });
     }
+
+    resolveRowOverlaps(nextRow);
   });
 
   // Apply computed child positions (if any) to nodes that were already emitted.
