@@ -102,6 +102,7 @@ export default function MindMap() {
       ? uiText.statusMessages.layoutSaveFailed
       : "";
 
+
   const persistNodePositions = async () => {
     if (!pendingNodePositions || !rootFolderJson) return;
     const nextRoot: RootFolderJson = {
@@ -979,6 +980,64 @@ export default function MindMap() {
               }}
             >
               {uiText.canvas.viewMenu.resetLayout}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeCanvasMenu();
+                if (!rootFolderJson) return;
+                const cleared: RootFolderJson = {
+                  ...rootFolderJson,
+                  node_size: {},
+                };
+                updateRootFolderJson(cleared);
+                const nextNodes = (nodes ?? []).map((node) => {
+                  if (!node?.data) return node;
+                  const nextData = { ...(node.data ?? {}) };
+                  delete (nextData as any).node_size;
+                  return { ...node, data: nextData };
+                });
+                setNodes(nextNodes);
+                void (async () => {
+                  try {
+                    if (rootDirectoryHandle) {
+                      await fileManager.writeRootFolderJson(
+                        rootDirectoryHandle,
+                        cleared
+                      );
+                    } else if (rootFolderJson.path) {
+                      await fileManager.writeRootFolderJsonFromPath(
+                        rootFolderJson.path,
+                        cleared
+                      );
+                    }
+                  } catch (err) {
+                    console.error("[MindMap] Reset node sizes failed:", err);
+                  }
+                })();
+              }}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                cursor: "pointer",
+                fontFamily: "var(--font-family)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "transparent";
+              }}
+            >
+              {uiText.canvas.viewMenu.resetNodeSizes}
             </button>
             <button
               type="button"

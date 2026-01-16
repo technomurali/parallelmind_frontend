@@ -193,10 +193,9 @@ export default function RootFolderNode({
     Number.isFinite((data as any).node_size)
       ? (data as any).node_size
       : baseNodeSize;
-  const minSize = Math.round(baseNodeSize * 0.5);
-  const maxSize = Math.round(baseNodeSize * 1.5);
-  const stepSize = Math.max(8, Math.round(baseNodeSize * 0.1));
-  const clampedSize = Math.max(minSize, Math.min(maxSize, storedSize));
+  const minSize = 10;
+  const stepSize = Math.max(1, Math.round(baseNodeSize * 0.1));
+  const clampedSize = Math.max(minSize, storedSize);
   const sizeScale = clampedSize / baseNodeSize;
 
   const svgWidth = Math.round(200 * sizeScale);
@@ -283,10 +282,7 @@ export default function RootFolderNode({
   };
 
   const applyNodeSizeDelta = (delta: number) => {
-    const nextSize = Math.max(
-      minSize,
-      Math.min(maxSize, clampedSize + delta)
-    );
+    const nextSize = Math.max(minSize, clampedSize + delta);
     updateNodeData(id, { node_size: nextSize });
     void persistNodeSize(nextSize);
   };
@@ -346,7 +342,7 @@ export default function RootFolderNode({
           style={{
             position: "absolute",
             top: Math.max(4, Math.round(6 * sizeScale)),
-            right: Math.max(4, Math.round(6 * sizeScale)),
+            right: Math.max(0, Math.round(6 * sizeScale) - 8),
             display: "flex",
             gap: Math.max(2, Math.round(4 * sizeScale)),
             zIndex: 6,
@@ -360,10 +356,10 @@ export default function RootFolderNode({
               applyNodeSizeDelta(stepSize);
             }}
             style={{
-              width: Math.max(14, Math.round(18 * sizeScale)),
-              height: Math.max(14, Math.round(18 * sizeScale)),
-              borderRadius: "50%",
-              border: "1px solid var(--text)",
+              width: Math.max(18, Math.round(22 * sizeScale)),
+              height: Math.max(18, Math.round(22 * sizeScale)),
+              borderRadius: 0,
+              border: "none",
               background: "transparent",
               color: "var(--text)",
               cursor: "pointer",
@@ -371,7 +367,7 @@ export default function RootFolderNode({
               alignItems: "center",
               justifyContent: "center",
               padding: 0,
-              fontSize: `${Math.max(9, Math.round(12 * sizeScale))}px`,
+              fontSize: `${Math.max(13, Math.round(16 * sizeScale))}px`,
               fontWeight: 700,
               lineHeight: 1,
             }}
@@ -386,10 +382,10 @@ export default function RootFolderNode({
               applyNodeSizeDelta(-stepSize);
             }}
             style={{
-              width: Math.max(14, Math.round(18 * sizeScale)),
-              height: Math.max(14, Math.round(18 * sizeScale)),
-              borderRadius: "50%",
-              border: "1px solid var(--text)",
+              width: Math.max(18, Math.round(22 * sizeScale)),
+              height: Math.max(18, Math.round(22 * sizeScale)),
+              borderRadius: 0,
+              border: "none",
               background: "transparent",
               color: "var(--text)",
               cursor: "pointer",
@@ -397,7 +393,7 @@ export default function RootFolderNode({
               alignItems: "center",
               justifyContent: "center",
               padding: 0,
-              fontSize: `${Math.max(9, Math.round(12 * sizeScale))}px`,
+              fontSize: `${Math.max(13, Math.round(16 * sizeScale))}px`,
               fontWeight: 700,
               lineHeight: 1,
             }}

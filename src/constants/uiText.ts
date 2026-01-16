@@ -118,6 +118,7 @@ export const uiText = {
     viewMenu: {
       showAllNodes: 'Show all nodes',
       resetLayout: 'Reset layout',
+      resetNodeSizes: 'Reset node sizes',
       collapseAllNodes: 'Collapse all nodes',
       expandAllNodes: 'Expand all nodes',
     },

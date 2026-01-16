@@ -57,10 +57,9 @@ export default function FileNode({
     Number.isFinite((data as any).node_size)
       ? (data as any).node_size
       : baseNodeSize;
-  const minSize = Math.round(baseNodeSize * 0.5);
-  const maxSize = Math.round(baseNodeSize * 1.5);
-  const stepSize = Math.max(8, Math.round(baseNodeSize * 0.1));
-  const clampedSize = Math.max(minSize, Math.min(maxSize, storedSize));
+  const minSize = 10;
+  const stepSize = Math.max(1, Math.round(baseNodeSize * 0.1));
+  const clampedSize = Math.max(minSize, storedSize);
   const sizeScale = clampedSize / baseNodeSize;
 
   const handleWidth = 12;
@@ -139,10 +138,7 @@ export default function FileNode({
   };
 
   const applyNodeSizeDelta = (delta: number) => {
-    const nextSize = Math.max(
-      minSize,
-      Math.min(maxSize, clampedSize + delta)
-    );
+    const nextSize = Math.max(minSize, clampedSize + delta);
     updateNodeData(id, { node_size: nextSize });
     void persistNodeSize(nextSize);
   };
@@ -237,7 +233,7 @@ export default function FileNode({
               inset: 0,
               padding: `${Math.max(4, Math.round(8 * sizeScale))}px`,
               paddingTop: `${Math.max(6, Math.round(13 * sizeScale))}px`,
-              paddingRight: Math.max(12, Math.round(20 * sizeScale)), // leave space under the fold
+              paddingRight: Math.max(18, Math.round(26 * sizeScale)), // leave space under the fold + controls
               display: "flex",
               flexDirection: "column",
               gap: Math.max(2, Math.round(4 * sizeScale)),
@@ -246,8 +242,8 @@ export default function FileNode({
             <div
               style={{
                 position: "absolute",
-                top: Math.max(4, Math.round(6 * sizeScale)),
-                right: Math.max(4, Math.round(6 * sizeScale)),
+                top: Math.max(16, Math.round(16 * sizeScale)),
+                right: Math.max(2, Math.round(4 * sizeScale)),
                 display: "flex",
                 gap: Math.max(2, Math.round(4 * sizeScale)),
                 zIndex: 6,
@@ -261,10 +257,10 @@ export default function FileNode({
                   applyNodeSizeDelta(stepSize);
                 }}
                 style={{
-                  width: Math.max(14, Math.round(18 * sizeScale)),
-                  height: Math.max(14, Math.round(18 * sizeScale)),
-                  borderRadius: "50%",
-                  border: "1px solid var(--text)",
+                  width: Math.max(6, Math.round(12 * sizeScale)),
+                  height: Math.max(6, Math.round(12 * sizeScale)),
+                  borderRadius: 0,
+                  border: "none",
                   background: "transparent",
                   color: "var(--text)",
                   cursor: "pointer",
@@ -272,7 +268,7 @@ export default function FileNode({
                   alignItems: "center",
                   justifyContent: "center",
                   padding: 0,
-                  fontSize: `${Math.max(9, Math.round(12 * sizeScale))}px`,
+                  fontSize: `${Math.max(6, Math.round(8 * sizeScale))}px`,
                   fontWeight: 700,
                   lineHeight: 1,
                 }}
@@ -287,10 +283,10 @@ export default function FileNode({
                   applyNodeSizeDelta(-stepSize);
                 }}
                 style={{
-                  width: Math.max(14, Math.round(18 * sizeScale)),
-                  height: Math.max(14, Math.round(18 * sizeScale)),
-                  borderRadius: "50%",
-                  border: "1px solid var(--text)",
+                  width: Math.max(8, Math.round(12 * sizeScale)),
+                  height: Math.max(8, Math.round(12 * sizeScale)),
+                  borderRadius: 0,
+                  border: "none",
                   background: "transparent",
                   color: "var(--text)",
                   cursor: "pointer",
@@ -298,7 +294,7 @@ export default function FileNode({
                   alignItems: "center",
                   justifyContent: "center",
                   padding: 0,
-                  fontSize: `${Math.max(9, Math.round(12 * sizeScale))}px`,
+                  fontSize: `${Math.max(6, Math.round(8 * sizeScale))}px`,
                   fontWeight: 700,
                   lineHeight: 1,
                 }}
