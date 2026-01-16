@@ -656,12 +656,18 @@ export default function MindMap() {
         )
       : new Map<string, { x: number; y: number }>();
 
+    const sizeMap = rootFolderJson?.node_size ?? {};
     const withSelection = composedNodes.map((node) => {
       const preserved =
         storedPositions.get(node.id) ?? existingPositions.get(node.id);
+      const sizeValue = sizeMap[node.id];
       return {
         ...node,
         position: preserved ?? node.position,
+        data:
+          typeof sizeValue === "number" && Number.isFinite(sizeValue)
+            ? { ...(node.data ?? {}), node_size: sizeValue }
+            : node.data,
         selected: node.id === selectedNodeId,
       };
     });

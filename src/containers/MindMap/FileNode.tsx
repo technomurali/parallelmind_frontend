@@ -6,11 +6,14 @@
  * Still shows Name + Purpose.
  */
 
+import { useMemo } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
+import { FileManager } from "../../data/fileManager";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { getNodeFillColor } from "../../utils/nodeFillColors";
 
 export default function FileNode({
+  id,
   data,
   selected,
   dragging,
@@ -19,8 +22,13 @@ export default function FileNode({
 }: NodeProps<any>) {
   const settings = useMindMapStore((s) => s.settings);
   const activeTab = useMindMapStore(selectActiveTab);
+  const updateNodeData = useMindMapStore((s) => s.updateNodeData);
+  const updateRootFolderJson = useMindMapStore((s) => s.updateRootFolderJson);
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
+  const rootFolderJson = activeTab?.rootFolderJson ?? null;
+  const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const isExpanded = !areNodesCollapsed;
+  const fileManager = useMemo(() => new FileManager(), []);
 
   const nodeName =
     typeof (data as any)?.name === "string" && (data as any).name.trim()
@@ -43,6 +51,18 @@ export default function FileNode({
     { variant: "file" }
   );
   const fillOpacity = 0.98;
+  const baseNodeSize = settings.appearance.nodeSize;
+  const storedSize =
+    typeof (data as any)?.node_size === "number" &&
+    Number.isFinite((data as any).node_size)
+      ? (data as any).node_size
+      : baseNodeSize;
+  const minSize = Math.round(baseNodeSize * 0.5);
+  const maxSize = Math.round(baseNodeSize * 1.5);
+  const stepSize = Math.max(8, Math.round(baseNodeSize * 0.1));
+  const clampedSize = Math.max(minSize, Math.min(maxSize, storedSize));
+  const sizeScale = clampedSize / baseNodeSize;
+
   const handleWidth = 12;
   const handleHeight = 6;
   const handleBaseStyle: React.CSSProperties = {
@@ -55,7 +75,7 @@ export default function FileNode({
   };
   const viewBoxMinY = 55;
   const viewBoxHeight = 420;
-  const svgHeight = 130;
+  const svgHeight = Math.round(130 * sizeScale);
   const pathTopY = 60;
   const expandedPathBottomY = 420;
   const collapsedPathBottomY = 120;
@@ -89,6 +109,44 @@ export default function FileNode({
   const snapOffsetY =
     dragging && typeof yPos === "number" ? Math.round(yPos) - yPos : 0;
 
+  const persistNodeSize = async (nextSize: number) => {
+    if (!rootFolderJson) return;
+    const nextMap = {
+      ...(rootFolderJson.node_size ?? {}),
+    } as Record<string, number>;
+    if (nextSize === baseNodeSize) {
+      delete nextMap[id];
+    } else {
+      nextMap[id] = nextSize;
+    }
+    const nextRoot = {
+      ...rootFolderJson,
+      node_size: nextMap,
+    };
+    updateRootFolderJson(nextRoot);
+    try {
+      if (rootDirectoryHandle) {
+        await fileManager.writeRootFolderJson(rootDirectoryHandle, nextRoot);
+      } else if (rootFolderJson.path) {
+        await fileManager.writeRootFolderJsonFromPath(
+          rootFolderJson.path,
+          nextRoot
+        );
+      }
+    } catch (err) {
+      console.error("[FileNode] Persist node size failed:", err);
+    }
+  };
+
+  const applyNodeSizeDelta = (delta: number) => {
+    const nextSize = Math.max(
+      minSize,
+      Math.min(maxSize, clampedSize + delta)
+    );
+    updateNodeData(id, { node_size: nextSize });
+    void persistNodeSize(nextSize);
+  };
+
   return (
     <div
       role="presentation"
@@ -110,9 +168,9 @@ export default function FileNode({
       {/* Node content wrapper: Fixed-width container (130px) that holds the SVG shape and handles, with relative positioning for handle placement */}
       <div
         style={{
-          width: 125,
-          minWidth: 125,
-          maxWidth: 125,
+          width: Math.round(125 * sizeScale),
+          minWidth: Math.round(125 * sizeScale),
+          maxWidth: Math.round(125 * sizeScale),
           background: "transparent",
           display: "flex",
           flexDirection: "column",
@@ -177,18 +235,82 @@ export default function FileNode({
             style={{
               position: "absolute",
               inset: 0,
-              padding: "8px",
-              paddingTop: "13px",
-              paddingRight: 20, // leave space under the fold
+              padding: `${Math.max(4, Math.round(8 * sizeScale))}px`,
+              paddingTop: `${Math.max(6, Math.round(13 * sizeScale))}px`,
+              paddingRight: Math.max(12, Math.round(20 * sizeScale)), // leave space under the fold
               display: "flex",
               flexDirection: "column",
-              gap: 4,
+              gap: Math.max(2, Math.round(4 * sizeScale)),
             }}
           >
+            <div
+              style={{
+                position: "absolute",
+                top: Math.max(4, Math.round(6 * sizeScale)),
+                right: Math.max(4, Math.round(6 * sizeScale)),
+                display: "flex",
+                gap: Math.max(2, Math.round(4 * sizeScale)),
+                zIndex: 6,
+                pointerEvents: "auto",
+              }}
+            >
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  applyNodeSizeDelta(stepSize);
+                }}
+                style={{
+                  width: Math.max(14, Math.round(18 * sizeScale)),
+                  height: Math.max(14, Math.round(18 * sizeScale)),
+                  borderRadius: "50%",
+                  border: "1px solid var(--text)",
+                  background: "transparent",
+                  color: "var(--text)",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                  fontSize: `${Math.max(9, Math.round(12 * sizeScale))}px`,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                }}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                +
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  applyNodeSizeDelta(-stepSize);
+                }}
+                style={{
+                  width: Math.max(14, Math.round(18 * sizeScale)),
+                  height: Math.max(14, Math.round(18 * sizeScale)),
+                  borderRadius: "50%",
+                  border: "1px solid var(--text)",
+                  background: "transparent",
+                  color: "var(--text)",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                  fontSize: `${Math.max(9, Math.round(12 * sizeScale))}px`,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                }}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                -
+              </button>
+            </div>
             {/* File Name label: Displays the "File Name" header text in small, non-bold font */}
             <div
               style={{
-                fontSize: "5px",
+                fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
                 fontWeight: 400,
                 letterSpacing: "0.02em",
                 opacity: 0.85,
@@ -201,12 +323,12 @@ export default function FileNode({
             <div
               style={{
                 fontWeight: 700,
-                fontSize: "7px",
+                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
                 lineHeight: "1.2",
                 wordBreak: "break-word",
                 overflowWrap: "break-word",
                 whiteSpace: "pre-wrap",
-                marginBottom: "2px",
+                marginBottom: `${Math.max(1, Math.round(2 * sizeScale))}px`,
               }}
             >
               {nodeName ?? "(no name)"}
@@ -226,11 +348,11 @@ export default function FileNode({
               {/* Purpose label: Displays the "Purpose" header text in small, non-bold font */}
               <div
                 style={{
-                  fontSize: "5px",
+                fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
                   fontWeight: 400,
                   letterSpacing: "0.02em",
                   opacity: 0.85,
-                  marginTop: "3px",
+                marginTop: `${Math.max(1, Math.round(3 * sizeScale))}px`,
                 }}
               >
                 Purpose
@@ -238,14 +360,14 @@ export default function FileNode({
               {/* Purpose value: Displays the actual purpose text with word wrapping support and slight vertical offset */}
               <div
                 style={{
-                  fontSize: "7px",
+                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
                   lineHeight: "1.25",
                   wordBreak: "break-word",
                   overflowWrap: "break-word",
                   whiteSpace: "pre-wrap",
                   opacity: 0.95,
                   position: "relative",
-                  top: "3px",
+                top: `${Math.max(1, Math.round(3 * sizeScale))}px`,
                 }}
               >
                 {nodePurpose ?? ""}

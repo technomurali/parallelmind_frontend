@@ -8,9 +8,9 @@
  * the entry point for the folder structure visualization.
  */
 
-import { type ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import type { RootFolderJson } from "../../data/fileManager";
+import { FileManager, type RootFolderJson } from "../../data/fileManager";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { getNodeFillColor } from "../../utils/nodeFillColors";
 
@@ -150,13 +150,19 @@ const SvgFolderNode = ({
  * @param props - ReactFlow NodeProps containing node id, data, and selected state
  */
 export default function RootFolderNode({
+  id,
   data,
   selected,
 }: NodeProps<RootFolderJson>) {
   const settings = useMindMapStore((s) => s.settings);
   const activeTab = useMindMapStore(selectActiveTab);
+  const updateNodeData = useMindMapStore((s) => s.updateNodeData);
+  const updateRootFolderJson = useMindMapStore((s) => s.updateRootFolderJson);
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
+  const rootFolderJson = activeTab?.rootFolderJson ?? null;
+  const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const isExpanded = !areNodesCollapsed;
+  const fileManager = useMemo(() => new FileManager(), []);
   const levelValue =
     typeof (data as any)?.level === "number" ? (data as any).level : 0;
   const fillColor = getNodeFillColor(
@@ -181,8 +187,20 @@ export default function RootFolderNode({
 
 
   // Visual size (CSS px) for the SVG node.
-  const svgWidth = 200;
-  const svgHeight = 150;
+  const baseNodeSize = settings.appearance.nodeSize;
+  const storedSize =
+    typeof (data as any)?.node_size === "number" &&
+    Number.isFinite((data as any).node_size)
+      ? (data as any).node_size
+      : baseNodeSize;
+  const minSize = Math.round(baseNodeSize * 0.5);
+  const maxSize = Math.round(baseNodeSize * 1.5);
+  const stepSize = Math.max(8, Math.round(baseNodeSize * 0.1));
+  const clampedSize = Math.max(minSize, Math.min(maxSize, storedSize));
+  const sizeScale = clampedSize / baseNodeSize;
+
+  const svgWidth = Math.round(200 * sizeScale);
+  const svgHeight = Math.round(150 * sizeScale);
 
   // Handle placement: align to the SVG folder outline (not the SVG bounds).
   // The folder path's x/y extents were authored in the `SvgFolderNode` viewBox (0..512 x 0..384).
@@ -233,6 +251,44 @@ export default function RootFolderNode({
     border: "none",
     opacity: 1,
     zIndex: 5,
+  };
+
+  const persistNodeSize = async (nextSize: number) => {
+    if (!rootFolderJson) return;
+    const nextMap = {
+      ...(rootFolderJson.node_size ?? {}),
+    } as Record<string, number>;
+    if (nextSize === baseNodeSize) {
+      delete nextMap[id];
+    } else {
+      nextMap[id] = nextSize;
+    }
+    const nextRoot = {
+      ...rootFolderJson,
+      node_size: nextMap,
+    };
+    updateRootFolderJson(nextRoot);
+    try {
+      if (rootDirectoryHandle) {
+        await fileManager.writeRootFolderJson(rootDirectoryHandle, nextRoot);
+      } else if (rootFolderJson.path) {
+        await fileManager.writeRootFolderJsonFromPath(
+          rootFolderJson.path,
+          nextRoot
+        );
+      }
+    } catch (err) {
+      console.error("[RootFolderNode] Persist node size failed:", err);
+    }
+  };
+
+  const applyNodeSizeDelta = (delta: number) => {
+    const nextSize = Math.max(
+      minSize,
+      Math.min(maxSize, clampedSize + delta)
+    );
+    updateNodeData(id, { node_size: nextSize });
+    void persistNodeSize(nextSize);
   };
 
   return (
@@ -286,6 +342,70 @@ export default function RootFolderNode({
         contentGap={toSvgPx(4)}
         isExpanded={isExpanded}
       >
+        <div
+          style={{
+            position: "absolute",
+            top: Math.max(4, Math.round(6 * sizeScale)),
+            right: Math.max(4, Math.round(6 * sizeScale)),
+            display: "flex",
+            gap: Math.max(2, Math.round(4 * sizeScale)),
+            zIndex: 6,
+            pointerEvents: "auto",
+          }}
+        >
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              applyNodeSizeDelta(stepSize);
+            }}
+            style={{
+              width: Math.max(14, Math.round(18 * sizeScale)),
+              height: Math.max(14, Math.round(18 * sizeScale)),
+              borderRadius: "50%",
+              border: "1px solid var(--text)",
+              background: "transparent",
+              color: "var(--text)",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              fontSize: `${Math.max(9, Math.round(12 * sizeScale))}px`,
+              fontWeight: 700,
+              lineHeight: 1,
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              applyNodeSizeDelta(-stepSize);
+            }}
+            style={{
+              width: Math.max(14, Math.round(18 * sizeScale)),
+              height: Math.max(14, Math.round(18 * sizeScale)),
+              borderRadius: "50%",
+              border: "1px solid var(--text)",
+              background: "transparent",
+              color: "var(--text)",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              fontSize: `${Math.max(9, Math.round(12 * sizeScale))}px`,
+              fontWeight: 700,
+              lineHeight: 1,
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            -
+          </button>
+        </div>
         {/* Name section container */}
         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
           {/* Name label div */}
