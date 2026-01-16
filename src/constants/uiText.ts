@@ -117,6 +117,7 @@ export const uiText = {
     },
     viewMenu: {
       showAllNodes: 'Show all nodes',
+      resetLayout: 'Reset layout',
       collapseAllNodes: 'Collapse all nodes',
       expandAllNodes: 'Expand all nodes',
     },
@@ -132,6 +133,7 @@ export const uiText = {
     toggleRightPanel: 'Toggle right panel',
     toggleSettings: 'Toggle settings',
     lockNodePositions: 'Lock node positions',
+    unlockNodePositions: 'Unlock node positions',
     saveFile: 'Save file',
     deleteFile: 'Delete file',
     createFile: 'Create new file',
@@ -201,6 +203,9 @@ export const uiText = {
     disconnected: 'Disconnected',
     syncing: 'Syncing...',
     synced: 'Synced',
+    layoutSaving: 'Saving layout...',
+    layoutSaved: 'Layout saved',
+    layoutSaveFailed: 'Layout save failed',
     idle: 'Ready',
   },
 

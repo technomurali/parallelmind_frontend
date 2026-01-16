@@ -29,6 +29,7 @@ import { CanvasTabs } from "../../components/CanvasTabs/CanvasTabs";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { composeMindMapGraphFromRoot } from "../../utils/mindMapComposer";
 import { getNodeFillColor } from "../../utils/nodeFillColors";
+import { useAutoSave } from "../../hooks/useAutoSave";
 import {
   areAllNodesVisible,
   getFitViewport,
@@ -59,6 +60,12 @@ export default function MindMap() {
   const createTab = useMindMapStore((s) => s.createTab);
   const setActiveTab = useMindMapStore((s) => s.setActiveTab);
   const setRoot = useMindMapStore((s) => s.setRoot);
+  const updateRootFolderJson = useMindMapStore((s) => s.updateRootFolderJson);
+  const setHasCustomLayout = useMindMapStore((s) => s.setHasCustomLayout);
+  const hasCustomLayout = activeTab?.hasCustomLayout ?? false;
+  const shouldFitView = activeTab?.shouldFitView ?? false;
+  const setShouldFitView = useMindMapStore((s) => s.setShouldFitView);
+  const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
   const setNodesCollapsed = useMindMapStore((s) => s.setNodesCollapsed);
@@ -77,8 +84,73 @@ export default function MindMap() {
     offsetX: number;
     offsetY: number;
   }>({ active: false, offsetX: 0, offsetY: 0 });
+  const lastFitRootIdRef = useRef<string | null>(null);
   const [rf, setRf] = useState<ReactFlowInstance | null>(null);
   const fileManager = useMemo(() => new FileManager(), []);
+  const [layoutSaveStatus, setLayoutSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [pendingNodePositions, setPendingNodePositions] = useState<
+    Record<string, { x: number; y: number }> | null
+  >(null);
+  const layoutStatusMessage =
+    layoutSaveStatus === "saving"
+      ? uiText.statusMessages.layoutSaving
+      : layoutSaveStatus === "saved"
+      ? uiText.statusMessages.layoutSaved
+      : layoutSaveStatus === "error"
+      ? uiText.statusMessages.layoutSaveFailed
+      : "";
+
+  const persistNodePositions = async () => {
+    if (!pendingNodePositions || !rootFolderJson) return;
+    const nextRoot: RootFolderJson = {
+      ...rootFolderJson,
+      node_positions: pendingNodePositions,
+    };
+    updateRootFolderJson(nextRoot);
+    setLayoutSaveStatus("saving");
+    try {
+      if (rootDirectoryHandle) {
+        await fileManager.writeRootFolderJson(rootDirectoryHandle, nextRoot);
+      } else if (rootFolderJson.path) {
+        await fileManager.writeRootFolderJsonFromPath(
+          rootFolderJson.path,
+          nextRoot
+        );
+      } else {
+        setLayoutSaveStatus("error");
+        return;
+      }
+      setLayoutSaveStatus("saved");
+      setPendingNodePositions(null);
+    } catch (err) {
+      setLayoutSaveStatus("error");
+      console.error("[MindMap] Persist node positions failed:", err);
+    }
+  };
+
+  useAutoSave(
+    () => {
+      void persistNodePositions();
+    },
+    3000,
+    [
+      pendingNodePositions,
+      rootFolderJson?.id,
+      rootFolderJson?.path,
+      rootDirectoryHandle,
+    ],
+    !!pendingNodePositions
+  );
+
+  useEffect(() => {
+    if (layoutSaveStatus !== "saved" && layoutSaveStatus !== "error") return;
+    const timeout = window.setTimeout(() => {
+      setLayoutSaveStatus("idle");
+    }, 2000);
+    return () => window.clearTimeout(timeout);
+  }, [layoutSaveStatus]);
   const nodeTypes = useMemo(
     () => ({ rootFolder: RootFolderNode, file: FileNode }),
     []
@@ -182,9 +254,23 @@ export default function MindMap() {
   };
 
   useEffect(() => {
-    if (!rootFolderJson || !rf) return;
-    showAllNodesInCanvas();
-  }, [rootFolderJson, rf]);
+    if (!rootFolderJson || !rf) {
+      lastFitRootIdRef.current = null;
+      return;
+    }
+    if (!nodes.length) return;
+
+    const rootId = rootFolderJson.id;
+    const alreadyFit = lastFitRootIdRef.current === rootId;
+    if (!shouldFitView && alreadyFit) return;
+
+    // Defer one frame so ReactFlow has the latest node positions.
+    window.requestAnimationFrame(() => {
+      showAllNodesInCanvas();
+    });
+    lastFitRootIdRef.current = rootId;
+    if (shouldFitView) setShouldFitView(false);
+  }, [rootFolderJson, rf, nodes.length, shouldFitView, setShouldFitView]);
 
   const getMaxDepthFromRoot = (root: RootFolderJson | null): number => {
     if (!root) return 0;
@@ -249,13 +335,41 @@ export default function MindMap() {
    * and other interactions to work correctly.
    */
   const onNodesChange = (changes: NodeChange[]) => {
+    const hasPositionChange = changes.some(
+      (change) => change.type === "position"
+    );
+    if (!settings.interaction.lockNodePositions && hasPositionChange) {
+      setHasCustomLayout(true);
+    }
     if (settings.interaction.lockNodePositions) {
       const filtered = changes.filter((change) => change.type !== "position");
       if (!filtered.length) return;
       setNodes(applyNodeChanges(filtered, nodes));
       return;
     }
-    setNodes(applyNodeChanges(changes, nodes));
+    const nextNodes = applyNodeChanges(changes, nodes);
+    if (hasPositionChange && rootFolderJson) {
+      const nextPositions = {
+        ...(rootFolderJson.node_positions ?? {}),
+      } as Record<string, { x: number; y: number }>;
+      changes
+        .filter((change) => change.type === "position")
+        .forEach((change) => {
+          const moved = nextNodes.find((node) => node.id === change.id);
+          if (!moved || !moved.position) return;
+          nextPositions[moved.id] = {
+            x: moved.position.x,
+            y: moved.position.y,
+          };
+        });
+      setPendingNodePositions(nextPositions);
+      setLayoutSaveStatus("saving");
+      updateRootFolderJson({
+        ...rootFolderJson,
+        node_positions: nextPositions,
+      });
+    }
+    setNodes(nextNodes);
   };
 
   const onEdgesChange = (changes: EdgeChange[]) => {
@@ -497,7 +611,7 @@ export default function MindMap() {
 
     // If root node already exists, preserve its position; otherwise center it.
     let rootPosition: { x: number; y: number };
-    if (existingRoot?.position) {
+    if (hasCustomLayout && existingRoot?.position) {
       rootPosition = existingRoot.position;
     } else {
       const el = wrapperRef.current;
@@ -525,10 +639,32 @@ export default function MindMap() {
     }
 
     // Sync selection state with store: mark node as selected if it matches selectedNodeId.
-    const withSelection = composedNodes.map((node) => ({
-      ...node,
-      selected: node.id === selectedNodeId,
-    }));
+    const storedPositions =
+      hasCustomLayout && rootFolderJson?.node_positions
+        ? new Map(
+            Object.entries(rootFolderJson.node_positions).map(
+              ([id, pos]) => [id, pos]
+            )
+          )
+        : new Map<string, { x: number; y: number }>();
+
+    const existingPositions = hasCustomLayout
+      ? new Map(
+          existing
+            .filter((node: any) => node?.id && node?.position)
+            .map((node: any) => [node.id, node.position])
+        )
+      : new Map<string, { x: number; y: number }>();
+
+    const withSelection = composedNodes.map((node) => {
+      const preserved =
+        storedPositions.get(node.id) ?? existingPositions.get(node.id);
+      return {
+        ...node,
+        position: preserved ?? node.position,
+        selected: node.id === selectedNodeId,
+      };
+    });
 
     setNodes(withSelection);
     setEdges(composedEdges);
@@ -542,6 +678,7 @@ export default function MindMap() {
     setInlineEditNodeId,
     setNodes,
     setEdges,
+    hasCustomLayout,
   ]);
 
   return (
@@ -568,9 +705,17 @@ export default function MindMap() {
                   },
                 })
               }
-              aria-label={uiText.tooltips.lockNodePositions}
+              aria-label={
+                settings.interaction.lockNodePositions
+                  ? uiText.tooltips.unlockNodePositions
+                  : uiText.tooltips.lockNodePositions
+              }
               aria-pressed={settings.interaction.lockNodePositions}
-              title={uiText.tooltips.lockNodePositions}
+              title={
+                settings.interaction.lockNodePositions
+                  ? uiText.tooltips.unlockNodePositions
+                  : uiText.tooltips.lockNodePositions
+              }
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -597,16 +742,19 @@ export default function MindMap() {
               }}
             >
               <svg
-                width="20"
-                height="20"
+                width="24"
+                height="24"
                 viewBox="0 0 24 24"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
                 aria-hidden="true"
               >
                 <path
-                  d="M7 10V7C7 4.7909 8.7909 3 11 3C13.2091 3 15 4.7909 15 7V10H16C17.1046 10 18 10.8954 18 12V19C18 20.1046 17.1046 21 16 21H6C4.8954 21 4 20.1046 4 19V12C4 10.8954 4.8954 10 6 10H7ZM11 14C10.4477 14 10 14.4477 10 15C10 15.3706 10.2019 15.6938 10.5 15.866V17C10.5 17.2761 10.7239 17.5 11 17.5C11.2761 17.5 11.5 17.2761 11.5 17V15.866C11.7981 15.6938 12 15.3706 12 15C12 14.4477 11.5523 14 11 14Z"
-                  fill="currentColor"
+                  d="M7 10V7C7 4.7909 8.7909 3 11 3C13.2091 3 15 4.7909 15 7V10M6 10H16C17.1046 10 18 10.8954 18 12V19C18 20.1046 17.1046 21 16 21H6C4.8954 21 4 20.1046 4 19V12C4 10.8954 4.8954 10 6 10ZM11 14A1 1 0 1 1 11.001 14ZM11 15.5V17"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
               </svg>
             </button>
@@ -787,6 +935,44 @@ export default function MindMap() {
               }}
             >
               {uiText.canvas.viewMenu.showAllNodes}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeCanvasMenu();
+                setHasCustomLayout(false);
+                if (rootFolderJson) {
+                  const cleared: RootFolderJson = {
+                    ...rootFolderJson,
+                    node_positions: {},
+                  };
+                  updateRootFolderJson(cleared);
+                  setPendingNodePositions({});
+                  setLayoutSaveStatus("saving");
+                }
+              }}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                cursor: "pointer",
+                fontFamily: "var(--font-family)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "transparent";
+              }}
+            >
+              {uiText.canvas.viewMenu.resetLayout}
             </button>
             <button
               type="button"
@@ -1148,6 +1334,27 @@ export default function MindMap() {
                   {(zoomPreview.node.data as any)?.purpose}
                 </div>
               )}
+            </div>
+          )}
+          {layoutSaveStatus !== "idle" && layoutStatusMessage && (
+            <div
+              aria-live="polite"
+              style={{
+                position: "absolute",
+                right: "var(--space-3)",
+                bottom: "var(--space-3)",
+                zIndex: 50,
+                padding: "6px 10px",
+                borderRadius: "var(--radius-md)",
+                border: "var(--border-width) solid var(--border)",
+                background: "var(--surface-2)",
+                color: "var(--text)",
+                fontSize: "0.8rem",
+                boxShadow: "0 8px 20px rgba(0,0,0,0.2)",
+                pointerEvents: "none",
+              }}
+            >
+              {layoutStatusMessage}
             </div>
           )}
 

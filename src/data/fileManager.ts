@@ -66,6 +66,7 @@ export type RootFolderJson = {
   notifications: string[];
   recommendations: string[];
   error_messages: string[];
+  node_positions: Record<string, { x: number; y: number }>;
   child: IndexNode[];
 };
 
@@ -193,6 +194,20 @@ export class FileManager {
       ? obj.error_messages.filter((x: any) => typeof x === "string")
       : [];
 
+    const rawPositions =
+      obj && typeof obj.node_positions === "object" && obj.node_positions
+        ? (obj.node_positions as Record<string, any>)
+        : {};
+    const node_positions: Record<string, { x: number; y: number }> = {};
+    Object.entries(rawPositions).forEach(([key, value]) => {
+      if (!value || typeof value !== "object") return;
+      const x = (value as any).x;
+      const y = (value as any).y;
+      if (typeof x !== "number" || !Number.isFinite(x)) return;
+      if (typeof y !== "number" || !Number.isFinite(y)) return;
+      node_positions[key] = { x, y };
+    });
+
     const child = Array.isArray(obj.child) ? (obj.child as IndexNode[]) : [];
 
     return {
@@ -210,6 +225,7 @@ export class FileManager {
       notifications,
       recommendations,
       error_messages,
+      node_positions,
       child,
     };
   }
@@ -471,6 +487,10 @@ export class FileManager {
         ? existing.recommendations
         : [],
       error_messages: Array.isArray(existing.error_messages) ? existing.error_messages : [],
+      node_positions:
+        existing && typeof existing.node_positions === "object"
+          ? (existing.node_positions as Record<string, { x: number; y: number }>)
+          : {},
       child: mergedChildren,
     };
   }
@@ -543,6 +563,7 @@ export class FileManager {
       notifications: [],
       recommendations: [],
       error_messages: [],
+      node_positions: {},
       child: [],
     };
   }
@@ -1061,6 +1082,10 @@ export class FileManager {
         error_messages: Array.isArray(root.error_messages)
           ? root.error_messages
           : existing?.error_messages ?? [],
+      node_positions:
+        root && typeof root.node_positions === "object"
+          ? (root.node_positions as Record<string, { x: number; y: number }>)
+          : existing?.node_positions ?? {},
         child: Array.isArray(root.child) ? (root.child as IndexNode[]) : existing?.child ?? [],
       };
 
@@ -1167,6 +1192,10 @@ export class FileManager {
       error_messages: Array.isArray(root.error_messages)
         ? root.error_messages
         : existing?.error_messages ?? [],
+      node_positions:
+        root && typeof root.node_positions === "object"
+          ? (root.node_positions as Record<string, { x: number; y: number }>)
+          : existing?.node_positions ?? {},
       child: Array.isArray(root.child) ? (root.child as IndexNode[]) : existing?.child ?? [],
     };
 

@@ -97,6 +97,8 @@ export type CanvasTab = {
   rootFolderJson: RootFolderJson | null;
   inlineEditNodeId: string | null;
   areNodesCollapsed: boolean;
+  hasCustomLayout: boolean;
+  shouldFitView: boolean;
 };
 
 function createEmptyTab(): CanvasTab {
@@ -112,6 +114,8 @@ function createEmptyTab(): CanvasTab {
     rootFolderJson: null,
     inlineEditNodeId: null,
     areNodesCollapsed: false,
+    hasCustomLayout: false,
+    shouldFitView: false,
   };
 }
 
@@ -128,6 +132,8 @@ function resetTabCanvas(tab: CanvasTab): CanvasTab {
     rootFolderJson: null,
     inlineEditNodeId: null,
     areNodesCollapsed: false,
+    hasCustomLayout: false,
+    shouldFitView: false,
   };
 }
 
@@ -205,12 +211,15 @@ export interface MindMapActions {
   setRoot: (handle: FileSystemDirectoryHandle | null, root: RootFolderJson) => void;
   clearRoot: () => void;
   setInlineEditNodeId: (nodeId: string | null) => void;
+  updateRootFolderJson: (root: RootFolderJson) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   toggleSettings: () => void;
   setNodesCollapsed: (collapsed: boolean) => void;
   createTab: () => string;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
+  setHasCustomLayout: (enabled: boolean) => void;
+  setShouldFitView: (enabled: boolean) => void;
 }
 
 /**
@@ -452,6 +461,10 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         rootDirectoryHandle: handle,
         rootFolderJson: root,
         title: typeof root?.name === "string" ? root.name : tab.title,
+        hasCustomLayout:
+          !!root?.node_positions &&
+          Object.keys(root.node_positions ?? {}).length > 0,
+        shouldFitView: true,
       })),
     })),
   clearRoot: () =>
@@ -465,6 +478,14 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
         ...tab,
         inlineEditNodeId: nodeId,
+      })),
+    })),
+  updateRootFolderJson: (root) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        rootFolderJson: root,
+        title: typeof root?.name === "string" ? root.name : tab.title,
       })),
     })),
   updateNodeData: (nodeId, data) =>
@@ -526,5 +547,19 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       if (!state.tabs.find((tab) => tab.id === tabId)) return state;
       return { activeTabId: tabId };
     }),
+  setHasCustomLayout: (enabled) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        hasCustomLayout: enabled,
+      })),
+    })),
+  setShouldFitView: (enabled) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        shouldFitView: enabled,
+      })),
+    })),
   });
 });
