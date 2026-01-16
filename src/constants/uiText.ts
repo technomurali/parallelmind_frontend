@@ -131,6 +131,7 @@ export const uiText = {
     toggleLeftPanel: 'Toggle left panel',
     toggleRightPanel: 'Toggle right panel',
     toggleSettings: 'Toggle settings',
+    lockNodePositions: 'Lock node positions',
     saveFile: 'Save file',
     deleteFile: 'Delete file',
     createFile: 'Create new file',

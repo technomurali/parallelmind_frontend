@@ -555,9 +555,61 @@ export default function MindMap() {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "var(--space-3)",
+              gap: "2px",
             }}
           >
+            <button
+              type="button"
+              onClick={() =>
+                updateSettings({
+                  interaction: {
+                    ...settings.interaction,
+                    lockNodePositions: !settings.interaction.lockNodePositions,
+                  },
+                })
+              }
+              aria-label={uiText.tooltips.lockNodePositions}
+              aria-pressed={settings.interaction.lockNodePositions}
+              title={uiText.tooltips.lockNodePositions}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "var(--control-size-sm)",
+                width: "var(--control-size-sm)",
+                borderRadius: "var(--radius-md)",
+                border: "none",
+                background: settings.interaction.lockNodePositions
+                  ? "var(--surface-1)"
+                  : "transparent",
+                color: "var(--text)",
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  settings.interaction.lockNodePositions
+                    ? "var(--surface-1)"
+                    : "transparent";
+              }}
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M7 10V7C7 4.7909 8.7909 3 11 3C13.2091 3 15 4.7909 15 7V10H16C17.1046 10 18 10.8954 18 12V19C18 20.1046 17.1046 21 16 21H6C4.8954 21 4 20.1046 4 19V12C4 10.8954 4.8954 10 6 10H7ZM11 14C10.4477 14 10 14.4477 10 15C10 15.3706 10.2019 15.6938 10.5 15.866V17C10.5 17.2761 10.7239 17.5 11 17.5C11.2761 17.5 11.5 17.2761 11.5 17V15.866C11.7981 15.6938 12 15.3706 12 15C12 14.4477 11.5523 14 11 14Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </button>
             <button
               type="button"
               onClick={showAllNodesInCanvas}
