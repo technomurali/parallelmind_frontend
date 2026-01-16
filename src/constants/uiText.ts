@@ -52,6 +52,14 @@ export const uiText = {
   },
 
   /**
+   * Tabs
+   */
+  tabs: {
+    untitled: 'Untitled',
+    closeTab: 'Close tab',
+  },
+
+  /**
    * Form field labels (keep user-facing text centralized here)
    */
   fields: {
@@ -109,6 +117,8 @@ export const uiText = {
     },
     viewMenu: {
       showAllNodes: 'Show all nodes',
+      collapseAllNodes: 'Collapse all nodes',
+      expandAllNodes: 'Expand all nodes',
     },
   },
 
@@ -220,6 +230,7 @@ export const uiText = {
     settingsPanel: 'Settings panel',
     toolbar: 'Toolbar',
     contextMenu: 'Context menu',
+    canvasTabs: 'Canvas tabs',
   },
 
   /**
@@ -239,6 +250,7 @@ export const uiText = {
     },
     folder: {
       openFolder: 'Open Folder',
+      openInNewTab: 'Open in New Tab',
       newFile: 'New File',
       newFolder: 'New Folder',
       rename: 'Rename',

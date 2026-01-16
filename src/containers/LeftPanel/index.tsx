@@ -16,6 +16,7 @@
 import { TreeView } from "../../components/TreeView";
 import { useMindMapStore } from "../../store/mindMapStore";
 import { useEffect, useRef } from "react";
+import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 
 /**
@@ -40,6 +41,22 @@ export default function LeftPanel() {
   const MIN_WIDTH = 56;
   const MAX_WIDTH = 600;
   const isReduced = leftPanelWidth <= MIN_WIDTH;
+  const lastExpandedWidthRef = useRef<number>(280);
+
+  useEffect(() => {
+    if (!isReduced) {
+      lastExpandedWidthRef.current = leftPanelWidth;
+    }
+  }, [leftPanelWidth, isReduced]);
+
+  const togglePanel = () => {
+    if (isReduced) {
+      setLeftPanelWidth(Math.max(MIN_WIDTH, lastExpandedWidthRef.current));
+      return;
+    }
+    lastExpandedWidthRef.current = leftPanelWidth;
+    setLeftPanelWidth(MIN_WIDTH);
+  };
 
   /**
    * Initiates panel resize operation
@@ -124,7 +141,47 @@ export default function LeftPanel() {
         flex: "0 0 auto",
       }}
     >
-      <div className="pm-panel__header">
+      <div
+        className="pm-panel__header"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: "var(--space-2)",
+        }}
+      >
+        <button
+          type="button"
+          onClick={togglePanel}
+          aria-label={uiText.tooltips.toggleLeftPanel}
+          title={uiText.tooltips.toggleLeftPanel}
+          style={{
+            height: "var(--control-size-sm)",
+            width: "var(--control-size-sm)",
+            borderRadius: "var(--radius-sm)",
+            border: "none",
+            background: "transparent",
+            color: "inherit",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background =
+              "var(--surface-1)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background =
+              "transparent";
+          }}
+        >
+          {isReduced ? (
+            <FiChevronRight aria-hidden="true" />
+          ) : (
+            <FiChevronLeft aria-hidden="true" />
+          )}
+        </button>
       </div>
 
       {!isReduced ? (

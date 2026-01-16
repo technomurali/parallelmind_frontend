@@ -23,8 +23,10 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { FiMenu, FiZoomIn } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
+import { FileManager } from "../../data/fileManager";
 import type { IndexNode, RootFolderJson } from "../../data/fileManager";
-import { useMindMapStore } from "../../store/mindMapStore";
+import { CanvasTabs } from "../../components/CanvasTabs/CanvasTabs";
+import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { composeMindMapGraphFromRoot } from "../../utils/mindMapComposer";
 import { getNodeFillColor } from "../../utils/nodeFillColors";
 import {
@@ -43,16 +45,23 @@ import FileNode from "./FileNode";
  * viewport center and enables inline editing.
  */
 export default function MindMap() {
-  const nodes = useMindMapStore((s) => s.nodes);
-  const edges = useMindMapStore((s) => s.edges);
+  const activeTab = useMindMapStore(selectActiveTab);
+  const nodes = activeTab?.nodes ?? [];
+  const edges = activeTab?.edges ?? [];
   const setNodes = useMindMapStore((s) => s.setNodes);
   const setEdges = useMindMapStore((s) => s.setEdges);
-  const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
+  const rootFolderJson = activeTab?.rootFolderJson ?? null;
   const settings = useMindMapStore((s) => s.settings);
   const updateSettings = useMindMapStore((s) => s.updateSettings);
   const setInlineEditNodeId = useMindMapStore((s) => s.setInlineEditNodeId);
   const selectNode = useMindMapStore((s) => s.selectNode);
-  const selectedNodeId = useMindMapStore((s) => s.selectedNodeId);
+  const tabs = useMindMapStore((s) => s.tabs);
+  const createTab = useMindMapStore((s) => s.createTab);
+  const setActiveTab = useMindMapStore((s) => s.setActiveTab);
+  const setRoot = useMindMapStore((s) => s.setRoot);
+  const selectedNodeId = activeTab?.selectedNodeId ?? null;
+  const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
+  const setNodesCollapsed = useMindMapStore((s) => s.setNodesCollapsed);
   const setPendingChildCreation = useMindMapStore(
     (s) => s.setPendingChildCreation
   );
@@ -69,6 +78,7 @@ export default function MindMap() {
     offsetY: number;
   }>({ active: false, offsetX: 0, offsetY: 0 });
   const [rf, setRf] = useState<ReactFlowInstance | null>(null);
+  const fileManager = useMemo(() => new FileManager(), []);
   const nodeTypes = useMemo(
     () => ({ rootFolder: RootFolderNode, file: FileNode }),
     []
@@ -481,7 +491,8 @@ export default function MindMap() {
   useEffect(() => {
     if (!rootFolderJson || !rf) return;
 
-    const existing = useMindMapStore.getState().nodes ?? [];
+    const existing =
+      selectActiveTab(useMindMapStore.getState())?.nodes ?? [];
     const existingRoot = existing.find((n: any) => n?.id === "00");
 
     // If root node already exists, preserve its position; otherwise center it.
@@ -537,8 +548,8 @@ export default function MindMap() {
     <main className="pm-center" aria-label={uiText.ariaLabels.mindMapCanvas}>
       <div className="pm-canvas" ref={wrapperRef}>
         <header className="pm-canvas__header">
-          <div className="pm-canvas__title" title={rootFolderJson?.path ?? ""}>
-            {rootFolderJson?.name ?? ""}
+          <div className="pm-canvas__tabs">
+            <CanvasTabs />
           </div>
           <div
             style={{
@@ -724,6 +735,37 @@ export default function MindMap() {
               }}
             >
               {uiText.canvas.viewMenu.showAllNodes}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setNodesCollapsed(!areNodesCollapsed);
+                closeCanvasMenu();
+              }}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                cursor: "pointer",
+                fontFamily: "var(--font-family)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "transparent";
+              }}
+            >
+              {areNodesCollapsed
+                ? uiText.canvas.viewMenu.expandAllNodes
+                : uiText.canvas.viewMenu.collapseAllNodes}
             </button>
             <button
               type="button"
@@ -1242,55 +1284,120 @@ export default function MindMap() {
                 padding: "6px",
               }}
             >
-              {isTauri() &&
-                contextMenu.node &&
-                isFolderNode(contextMenu.node) && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={async () => {
-                      const node = contextMenu.node;
-                      closeContextMenu();
-                      if (!node) return;
-                      if (!isFolderNode(node)) return;
-                      const path = getNodeFolderPath(node);
-                      if (!path) return;
-                      try {
-                        const { openPath } = await import(
-                          "@tauri-apps/plugin-opener"
+              {contextMenu.node && isFolderNode(contextMenu.node) && (
+                <>
+                  {isTauri() && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={async () => {
+                        const node = contextMenu.node;
+                        closeContextMenu();
+                        if (!node) return;
+                        if (!isFolderNode(node)) return;
+                        const path = getNodeFolderPath(node);
+                        if (!path) return;
+                        try {
+                          const { openPath } = await import(
+                            "@tauri-apps/plugin-opener"
+                          );
+                          await openPath(path);
+                        } catch (err) {
+                          // Keep UX silent (no alerts/toasts), but log for debugging.
+                          console.error(
+                            "[MindMap] Context menu open failed:",
+                            err
+                          );
+                        }
+                      }}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "8px 10px",
+                        borderRadius: "var(--radius-sm)",
+                        border: "none",
+                        background: "transparent",
+                        color: "inherit",
+                        cursor: "pointer",
+                        fontFamily: "var(--font-family)",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "var(--surface-1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "transparent";
+                      }}
+                    >
+                      {uiText.contextMenus.folder.openFolder}
+                    </button>
+                  )}
+                  {isTauri() && getNodeFolderPath(contextMenu.node) && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={async () => {
+                        const node = contextMenu.node;
+                        closeContextMenu();
+                        if (!node) return;
+                        if (!isFolderNode(node)) return;
+                        const path = getNodeFolderPath(node);
+                        if (!path) return;
+
+                        const match = tabs.find(
+                          (tab) => tab.rootFolderJson?.path === path
                         );
-                        await openPath(path);
-                      } catch (err) {
-                        // Keep UX silent (no alerts/toasts), but log for debugging.
-                        console.error(
-                          "[MindMap] Context menu open failed:",
-                          err
-                        );
-                      }
-                    }}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "8px 10px",
-                      borderRadius: "var(--radius-sm)",
-                      border: "none",
-                      background: "transparent",
-                      color: "inherit",
-                      cursor: "pointer",
-                      fontFamily: "var(--font-family)",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background =
-                        "var(--surface-1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background =
-                        "transparent";
-                    }}
-                  >
-                    {uiText.contextMenus.folder.openFolder}
-                  </button>
-                )}
+                        if (match) {
+                          setActiveTab(match.id);
+                          return;
+                        }
+
+                        createTab();
+                        try {
+                          const result =
+                            await fileManager.loadOrCreateRootFolderJsonFromPath(
+                              path
+                            );
+                          if (!result.created) {
+                            // TODO: define the "existing root" flow (e.g., merge, refresh, or re-scan)
+                            // when a parallelmind_index.json file already exists in the chosen folder.
+                          }
+                          setRoot(null, result.root);
+                          selectNode("00");
+                        } catch (err) {
+                          // Keep UX silent (no alerts/toasts), but log for debugging.
+                          console.error(
+                            "[MindMap] Open in new tab failed:",
+                            err
+                          );
+                        }
+                      }}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "8px 10px",
+                        borderRadius: "var(--radius-sm)",
+                        border: "none",
+                        background: "transparent",
+                        color: "inherit",
+                        cursor: "pointer",
+                        fontFamily: "var(--font-family)",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "var(--surface-1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "transparent";
+                      }}
+                    >
+                      {uiText.contextMenus.folder.openInNewTab}
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>

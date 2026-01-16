@@ -1,5 +1,5 @@
 import { uiText } from "../../constants/uiText";
-import { useMindMapStore } from "../../store/mindMapStore";
+import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { FiSettings } from "react-icons/fi";
 import { FileManager } from "../../data/fileManager";
 import { useMemo, useState, useRef, useEffect } from "react";
@@ -14,11 +14,17 @@ type GlobalHeaderBarProps = {
 
 export function GlobalHeaderBar({ title: _title }: GlobalHeaderBarProps) {
   const toggleSettings = useMindMapStore((s) => s.toggleSettings);
-  const rootDirectoryHandle = useMindMapStore((s) => s.rootDirectoryHandle);
-  const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
+  const tabs = useMindMapStore((s) => s.tabs);
+  const activeTab = useMindMapStore(selectActiveTab);
+  const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
+  const rootFolderJson = activeTab?.rootFolderJson ?? null;
+  const activeNodes = activeTab?.nodes ?? [];
+  const activeEdges = activeTab?.edges ?? [];
   const setRoot = useMindMapStore((s) => s.setRoot);
   const clearRoot = useMindMapStore((s) => s.clearRoot);
   const selectNode = useMindMapStore((s) => s.selectNode);
+  const createTab = useMindMapStore((s) => s.createTab);
+  const setActiveTab = useMindMapStore((s) => s.setActiveTab);
   const fileManager = useMemo(() => new FileManager(), []);
   
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
@@ -54,16 +60,58 @@ export function GlobalHeaderBar({ title: _title }: GlobalHeaderBarProps) {
     }
     if (!selection) return; // Silent cancel - user closed picker
 
+    const canvasEmpty = activeNodes.length === 0 && activeEdges.length === 0;
+
+    const findExistingTabId = async (
+      tabsToCheck: typeof tabs
+    ): Promise<string | null> => {
+      if (typeof selection === "string") {
+        const match = tabsToCheck.find(
+          (tab) => tab.rootFolderJson?.path === selection
+        );
+        return match?.id ?? null;
+      }
+
+      for (const tab of tabsToCheck) {
+        const handle = tab.rootDirectoryHandle;
+        if (!handle || typeof handle.isSameEntry !== "function") continue;
+        try {
+          if (await handle.isSameEntry(selection)) {
+            return tab.id;
+          }
+        } catch {
+          // Ignore compare failures; treat as not matching.
+        }
+      }
+      return null;
+    };
+
+    const matchingTabId = await findExistingTabId(tabs);
+    if (matchingTabId) {
+      setActiveTab(matchingTabId);
+      return;
+    }
+
+    if (!canvasEmpty) {
+      createTab();
+    }
+
+    const state = useMindMapStore.getState();
+    const currentTab =
+      state.tabs.find((tab) => tab.id === state.activeTabId) ?? null;
+    const currentRootHandle = currentTab?.rootDirectoryHandle ?? null;
+    const currentRootJson = currentTab?.rootFolderJson ?? null;
+
     // If a root already exists and the user picked a different folder, confirm replacement.
     // Note: in browser mode `rootFolderJson.path` can be empty by design.
-    if (rootDirectoryHandle || rootFolderJson) {
+    if (currentRootHandle || currentRootJson) {
       let isSame = false;
       if (typeof selection === "string") {
-        isSame = rootFolderJson?.path === selection;
-      } else if (rootDirectoryHandle) {
+        isSame = currentRootJson?.path === selection;
+      } else if (currentRootHandle) {
         try {
-          if (typeof rootDirectoryHandle.isSameEntry === "function") {
-            isSame = await rootDirectoryHandle.isSameEntry(selection);
+          if (typeof currentRootHandle.isSameEntry === "function") {
+            isSame = await currentRootHandle.isSameEntry(selection);
           }
         } catch {
           // If comparison fails, treat as different and require confirmation.

@@ -12,8 +12,9 @@
  * When minimized, it shows only the panel header.
  */
 
-import { useMindMapStore } from "../../store/mindMapStore";
+import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import { FileManager } from "../../data/fileManager";
 import { useAutoSave } from "../../hooks/useAutoSave";
@@ -27,15 +28,17 @@ import { useAutoSave } from "../../hooks/useAutoSave";
 export default function RightPanel() {
   const rightPanelWidth = useMindMapStore((s) => s.rightPanelWidth);
   const setRightPanelWidth = useMindMapStore((s) => s.setRightPanelWidth);
-  const selectedNodeId = useMindMapStore((s) => s.selectedNodeId);
-  const nodes = useMindMapStore((s) => s.nodes);
+  const activeTab = useMindMapStore(selectActiveTab);
+  const selectedNodeId = activeTab?.selectedNodeId ?? null;
+  const nodes = activeTab?.nodes ?? [];
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
-  const pendingChildCreation = useMindMapStore((s) => s.pendingChildCreation);
+  const pendingChildCreation = activeTab?.pendingChildCreation ?? null;
   const finalizePendingChildCreation = useMindMapStore(
     (s) => s.finalizePendingChildCreation
   );
-  const rootDirectoryHandle = useMindMapStore((s) => s.rootDirectoryHandle);
-  const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
+  const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
+  const rootFolderJson = activeTab?.rootFolderJson ?? null;
+  const setRoot = useMindMapStore((s) => s.setRoot);
 
   const dragRef = useRef<{
     startX: number;
@@ -49,6 +52,22 @@ export default function RightPanel() {
   const MIN_WIDTH = 56;
   const MAX_WIDTH = 600;
   const isReduced = rightPanelWidth <= MIN_WIDTH;
+  const lastExpandedWidthRef = useRef<number>(360);
+
+  useEffect(() => {
+    if (!isReduced) {
+      lastExpandedWidthRef.current = rightPanelWidth;
+    }
+  }, [rightPanelWidth, isReduced]);
+
+  const togglePanel = () => {
+    if (isReduced) {
+      setRightPanelWidth(Math.max(MIN_WIDTH, lastExpandedWidthRef.current));
+      return;
+    }
+    lastExpandedWidthRef.current = rightPanelWidth;
+    setRightPanelWidth(MIN_WIDTH);
+  };
 
   const fileManager = useMemo(() => new FileManager(), []);
 
@@ -273,8 +292,52 @@ export default function RightPanel() {
         setSaveStatus("idle");
       }
     } else {
-      setDirty(false);
-      setSaveStatus("saved");
+      const hasDirectoryHandle = !!rootDirectoryHandle;
+      const hasPath = !!(rootFolderJson?.path && rootFolderJson.path.trim() !== "");
+      if (!hasDirectoryHandle && !hasPath) {
+        setDirty(true);
+        setSaveStatus("idle");
+        return;
+      }
+
+      try {
+        const updatedRoot = hasDirectoryHandle
+          ? await fileManager.updateNodePurposeFromHandle({
+              dirHandle: rootDirectoryHandle!,
+              existing: rootFolderJson!,
+              nodeId: selectedNodeId,
+              nodePath: (selectedNode?.data as any)?.path ?? null,
+              nextPurpose: draft.purpose,
+            })
+          : await fileManager.updateNodePurposeFromPath({
+              dirPath: rootFolderJson!.path,
+              existing: rootFolderJson!,
+              nodeId: selectedNodeId,
+              nodePath: (selectedNode?.data as any)?.path ?? null,
+              nextPurpose: draft.purpose,
+            });
+
+        setRoot(hasDirectoryHandle ? rootDirectoryHandle : null, updatedRoot);
+        setDirty(false);
+        setSaveStatus("saved");
+      } catch (error) {
+        const msg = `Failed to save node purpose: ${String(error)}`;
+        if (hasDirectoryHandle) {
+          await fileManager.appendRootErrorMessageFromHandle({
+            dirHandle: rootDirectoryHandle!,
+            existing: rootFolderJson ?? null,
+            message: msg,
+          });
+        } else if (hasPath) {
+          await fileManager.appendRootErrorMessageFromPath({
+            dirPath: rootFolderJson!.path,
+            existing: rootFolderJson ?? null,
+            message: msg,
+          });
+        }
+        setDirty(true);
+        setSaveStatus("idle");
+      }
     }
 
     /**
@@ -425,9 +488,50 @@ export default function RightPanel() {
       />
 
       <div className="pm-panel__header">
-        {!isReduced && (
-          <div className="pm-panel__title">{uiText.panels.node}</div>
-        )}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "var(--space-2)",
+          }}
+        >
+          {!isReduced && (
+            <div className="pm-panel__title">{uiText.panels.node}</div>
+          )}
+          <button
+            type="button"
+            onClick={togglePanel}
+            aria-label={uiText.tooltips.toggleRightPanel}
+            title={uiText.tooltips.toggleRightPanel}
+            style={{
+              height: "var(--control-size-sm)",
+              width: "var(--control-size-sm)",
+              borderRadius: "var(--radius-sm)",
+              border: "none",
+              background: "transparent",
+              color: "inherit",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background =
+                "var(--surface-1)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background =
+                "transparent";
+            }}
+          >
+            {isReduced ? (
+              <FiChevronLeft aria-hidden="true" />
+            ) : (
+              <FiChevronRight aria-hidden="true" />
+            )}
+          </button>
+        </div>
       </div>
 
       {!isReduced ? (
@@ -481,8 +585,12 @@ export default function RightPanel() {
                     ref={nameInputRef}
                     value={draft.name}
                     onChange={(e) => onFieldChange("name")(e.target.value)}
+                    onBlur={() => {
+                      void commitSave();
+                    }}
                     placeholder={uiText.placeholders.nodeName}
                     aria-label={uiText.fields.nodeDetails.name}
+                    disabled={!isDraftNode}
                     style={{
                       // Input fills 100% of its label container.
                       width: "100%",
@@ -495,12 +603,16 @@ export default function RightPanel() {
                         ? "var(--border-width) solid var(--primary-color)"
                         : "var(--border-width) solid var(--border)",
                       padding: "var(--space-2)",
-                      background: "var(--surface-1)",
+                      background: isDraftNode
+                        ? "var(--surface-1)"
+                        : "var(--surface-2)",
                       color: "var(--text)",
                       fontFamily: "var(--font-family)",
                       boxShadow: isDraftNode
                         ? "0 0 0 2px rgba(100, 108, 255, 0.2)"
                         : "none",
+                      cursor: isDraftNode ? "text" : "not-allowed",
+                      opacity: isDraftNode ? 1 : 0.7,
                     }}
                   />
                   {/* Name validation message (draft nodes only). */}
@@ -535,6 +647,9 @@ export default function RightPanel() {
                     onChange={(e) =>
                       onFieldChange("purpose")(e.target.value)
                     }
+                    onBlur={() => {
+                      void commitSave();
+                    }}
                     placeholder={uiText.placeholders.nodePurpose}
                     aria-label={uiText.fields.nodeDetails.purpose}
                     rows={6}

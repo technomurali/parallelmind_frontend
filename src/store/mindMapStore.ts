@@ -73,6 +73,72 @@ function wouldCreateCycle(
   return false;
 }
 
+function generateTabId(): string {
+  const c = (globalThis as any)?.crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  return `pm_tab_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+export type CanvasTab = {
+  id: string;
+  title: string;
+  // ReactFlow data
+  nodes: any[];
+  edges: any[];
+  // Selection state
+  selectedNodeId: string | null;
+  selectedEdgeId: string | null;
+  pendingChildCreation: {
+    tempNodeId: string;
+    parentNodeId: string;
+  } | null;
+  // Root state
+  rootDirectoryHandle: FileSystemDirectoryHandle | null;
+  rootFolderJson: RootFolderJson | null;
+  inlineEditNodeId: string | null;
+  areNodesCollapsed: boolean;
+};
+
+function createEmptyTab(): CanvasTab {
+  return {
+    id: generateTabId(),
+    title: "",
+    nodes: [],
+    edges: [],
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    pendingChildCreation: null,
+    rootDirectoryHandle: null,
+    rootFolderJson: null,
+    inlineEditNodeId: null,
+    areNodesCollapsed: false,
+  };
+}
+
+function resetTabCanvas(tab: CanvasTab): CanvasTab {
+  return {
+    ...tab,
+    title: "",
+    nodes: [],
+    edges: [],
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    pendingChildCreation: null,
+    rootDirectoryHandle: null,
+    rootFolderJson: null,
+    inlineEditNodeId: null,
+    areNodesCollapsed: false,
+  };
+}
+
+function updateTabById(
+  tabs: CanvasTab[],
+  tabId: string,
+  updater: (tab: CanvasTab) => CanvasTab
+): CanvasTab[] {
+  return tabs.map((tab) => (tab.id === tabId ? updater(tab) : tab));
+}
+
 /**
  * Application settings state
  */
@@ -107,36 +173,15 @@ export interface AppSettings {
  * Complete mind map state
  */
 export interface MindMapState {
-  // ReactFlow data
-  nodes: any[]; // TODO: Replace with MindMapNode[]
-  edges: any[]; // TODO: Replace with Edge[]
-
-  // Selection state
-  selectedNodeId: string | null;
-  selectedEdgeId: string | null;
-
-  /**
-   * Pending node-creation flow (in-memory only).
-   *
-   * We defer "committing" a newly created node until the user supplies the
-   * required metadata (name) and it is saved from the Node Details panel.
-   * This avoids orphan/premature nodes and makes the interaction predictable.
-   */
-  pendingChildCreation: {
-    tempNodeId: string;
-    parentNodeId: string;
-  } | null;
-
   // Application settings
   settings: AppSettings;
 
   // UI state
   leftPanelWidth: number;
   rightPanelWidth: number;
-  rootDirectoryHandle: FileSystemDirectoryHandle | null;
-  rootFolderJson: RootFolderJson | null;
-  inlineEditNodeId: string | null;
   settingsOpen: boolean;
+  tabs: CanvasTab[];
+  activeTabId: string;
 }
 
 /**
@@ -162,12 +207,20 @@ export interface MindMapActions {
   setInlineEditNodeId: (nodeId: string | null) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   toggleSettings: () => void;
+  setNodesCollapsed: (collapsed: boolean) => void;
+  createTab: () => string;
+  closeTab: (tabId: string) => void;
+  setActiveTab: (tabId: string) => void;
 }
 
 /**
  * Combined store type
  */
 export type MindMapStore = MindMapState & MindMapActions;
+
+export const selectActiveTab = (state: MindMapStore): CanvasTab | null => {
+  return state.tabs.find((tab) => tab.id === state.activeTabId) ?? null;
+};
 
 /**
  * Zustand store hook
@@ -177,17 +230,9 @@ export type MindMapStore = MindMapState & MindMapActions;
  * const { nodes, setNodes, selectedNodeId } = useMindMapStore();
  * ```
  */
-export const useMindMapStore = create<MindMapStore>((set) => ({
-  // ReactFlow data
-  nodes: [],
-  edges: [],
-
-  // Selection state
-  selectedNodeId: null,
-  selectedEdgeId: null,
-
-  pendingChildCreation: null,
-
+export const useMindMapStore = create<MindMapStore>((set) => {
+  const initialTab = createEmptyTab();
+  return ({
   // Application settings
   settings: (() => {
     const defaults: AppSettings = {
@@ -238,33 +283,70 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
   // UI state
   leftPanelWidth: 280,
   rightPanelWidth: 360,
-  rootDirectoryHandle: null,
-  rootFolderJson: null,
-  inlineEditNodeId: null,
   settingsOpen: false,
+  tabs: [initialTab],
+  activeTabId: initialTab.id,
 
   // Actions
-  setNodes: (nodes) => set({ nodes }),
-  setEdges: (edges) => set({ edges }),
-  selectNode: (nodeId) => set({ selectedNodeId: nodeId }),
-  selectEdge: (edgeId) => set({ selectedEdgeId: edgeId }),
-  setPendingChildCreation: (pending) => set({ pendingChildCreation: pending }),
+  setNodes: (nodes) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        nodes,
+      })),
+    })),
+  setEdges: (edges) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        edges,
+      })),
+    })),
+  selectNode: (nodeId) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        selectedNodeId: nodeId,
+      })),
+    })),
+  selectEdge: (edgeId) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        selectedEdgeId: edgeId,
+      })),
+    })),
+  setPendingChildCreation: (pending) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        pendingChildCreation: pending,
+      })),
+    })),
   finalizePendingChildCreation: () =>
     set((state) => {
-      const pending = state.pendingChildCreation;
+      const tab = selectActiveTab(state);
+      if (!tab) return state;
+      const pending = tab.pendingChildCreation;
       if (!pending) return state;
 
       const { tempNodeId, parentNodeId } = pending;
-      const tempNode = (state.nodes ?? []).find((n: any) => n?.id === tempNodeId);
-      const parentNode = (state.nodes ?? []).find((n: any) => n?.id === parentNodeId);
+      const tempNode = (tab.nodes ?? []).find((n: any) => n?.id === tempNodeId);
+      const parentNode = (tab.nodes ?? []).find((n: any) => n?.id === parentNodeId);
 
       // If either node is missing, we can't finalize; just clear pending to avoid getting stuck.
       if (!tempNode || !parentNode) {
-        return { ...state, pendingChildCreation: null };
+        return {
+          ...state,
+          tabs: updateTabById(state.tabs, state.activeTabId, (active) => ({
+            ...active,
+            pendingChildCreation: null,
+          })),
+        };
       }
 
       // Mark node as finalized (no longer a draft).
-      const nextNodes = (state.nodes ?? []).map((n: any) => {
+      const nextNodes = (tab.nodes ?? []).map((n: any) => {
         if (n?.id !== tempNodeId) return n;
         return {
           ...n,
@@ -274,13 +356,13 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
 
       // Create an edge only on finalize (name-gated commit).
       const edgeId = `e_${parentNodeId}_${tempNodeId}`;
-      const edgeExists = (state.edges ?? []).some((e: any) => e?.id === edgeId);
-      const cycle = wouldCreateCycle(state.edges ?? [], parentNodeId, tempNodeId);
+      const edgeExists = (tab.edges ?? []).some((e: any) => e?.id === edgeId);
+      const cycle = wouldCreateCycle(tab.edges ?? [], parentNodeId, tempNodeId);
       const nextEdges =
         edgeExists || cycle
-          ? state.edges
+          ? tab.edges
           : [
-              ...(state.edges ?? []),
+              ...(tab.edges ?? []),
               {
                 id: edgeId,
                 source: parentNodeId,
@@ -308,18 +390,23 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
 
       return {
         ...state,
-        nodes: nextNodesWithLink,
-        edges: nextEdges,
-        pendingChildCreation: null,
+        tabs: updateTabById(state.tabs, state.activeTabId, (active) => ({
+          ...active,
+          nodes: nextNodesWithLink,
+          edges: nextEdges,
+          pendingChildCreation: null,
+        })),
       };
     }),
   discardPendingChildCreationIfSelected: () =>
     set((state) => {
-      const pending = state.pendingChildCreation;
+      const tab = selectActiveTab(state);
+      if (!tab) return state;
+      const pending = tab.pendingChildCreation;
       if (!pending) return state;
-      if (state.selectedNodeId !== pending.tempNodeId) return state;
+      if (tab.selectedNodeId !== pending.tempNodeId) return state;
 
-      const tempNode = (state.nodes ?? []).find((n: any) => n?.id === pending.tempNodeId);
+      const tempNode = (tab.nodes ?? []).find((n: any) => n?.id === pending.tempNodeId);
       const isDraft = !!(tempNode?.data as any)?.isDraft;
       const name = (tempNode?.data as any)?.name;
       const hasName = typeof name === "string" && name.trim().length > 0;
@@ -329,9 +416,12 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
       if (isDraft && !hasName) {
         return {
           ...state,
-          nodes: (state.nodes ?? []).filter((n: any) => n?.id !== pending.tempNodeId),
-          pendingChildCreation: null,
-          selectedNodeId: null,
+          tabs: updateTabById(state.tabs, state.activeTabId, (active) => ({
+            ...active,
+            nodes: (active.nodes ?? []).filter((n: any) => n?.id !== pending.tempNodeId),
+            pendingChildCreation: null,
+            selectedNodeId: null,
+          })),
         };
       }
       return state;
@@ -356,33 +446,85 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
   setLeftPanelWidth: (width) => set({ leftPanelWidth: width }),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
   setRoot: (handle, root) =>
-    set({
-      rootDirectoryHandle: handle,
-      rootFolderJson: root,
-    }),
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        rootDirectoryHandle: handle,
+        rootFolderJson: root,
+        title: typeof root?.name === "string" ? root.name : tab.title,
+      })),
+    })),
   clearRoot: () =>
-    set({
-      rootDirectoryHandle: null,
-      rootFolderJson: null,
-      selectedNodeId: null,
-      selectedEdgeId: null,
-      pendingChildCreation: null,
-      inlineEditNodeId: null,
-      nodes: [],
-      edges: [],
-    }),
-  setInlineEditNodeId: (nodeId) => set({ inlineEditNodeId: nodeId }),
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) =>
+        resetTabCanvas(tab)
+      ),
+    })),
+  setInlineEditNodeId: (nodeId) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        inlineEditNodeId: nodeId,
+      })),
+    })),
   updateNodeData: (nodeId, data) =>
     set((state) => ({
-      // Keep rootFolderJson in sync when editing the root node (single source of truth in-memory).
-      rootFolderJson:
-        nodeId === '00' && state.rootFolderJson
-          ? ({ ...state.rootFolderJson, ...(data as any) } as any)
-          : state.rootFolderJson,
-      nodes: state.nodes.map((n) =>
-        n?.id === nodeId ? { ...n, data: { ...(n.data ?? {}), ...data } } : n,
-      ),
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        rootFolderJson:
+          nodeId === "00" && tab.rootFolderJson
+            ? ({ ...tab.rootFolderJson, ...(data as any) } as any)
+            : tab.rootFolderJson,
+        nodes: (tab.nodes ?? []).map((n) =>
+          n?.id === nodeId ? { ...n, data: { ...(n.data ?? {}), ...data } } : n
+        ),
+      })),
     })),
   toggleSettings: () =>
     set((state) => ({ settingsOpen: !state.settingsOpen })),
-}));
+  setNodesCollapsed: (collapsed) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        areNodesCollapsed: collapsed,
+      })),
+    })),
+  createTab: () => {
+    const next = createEmptyTab();
+    set((state) => ({
+      tabs: [...state.tabs, next],
+      activeTabId: next.id,
+    }));
+    return next.id;
+  },
+  closeTab: (tabId) =>
+    set((state) => {
+      const tabIndex = state.tabs.findIndex((tab) => tab.id === tabId);
+      if (tabIndex === -1) return state;
+      if (state.tabs.length === 1) {
+        const reset = resetTabCanvas(state.tabs[0]);
+        return {
+          ...state,
+          tabs: [reset],
+          activeTabId: reset.id,
+        };
+      }
+      const nextTabs = state.tabs.filter((tab) => tab.id !== tabId);
+      let nextActiveId = state.activeTabId;
+      if (tabId === state.activeTabId) {
+        const nextIndex = tabIndex - 1 >= 0 ? tabIndex - 1 : 0;
+        nextActiveId = nextTabs[nextIndex]?.id ?? nextTabs[0]?.id ?? "";
+      }
+      return {
+        ...state,
+        tabs: nextTabs,
+        activeTabId: nextActiveId,
+      };
+    }),
+  setActiveTab: (tabId) =>
+    set((state) => {
+      if (!state.tabs.find((tab) => tab.id === tabId)) return state;
+      return { activeTabId: tabId };
+    }),
+  });
+});

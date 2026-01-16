@@ -6,9 +6,8 @@
  * Still shows Name + Purpose.
  */
 
-import { useState } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { useMindMapStore } from "../../store/mindMapStore";
+import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { getNodeFillColor } from "../../utils/nodeFillColors";
 
 export default function FileNode({
@@ -19,7 +18,9 @@ export default function FileNode({
   yPos,
 }: NodeProps<any>) {
   const settings = useMindMapStore((s) => s.settings);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const activeTab = useMindMapStore(selectActiveTab);
+  const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
+  const isExpanded = !areNodesCollapsed;
 
   const nodeName =
     typeof (data as any)?.name === "string" && (data as any).name.trim()
@@ -90,9 +91,7 @@ export default function FileNode({
 
   return (
     <div
-      role="button"
-      aria-label="Toggle file node size"
-      onClick={() => setIsExpanded((prev) => !prev)}
+      role="presentation"
       style={{
         background: "transparent",
         border: "none",

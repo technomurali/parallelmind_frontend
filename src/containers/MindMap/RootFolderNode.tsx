@@ -8,10 +8,10 @@
  * the entry point for the folder structure visualization.
  */
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import type { RootFolderJson } from "../../data/fileManager";
-import { useMindMapStore } from "../../store/mindMapStore";
+import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { getNodeFillColor } from "../../utils/nodeFillColors";
 
 type SvgFolderNodeProps = {
@@ -154,7 +154,9 @@ export default function RootFolderNode({
   selected,
 }: NodeProps<RootFolderJson>) {
   const settings = useMindMapStore((s) => s.settings);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const activeTab = useMindMapStore(selectActiveTab);
+  const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
+  const isExpanded = !areNodesCollapsed;
   const levelValue =
     typeof (data as any)?.level === "number" ? (data as any).level : 0;
   const fillColor = getNodeFillColor(
@@ -235,9 +237,7 @@ export default function RootFolderNode({
 
   return (
     <div
-      role="button"
-      aria-label="Toggle folder node size"
-      onClick={() => setIsExpanded((prev) => !prev)}
+      role="presentation"
       style={{
         background: "transparent",
         border: "none",

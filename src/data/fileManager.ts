@@ -77,7 +77,7 @@ export type RootFolderJson = {
  * maintain consistency with parallelmind_index.json.
  */
 export class FileManager {
-  private static ROOT_FILE_NAME = 'parallelmind_index.json' as const;
+  private static LEGACY_ROOT_FILE_NAME = 'parallelmind_index.json' as const;
   private static MAX_LEVEL = 4 as const;
 
   private nowIso(): string {
@@ -107,6 +107,20 @@ export class FileManager {
     const trimmed = dirPath.replace(/[\\/]+$/, '');
     const parts = trimmed.split(/[\\/]/);
     return parts[parts.length - 1] || trimmed;
+  }
+
+  private getIndexFileName(rootName: string): string {
+    const trimmed = (rootName ?? "").trim();
+    if (!trimmed) return FileManager.LEGACY_ROOT_FILE_NAME;
+    return `${trimmed}_index.json`;
+  }
+
+  private getIndexFileNameFromHandle(dirHandle: FileSystemDirectoryHandle): string {
+    return this.getIndexFileName(dirHandle?.name ?? "");
+  }
+
+  private getIndexFileNameFromPath(rootPath: string): string {
+    return this.getIndexFileName(this.baseNameFromPath(rootPath));
   }
 
   private folderTypeForLevel(level: number): FolderTypeByLevel {
@@ -142,15 +156,14 @@ export class FileManager {
   }
 
   /**
-   * Validates parsed JSON as the strict v1.0.0 root folder index schema.
-   * Returns null when the schema is missing/invalid (treated as "no index").
+   * Parses root folder index JSON and normalizes to the v1.0.0 schema.
+   * Returns null when the payload is missing/invalid (treated as "no index").
    *
-   * Note: We intentionally do NOT support old schemas anymore.
+   * Note: Legacy schemas are allowed through if they contain compatible fields.
    */
   private parseRootFolderJsonV1(input: unknown): RootFolderJson | null {
     const obj = (input ?? {}) as any;
     if (!obj || typeof obj !== "object") return null;
-    if (obj.schema_version !== "1.0.0") return null;
     if (obj.type !== "root_folder") return null;
     if (obj.level !== 0) return null;
 
@@ -201,6 +214,314 @@ export class FileManager {
     };
   }
 
+  private async readRootFolderJsonByName(
+    dirHandle: FileSystemDirectoryHandle,
+    fileName: string
+  ): Promise<RootFolderJson | null> {
+    try {
+      const fileHandle = await dirHandle.getFileHandle(fileName, { create: false });
+      const file = await fileHandle.getFile();
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      return this.parseRootFolderJsonV1(parsed);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "NotFoundError") return null;
+      return null;
+    }
+  }
+
+  private async findIndexFileCandidatesFromHandle(
+    dirHandle: FileSystemDirectoryHandle
+  ): Promise<string[]> {
+    const names: string[] = [];
+    for await (const entry of (dirHandle as any).values()) {
+      if (entry?.kind !== "file") continue;
+      if (typeof entry.name !== "string") continue;
+      if (entry.name.endsWith("_index.json")) {
+        names.push(entry.name);
+      }
+    }
+    // Ensure legacy name is checked first if present.
+    names.sort((a, b) => {
+      if (a === FileManager.LEGACY_ROOT_FILE_NAME) return -1;
+      if (b === FileManager.LEGACY_ROOT_FILE_NAME) return 1;
+      return a.localeCompare(b);
+    });
+    return names;
+  }
+
+  private async findIndexFileCandidatesFromPath(dirPath: string): Promise<string[]> {
+    try {
+      const { readDir } = await import("@tauri-apps/plugin-fs");
+      const entries = await readDir(dirPath);
+      const names = entries
+        .filter((e: any) => e?.isFile && typeof e.name === "string")
+        .map((e: any) => e.name)
+        .filter((name: string) => name.endsWith("_index.json"));
+      names.sort((a, b) => {
+        if (a === FileManager.LEGACY_ROOT_FILE_NAME) return -1;
+        if (b === FileManager.LEGACY_ROOT_FILE_NAME) return 1;
+        return a.localeCompare(b);
+      });
+      return names;
+    } catch {
+      return [];
+    }
+  }
+
+  private async readRootFolderJsonFromPathByName(
+    dirPath: string,
+    fileName: string
+  ): Promise<RootFolderJson | null> {
+    try {
+      const { exists, readTextFile } = await import("@tauri-apps/plugin-fs");
+      const filePath = this.joinPath(dirPath, fileName);
+      if (!(await exists(filePath))) return null;
+      const text = await readTextFile(filePath);
+      const parsed = JSON.parse(text);
+      return this.parseRootFolderJsonV1(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  private isFolderNode(node: IndexNode): node is IndexFolderNode {
+    return (node as IndexFolderNode).child !== undefined;
+  }
+
+  private isFileNode(node: IndexNode): node is IndexFileNode {
+    return (node as IndexFileNode).extension !== undefined;
+  }
+
+  private getNodeKey(node: IndexNode, parentPath: string): string {
+    const parentKey = parentPath ?? "";
+    if (this.isFolderNode(node)) {
+      return `${parentKey}::folder::${node.name}`;
+    }
+    const ext = typeof node.extension === "string" ? node.extension : "";
+    const fileName = ext ? `${node.name}.${ext}` : node.name;
+    return `${parentKey}::file::${fileName}`;
+  }
+
+  private buildExistingChildMaps(
+    existingChildren: IndexNode[],
+    parentPath: string
+  ): {
+    byId: Map<string, IndexNode>;
+    byPath: Map<string, IndexNode>;
+    byKey: Map<string, IndexNode>;
+  } {
+    const byId = new Map<string, IndexNode>();
+    const byPath = new Map<string, IndexNode>();
+    const byKey = new Map<string, IndexNode>();
+    for (const child of existingChildren ?? []) {
+      if (!child || typeof child !== "object") continue;
+      if (typeof child.id === "string" && child.id) {
+        byId.set(child.id, child);
+      }
+      if (typeof child.path === "string" && child.path) {
+        byPath.set(child.path, child);
+      }
+      const key = this.getNodeKey(child, parentPath);
+      byKey.set(key, child);
+    }
+    return { byId, byPath, byKey };
+  }
+
+  private mergeNode(
+    scanned: IndexNode,
+    existing: IndexNode | null,
+    now: string
+  ): IndexNode {
+    if (this.isFolderNode(scanned)) {
+      const existingFolder = existing && this.isFolderNode(existing) ? existing : null;
+      const nameChanged = !!existingFolder && existingFolder.name !== scanned.name;
+      const createdOn = existingFolder?.created_on || now;
+      const updatedOn = nameChanged ? now : existingFolder?.updated_on || now;
+      const lastViewedOn = existingFolder?.last_viewed_on || createdOn;
+
+      const merged: IndexFolderNode = {
+        id: existingFolder?.id ?? this.generateUuid(),
+        name: scanned.name,
+        purpose: existingFolder?.purpose ?? "",
+        type: scanned.type,
+        level: scanned.level,
+        path: scanned.path,
+        created_on: createdOn,
+        updated_on: updatedOn,
+        last_viewed_on: lastViewedOn,
+        views:
+          typeof existingFolder?.views === "number" && Number.isFinite(existingFolder.views)
+            ? existingFolder.views
+            : 0,
+        child: [],
+      };
+
+      const scannedChildren = Array.isArray(scanned.child) ? scanned.child : [];
+      const existingChildren = existingFolder?.child ?? [];
+      merged.child = this.mergeChildren(
+        existingChildren,
+        scannedChildren,
+        scanned.path,
+        now
+      );
+      return merged;
+    }
+
+    const scannedFile = scanned as IndexFileNode;
+    const existingFile = existing && this.isFileNode(existing) ? existing : null;
+    const nameChanged =
+      !!existingFile &&
+      (existingFile.name !== scannedFile.name ||
+        existingFile.extension !== scannedFile.extension);
+    const createdOn = existingFile?.created_on || now;
+    const updatedOn = nameChanged ? now : existingFile?.updated_on || now;
+    const lastViewedOn = existingFile?.last_viewed_on || createdOn;
+
+    return {
+      id: existingFile?.id ?? this.generateUuid(),
+      name: scannedFile.name,
+      extension: scannedFile.extension,
+      purpose: existingFile?.purpose ?? "",
+      type: scannedFile.type,
+      level: scannedFile.level,
+      path: scannedFile.path,
+      created_on: createdOn,
+      updated_on: updatedOn,
+      last_viewed_on: lastViewedOn,
+      views:
+        typeof existingFile?.views === "number" && Number.isFinite(existingFile.views)
+          ? existingFile.views
+          : 0,
+    };
+  }
+
+  private mergeChildren(
+    existingChildren: IndexNode[],
+    scannedChildren: IndexNode[],
+    parentPath: string,
+    now: string
+  ): IndexNode[] {
+    const { byId, byPath, byKey } = this.buildExistingChildMaps(
+      existingChildren,
+      parentPath
+    );
+    const usedIds = new Set<string>();
+
+    return (scannedChildren ?? []).map((scanned) => {
+      let match: IndexNode | undefined;
+      if (scanned && typeof scanned.id === "string" && scanned.id) {
+        match = byId.get(scanned.id);
+      }
+      if (!match && typeof scanned.path === "string" && scanned.path) {
+        match = byPath.get(scanned.path);
+      }
+      if (!match) {
+        const key = this.getNodeKey(scanned, parentPath);
+        match = byKey.get(key);
+      }
+      if (match && typeof match.id === "string") {
+        if (usedIds.has(match.id)) {
+          match = undefined;
+        } else {
+          usedIds.add(match.id);
+        }
+      }
+      return this.mergeNode(scanned, match ?? null, now);
+    });
+  }
+
+  private mergeRootWithScan(args: {
+    existing: RootFolderJson;
+    scannedChildren: IndexNode[];
+    rootName: string;
+    rootPath: string;
+    notifications: string[];
+    now: string;
+  }): RootFolderJson {
+    const { existing, scannedChildren, rootName, rootPath, notifications, now } = args;
+    const nameChanged = existing.name !== rootName;
+    const createdOn = existing.created_on || now;
+    const updatedOn = nameChanged ? now : existing.updated_on || now;
+    const lastViewedOn = existing.last_viewed_on || createdOn;
+    const mergedChildren = this.mergeChildren(
+      existing.child ?? [],
+      scannedChildren,
+      rootPath,
+      now
+    );
+
+    return {
+      schema_version: "1.0.0",
+      id: existing.id || this.generateUuid(),
+      name: rootName,
+      purpose: typeof existing.purpose === "string" ? existing.purpose : "",
+      type: "root_folder",
+      level: 0,
+      path: rootPath,
+      created_on: createdOn,
+      updated_on: updatedOn,
+      last_viewed_on: lastViewedOn,
+      views:
+        typeof existing.views === "number" && Number.isFinite(existing.views)
+          ? existing.views
+          : 0,
+      notifications,
+      recommendations: Array.isArray(existing.recommendations)
+        ? existing.recommendations
+        : [],
+      error_messages: Array.isArray(existing.error_messages) ? existing.error_messages : [],
+      child: mergedChildren,
+    };
+  }
+
+  private updateNodePurposeInTree(args: {
+    nodes: IndexNode[];
+    nodeId: string | null;
+    nodePath: string | null;
+    nextPurpose: string;
+    now: string;
+  }): { nodes: IndexNode[]; updated: boolean } {
+    const { nodes, nodeId, nodePath, nextPurpose, now } = args;
+    let updated = false;
+
+    const walk = (list: IndexNode[]): IndexNode[] => {
+      return list.map((node) => {
+        const matchesId = !!nodeId && node.id === nodeId;
+        const matchesPath =
+          !!nodePath && typeof node.path === "string" && node.path === nodePath;
+        if (matchesId || matchesPath) {
+          const prevPurpose = typeof node.purpose === "string" ? node.purpose : "";
+          const shouldUpdate = prevPurpose !== nextPurpose;
+          updated = updated || shouldUpdate;
+          if (this.isFolderNode(node)) {
+            return {
+              ...node,
+              purpose: nextPurpose,
+              updated_on: shouldUpdate ? now : node.updated_on,
+              child: node.child ?? [],
+            };
+          }
+          return {
+            ...node,
+            purpose: nextPurpose,
+            updated_on: shouldUpdate ? now : node.updated_on,
+          };
+        }
+
+        if (this.isFolderNode(node)) {
+          const nextChildren = walk(node.child ?? []);
+          if (nextChildren !== node.child) {
+            return { ...node, child: nextChildren };
+          }
+        }
+        return node;
+      });
+    };
+
+    return { nodes: walk(nodes ?? []), updated };
+  }
+
   private buildNewRootFolderJson(args: {
     name: string;
     path: string;
@@ -234,12 +555,13 @@ export class FileManager {
     dirHandle: FileSystemDirectoryHandle,
   ): Promise<RootFolderJson> {
     const now = this.nowIso();
+    const indexFileName = this.getIndexFileNameFromHandle(dirHandle);
     // Web mode: root path is not available; use empty string.
     const root = this.buildNewRootFolderJson({ name: dirHandle.name, path: "", now });
 
     // Root notification: if any non-index FILE exists at root before initialization.
     for await (const entry of (dirHandle as any).values()) {
-      if (entry.kind === "file" && entry.name !== FileManager.ROOT_FILE_NAME) {
+      if (entry.kind === "file" && entry.name !== indexFileName) {
         root.notifications.push("Root folder contained files before initialization");
         break;
       }
@@ -250,6 +572,7 @@ export class FileManager {
       dirHandle,
       1,
       "",
+      indexFileName,
       root.notifications,
       now,
     );
@@ -262,22 +585,30 @@ export class FileManager {
   async initializeIndexFromPath(rootPath: string): Promise<RootFolderJson> {
     const now = this.nowIso();
     const rootName = this.baseNameFromPath(rootPath);
+    const indexFileName = this.getIndexFileName(rootName);
     const root = this.buildNewRootFolderJson({ name: rootName, path: rootPath, now });
 
     try {
       const { readDir } = await import("@tauri-apps/plugin-fs");
       const entries = await readDir(rootPath);
-      if (entries.some((e: any) => e?.isFile && e?.name !== FileManager.ROOT_FILE_NAME)) {
+      if (entries.some((e: any) => e?.isFile && e?.name !== indexFileName)) {
         root.notifications.push("Root folder contained files before initialization");
       }
-      root.child = await this.scanDirPath(rootPath, 1, rootPath, root.notifications, now);
+      root.child = await this.scanDirPath(
+        rootPath,
+        1,
+        rootPath,
+        indexFileName,
+        root.notifications,
+        now
+      );
     } catch (err) {
       // If scanning fails, do not write partial results. Surface as root error message.
       root.error_messages.push(`Failed to scan root folder: ${String(err)}`);
       root.child = [];
     }
 
-    await this.writeRootFolderJsonFromPathAtomic(rootPath, root);
+    await this.writeRootFolderJsonFromPathAtomic(rootPath, root, indexFileName);
     return root;
   }
 
@@ -285,6 +616,7 @@ export class FileManager {
     dirHandle: FileSystemDirectoryHandle,
     level: number,
     parentRel: string,
+    rootIndexFileName: string,
     rootNotifications: string[],
     now: string,
   ): Promise<IndexNode[]> {
@@ -297,7 +629,7 @@ export class FileManager {
     const dirs: FileSystemDirectoryHandle[] = [];
     const files: FileSystemFileHandle[] = [];
     for await (const entry of (dirHandle as any).values()) {
-      if (level === 1 && entry.name === FileManager.ROOT_FILE_NAME) continue;
+      if (level === 1 && entry.name === rootIndexFileName) continue;
       if (entry.kind === "directory") dirs.push(entry);
       else if (entry.kind === "file") files.push(entry);
     }
@@ -324,6 +656,7 @@ export class FileManager {
           d,
           level + 1,
           relPath,
+          rootIndexFileName,
           rootNotifications,
           now,
         );
@@ -401,6 +734,7 @@ export class FileManager {
     dirPath: string,
     level: number,
     parentPath: string,
+    rootIndexFileName: string,
     rootNotifications: string[],
     now: string,
   ): Promise<IndexNode[]> {
@@ -437,6 +771,7 @@ export class FileManager {
           absPath,
           level + 1,
           absPath,
+          rootIndexFileName,
           rootNotifications,
           now,
         );
@@ -452,7 +787,7 @@ export class FileManager {
     }
 
     for (const f of files) {
-      if (level === 1 && f.name === FileManager.ROOT_FILE_NAME) continue;
+      if (level === 1 && f.name === rootIndexFileName) continue;
       const absPath = this.joinPath(parentPath, f.name);
       const parts = this.splitFileName(f.name);
       const fileNode: IndexFileNode = {
@@ -519,10 +854,12 @@ export class FileManager {
   private async writeRootFolderJsonFromPathAtomic(
     dirPath: string,
     root: RootFolderJson,
+    fileName?: string
   ): Promise<void> {
     const { writeTextFile, rename, remove } = await import("@tauri-apps/plugin-fs");
-    const finalPath = this.joinPath(dirPath, FileManager.ROOT_FILE_NAME);
-    const tmpPath = this.joinPath(dirPath, `${FileManager.ROOT_FILE_NAME}.tmp`);
+    const safeName = fileName ?? FileManager.LEGACY_ROOT_FILE_NAME;
+    const finalPath = this.joinPath(dirPath, safeName);
+    const tmpPath = this.joinPath(dirPath, `${safeName}.tmp`);
     const payload = JSON.stringify(root, null, 2);
     await writeTextFile(tmpPath, payload, { create: true });
     try {
@@ -545,20 +882,39 @@ export class FileManager {
    * We keep failures silent by design (no alerts/toasts).
    */
   async readRootFolderJson(dirHandle: FileSystemDirectoryHandle): Promise<RootFolderJson | null> {
-    try {
-      const fileHandle = await dirHandle.getFileHandle(FileManager.ROOT_FILE_NAME, {
-        create: false,
-      });
-      const file = await fileHandle.getFile();
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      return this.parseRootFolderJsonV1(parsed);
-    } catch (err) {
-      // Missing file is expected for first-time roots.
-      if (err instanceof DOMException && err.name === 'NotFoundError') return null;
-      // Parse errors or permission issues: do not overwrite the file, just treat as unreadable.
-      return null;
+    const fileName = this.getIndexFileNameFromHandle(dirHandle);
+    const current = await this.readRootFolderJsonByName(dirHandle, fileName);
+    if (current) return current;
+
+    const legacy = await this.readRootFolderJsonByName(
+      dirHandle,
+      FileManager.LEGACY_ROOT_FILE_NAME
+    );
+    if (legacy) {
+      await this.writeRootFolderJsonToFileName(dirHandle, legacy, fileName);
+      try {
+        await dirHandle.removeEntry(FileManager.LEGACY_ROOT_FILE_NAME);
+      } catch {
+        // Silent by design.
+      }
+      return legacy;
     }
+
+    const candidates = await this.findIndexFileCandidatesFromHandle(dirHandle);
+    for (const candidate of candidates) {
+      if (candidate === fileName) continue;
+      const parsed = await this.readRootFolderJsonByName(dirHandle, candidate);
+      if (!parsed) continue;
+      await this.writeRootFolderJsonToFileName(dirHandle, parsed, fileName);
+      try {
+        await dirHandle.removeEntry(candidate);
+      } catch {
+        // Silent by design.
+      }
+      return parsed;
+    }
+
+    return null;
   }
 
   /**
@@ -569,7 +925,10 @@ export class FileManager {
     dirHandle: FileSystemDirectoryHandle,
   ): Promise<{ root: RootFolderJson; created: boolean }> {
     const existing = await this.readRootFolderJson(dirHandle);
-    if (existing) return { root: existing, created: false };
+    if (existing) {
+      const updated = await this.syncRootFolderJsonFromHandle(dirHandle, existing);
+      return { root: updated, created: false };
+    }
 
     // Initialize by scanning the directory structure recursively up to 4 levels
     const createdRoot = await this.initializeIndexFromHandle(dirHandle);
@@ -611,16 +970,43 @@ export class FileManager {
    * Returns null when missing/unreadable. Silent by design.
    */
   async readRootFolderJsonFromPath(dirPath: string): Promise<RootFolderJson | null> {
-    try {
-      const { exists, readTextFile } = await import('@tauri-apps/plugin-fs');
-      const filePath = this.joinPath(dirPath, FileManager.ROOT_FILE_NAME);
-      if (!(await exists(filePath))) return null;
-      const text = await readTextFile(filePath);
-      const parsed = JSON.parse(text);
-      return this.parseRootFolderJsonV1(parsed);
-    } catch {
-      return null;
+    const fileName = this.getIndexFileNameFromPath(dirPath);
+    const current = await this.readRootFolderJsonFromPathByName(dirPath, fileName);
+    if (current) return current;
+
+    const legacy = await this.readRootFolderJsonFromPathByName(
+      dirPath,
+      FileManager.LEGACY_ROOT_FILE_NAME
+    );
+    if (legacy) {
+      try {
+        const { rename } = await import("@tauri-apps/plugin-fs");
+        const legacyPath = this.joinPath(dirPath, FileManager.LEGACY_ROOT_FILE_NAME);
+        const nextPath = this.joinPath(dirPath, fileName);
+        await rename(legacyPath, nextPath);
+      } catch {
+        await this.writeRootFolderJsonFromPathAtomic(dirPath, legacy, fileName);
+      }
+      return legacy;
     }
+
+    const candidates = await this.findIndexFileCandidatesFromPath(dirPath);
+    for (const candidate of candidates) {
+      if (candidate === fileName) continue;
+      const parsed = await this.readRootFolderJsonFromPathByName(dirPath, candidate);
+      if (!parsed) continue;
+      try {
+        const { rename } = await import("@tauri-apps/plugin-fs");
+        const oldPath = this.joinPath(dirPath, candidate);
+        const nextPath = this.joinPath(dirPath, fileName);
+        await rename(oldPath, nextPath);
+      } catch {
+        await this.writeRootFolderJsonFromPathAtomic(dirPath, parsed, fileName);
+      }
+      return parsed;
+    }
+
+    return null;
   }
 
   async writeRootFolderJsonFromPath(dirPath: string, root: RootFolderJson): Promise<void> {
@@ -678,7 +1064,8 @@ export class FileManager {
         child: Array.isArray(root.child) ? (root.child as IndexNode[]) : existing?.child ?? [],
       };
 
-      await this.writeRootFolderJsonFromPathAtomic(dirPath, normalized);
+      const fileName = this.getIndexFileNameFromPath(dirPath);
+      await this.writeRootFolderJsonFromPathAtomic(dirPath, normalized, fileName);
     } catch (error) {
       console.error('[FileManager] Failed to write parallelmind_index.json:', error);
       throw error;
@@ -694,8 +1081,8 @@ export class FileManager {
 
     const existing = await this.readRootFolderJsonFromPath(dirPath);
     if (existing) {
-      // Ensure path is set (desktop mode should always have absolute path).
-      return { root: { ...existing, path: dirPath }, created: false };
+      const updated = await this.syncRootFolderJsonFromPath(dirPath, existing);
+      return { root: updated, created: false };
     }
 
     // Initialize by scanning the directory structure recursively up to 4 levels
@@ -717,6 +1104,17 @@ export class FileManager {
     });
     await this.writeRootFolderJson(dirHandle, root);
     return root;
+  }
+
+  private async writeRootFolderJsonToFileName(
+    dirHandle: FileSystemDirectoryHandle,
+    root: RootFolderJson,
+    fileName: string
+  ): Promise<void> {
+    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(root, null, 2));
+    await writable.close();
   }
 
   async writeRootFolderJson(
@@ -772,12 +1170,8 @@ export class FileManager {
       child: Array.isArray(root.child) ? (root.child as IndexNode[]) : existing?.child ?? [],
     };
 
-    const fileHandle = await dirHandle.getFileHandle(FileManager.ROOT_FILE_NAME, {
-      create: true,
-    });
-    const writable = await fileHandle.createWritable();
-    await writable.write(JSON.stringify(normalized, null, 2));
-    await writable.close();
+    const fileName = this.getIndexFileNameFromHandle(dirHandle);
+    await this.writeRootFolderJsonToFileName(dirHandle, normalized, fileName);
   }
 
   /**
@@ -822,5 +1216,206 @@ export class FileManager {
    */
   sync(): void {
     // TODO: Implement sync logic
+  }
+
+  async updateNodePurposeFromHandle(args: {
+    dirHandle: FileSystemDirectoryHandle;
+    existing: RootFolderJson;
+    nodeId: string | null;
+    nodePath: string | null;
+    nextPurpose: string;
+  }): Promise<RootFolderJson> {
+    const { dirHandle, existing, nodeId, nodePath, nextPurpose } = args;
+    const now = this.nowIso();
+    const result = this.updateNodePurposeInTree({
+      nodes: existing.child ?? [],
+      nodeId,
+      nodePath,
+      nextPurpose,
+      now,
+    });
+    if (!result.updated) {
+      return existing;
+    }
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      child: result.nodes,
+    };
+    await this.writeRootFolderJson(dirHandle, updatedRoot);
+    return updatedRoot;
+  }
+
+  async updateNodePurposeFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson;
+    nodeId: string | null;
+    nodePath: string | null;
+    nextPurpose: string;
+  }): Promise<RootFolderJson> {
+    const { dirPath, existing, nodeId, nodePath, nextPurpose } = args;
+    const now = this.nowIso();
+    const result = this.updateNodePurposeInTree({
+      nodes: existing.child ?? [],
+      nodeId,
+      nodePath,
+      nextPurpose,
+      now,
+    });
+    if (!result.updated) {
+      return existing;
+    }
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      child: result.nodes,
+      path: dirPath,
+    };
+    const fileName = this.getIndexFileNameFromPath(dirPath);
+    await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, fileName);
+    return updatedRoot;
+  }
+
+  async appendRootErrorMessageFromHandle(args: {
+    dirHandle: FileSystemDirectoryHandle;
+    existing: RootFolderJson | null;
+    message: string;
+  }): Promise<void> {
+    const { dirHandle, existing, message } = args;
+    if (!message) return;
+    const now = this.nowIso();
+    const root = existing ?? this.buildNewRootFolderJson({ name: dirHandle.name, path: "", now });
+    const nextErrors = Array.isArray(root.error_messages) ? [...root.error_messages] : [];
+    nextErrors.push(message);
+    try {
+      await this.writeRootFolderJson(dirHandle, { ...root, error_messages: nextErrors });
+    } catch {
+      // Silent by UX rules.
+    }
+  }
+
+  async appendRootErrorMessageFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson | null;
+    message: string;
+  }): Promise<void> {
+    const { dirPath, existing, message } = args;
+    if (!message) return;
+    const now = this.nowIso();
+    const rootName = this.baseNameFromPath(dirPath);
+    const root = existing ?? this.buildNewRootFolderJson({ name: rootName, path: dirPath, now });
+    const nextErrors = Array.isArray(root.error_messages) ? [...root.error_messages] : [];
+    nextErrors.push(message);
+    try {
+      const fileName = this.getIndexFileName(rootName);
+      await this.writeRootFolderJsonFromPathAtomic(
+        dirPath,
+        { ...root, error_messages: nextErrors },
+        fileName
+      );
+    } catch {
+      // Silent by UX rules.
+    }
+  }
+
+  /**
+   * Merge filesystem changes into an existing index (browser mode).
+   */
+  async syncRootFolderJsonFromHandle(
+    dirHandle: FileSystemDirectoryHandle,
+    existing: RootFolderJson
+  ): Promise<RootFolderJson> {
+    const now = this.nowIso();
+    const rootName = dirHandle.name;
+    const indexFileName = this.getIndexFileName(rootName);
+    const notifications = Array.isArray(existing.notifications)
+      ? [...existing.notifications]
+      : [];
+
+    // Add root notification if any non-index file exists at root.
+    let hasRootFile = false;
+    for await (const entry of (dirHandle as any).values()) {
+      if (entry.kind === "file" && entry.name !== indexFileName) {
+        hasRootFile = true;
+        break;
+      }
+    }
+    if (hasRootFile) {
+      const note = "Root folder contained files before initialization";
+      if (!notifications.includes(note)) notifications.push(note);
+    }
+
+    try {
+      const scannedChildren = await this.scanDirectoryHandle(
+        dirHandle,
+        1,
+        "",
+        indexFileName,
+        notifications,
+        now
+      );
+      const merged = this.mergeRootWithScan({
+        existing,
+        scannedChildren,
+        rootName,
+        rootPath: "",
+        notifications,
+        now,
+      });
+      await this.writeRootFolderJson(dirHandle, merged);
+      return merged;
+    } catch (err) {
+      const nextErrors = Array.isArray(existing.error_messages)
+        ? [...existing.error_messages]
+        : [];
+      nextErrors.push(`Failed to sync root folder: ${String(err)}`);
+      return { ...existing, error_messages: nextErrors };
+    }
+  }
+
+  /**
+   * Merge filesystem changes into an existing index (desktop path mode).
+   */
+  async syncRootFolderJsonFromPath(
+    dirPath: string,
+    existing: RootFolderJson
+  ): Promise<RootFolderJson> {
+    const now = this.nowIso();
+    const rootName = this.baseNameFromPath(dirPath);
+    const indexFileName = this.getIndexFileName(rootName);
+    const notifications = Array.isArray(existing.notifications)
+      ? [...existing.notifications]
+      : [];
+
+    try {
+      const { readDir } = await import("@tauri-apps/plugin-fs");
+      const entries = await readDir(dirPath);
+      if (entries.some((e: any) => e?.isFile && e?.name !== indexFileName)) {
+        const note = "Root folder contained files before initialization";
+        if (!notifications.includes(note)) notifications.push(note);
+      }
+      const scannedChildren = await this.scanDirPath(
+        dirPath,
+        1,
+        dirPath,
+        indexFileName,
+        notifications,
+        now
+      );
+      const merged = this.mergeRootWithScan({
+        existing,
+        scannedChildren,
+        rootName,
+        rootPath: dirPath,
+        notifications,
+        now,
+      });
+      await this.writeRootFolderJsonFromPathAtomic(dirPath, merged, indexFileName);
+      return merged;
+    } catch (err) {
+      const nextErrors = Array.isArray(existing.error_messages)
+        ? [...existing.error_messages]
+        : [];
+      nextErrors.push(`Failed to sync root folder: ${String(err)}`);
+      return { ...existing, error_messages: nextErrors, path: dirPath };
+    }
   }
 }
