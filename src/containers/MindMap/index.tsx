@@ -23,6 +23,7 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { FiMenu, FiZoomIn } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
+import type { IndexNode, RootFolderJson } from "../../data/fileManager";
 import { useMindMapStore } from "../../store/mindMapStore";
 import { composeMindMapGraphFromRoot } from "../../utils/mindMapComposer";
 import { getNodeFillColor } from "../../utils/nodeFillColors";
@@ -48,6 +49,7 @@ export default function MindMap() {
   const setEdges = useMindMapStore((s) => s.setEdges);
   const rootFolderJson = useMindMapStore((s) => s.rootFolderJson);
   const settings = useMindMapStore((s) => s.settings);
+  const updateSettings = useMindMapStore((s) => s.updateSettings);
   const setInlineEditNodeId = useMindMapStore((s) => s.setInlineEditNodeId);
   const selectNode = useMindMapStore((s) => s.selectNode);
   const selectedNodeId = useMindMapStore((s) => s.selectedNodeId);
@@ -60,6 +62,12 @@ export default function MindMap() {
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasBodyRef = useRef<HTMLDivElement | null>(null);
+  const spacingPanelRef = useRef<HTMLDivElement | null>(null);
+  const spacingDragRef = useRef<{
+    active: boolean;
+    offsetX: number;
+    offsetY: number;
+  }>({ active: false, offsetX: 0, offsetY: 0 });
   const [rf, setRf] = useState<ReactFlowInstance | null>(null);
   const nodeTypes = useMemo(
     () => ({ rootFolder: RootFolderNode, file: FileNode }),
@@ -95,6 +103,13 @@ export default function MindMap() {
     open: boolean;
   }>({ open: false });
 
+  const [spacingPanel, setSpacingPanel] = useState<{
+    open: boolean;
+    x: number;
+    y: number;
+  }>({ open: false, x: 40, y: 120 });
+  const [isSpacingDragging, setIsSpacingDragging] = useState(false);
+
   const [zoomViewActive, setZoomViewActive] = useState(true);
   const [zoomPreview, setZoomPreview] = useState<{
     node: Node;
@@ -118,6 +133,9 @@ export default function MindMap() {
   const toggleCanvasMenu = () => setCanvasMenu((s) => ({ open: !s.open }));
 
   const closeCanvasMenu = () => setCanvasMenu({ open: false });
+
+  const closeSpacingPanel = () =>
+    setSpacingPanel((s) => (s.open ? { ...s, open: false } : s));
 
   const isFolderNode = (node: Node): boolean => {
     // Root node is always a folder conceptually.
@@ -157,6 +175,57 @@ export default function MindMap() {
     if (!rootFolderJson || !rf) return;
     showAllNodesInCanvas();
   }, [rootFolderJson, rf]);
+
+  const getMaxDepthFromRoot = (root: RootFolderJson | null): number => {
+    if (!root) return 0;
+    const walk = (node: RootFolderJson | IndexNode, depth: number): number => {
+      const children = Array.isArray((node as any)?.child)
+        ? ((node as any).child as IndexNode[])
+        : [];
+      if (!children.length) return depth;
+      let maxDepth = depth;
+      children.forEach((child) => {
+        maxDepth = Math.max(maxDepth, walk(child, depth + 1));
+      });
+      return maxDepth;
+    };
+    return walk(root, 0);
+  };
+
+  const maxDepth = useMemo(
+    () => getMaxDepthFromRoot(rootFolderJson),
+    [rootFolderJson]
+  );
+  const displayLevels = Math.min(5, Math.max(0, maxDepth));
+  const defaultLevelGap = Math.round(settings.appearance.nodeSize * 1.4);
+  const levelGaps = settings.appearance.levelHorizontalGaps ?? [];
+
+  const getLevelGapValue = (level: number): number => {
+    const value = levelGaps[level - 1];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    return defaultLevelGap;
+  };
+
+  const clampGapValue = (value: number): number => {
+    const clamped = Math.max(30, Math.min(600, Math.round(value)));
+    return clamped;
+  };
+
+  const setLevelGapValue = (level: number, nextValue: number) => {
+    const nextGaps = Array.from({ length: 5 }, (_, idx) => {
+      const existing = getLevelGapValue(idx + 1);
+      return Number.isFinite(existing) ? existing : defaultLevelGap;
+    });
+    nextGaps[level - 1] = clampGapValue(nextValue);
+    updateSettings({
+      appearance: {
+        ...settings.appearance,
+        levelHorizontalGaps: nextGaps,
+      },
+    });
+  };
 
   const getNodeFolderPath = (node: Node): string | null => {
     const path = (node?.data as any)?.path;
@@ -326,6 +395,7 @@ export default function MindMap() {
       if (target.closest('[data-pm-context-menu="node"]')) return;
       if (target.closest('[data-pm-context-menu="pane"]')) return;
       if (target.closest('[data-pm-context-menu="canvas"]')) return;
+      if (target.closest('[data-pm-context-menu="spacing"]')) return;
       closeContextMenu();
       closePaneMenu();
       closeCanvasMenu();
@@ -346,6 +416,42 @@ export default function MindMap() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [contextMenu.open, paneMenu.open, canvasMenu.open]);
+
+  useEffect(() => {
+    if (!spacingPanel.open) return;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!spacingDragRef.current.active) return;
+      const rect = canvasBodyRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const panelRect = spacingPanelRef.current?.getBoundingClientRect();
+      const panelWidth = panelRect?.width ?? 280;
+      const panelHeight = panelRect?.height ?? 220;
+      const rawX = ev.clientX - rect.left - spacingDragRef.current.offsetX;
+      const rawY = ev.clientY - rect.top - spacingDragRef.current.offsetY;
+      const minX = 8;
+      const minY = 8;
+      const maxX = Math.max(minX, rect.width - panelWidth - 8);
+      const maxY = Math.max(minY, rect.height - panelHeight - 8);
+      const x = Math.min(maxX, Math.max(minX, rawX));
+      const y = Math.min(maxY, Math.max(minY, rawY));
+      setSpacingPanel((prev) => ({ ...prev, x, y }));
+    };
+
+    const onMouseUp = () => {
+      if (spacingDragRef.current.active) {
+        spacingDragRef.current.active = false;
+        setIsSpacingDragging(false);
+      }
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [spacingPanel.open]);
 
   useEffect(() => {
     if (!zoomViewActive) {
@@ -400,6 +506,7 @@ export default function MindMap() {
         rootNodeId: "00",
         rootPosition,
         nodeSize: settings.appearance.nodeSize,
+        levelHorizontalGaps: levelGaps,
       });
 
     if (warnings.length > 0) {
@@ -420,6 +527,7 @@ export default function MindMap() {
     rootFolderJson,
     selectedNodeId,
     settings.appearance.nodeSize,
+    settings.appearance.levelHorizontalGaps,
     setInlineEditNodeId,
     setNodes,
     setEdges,
@@ -617,6 +725,40 @@ export default function MindMap() {
             >
               {uiText.canvas.viewMenu.showAllNodes}
             </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                const rect = canvasBodyRef.current?.getBoundingClientRect();
+                const panelWidth = 280;
+                const panelHeight = 220;
+                const x = rect ? rect.width / 2 - panelWidth / 2 : 40;
+                const y = rect ? rect.height / 2 - panelHeight / 2 : 120;
+                setSpacingPanel({ open: true, x, y });
+                closeCanvasMenu();
+              }}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                cursor: "pointer",
+                fontFamily: "var(--font-family)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "transparent";
+              }}
+            >
+              Adjust node spacing
+            </button>
           </div>
         )}
 
@@ -633,6 +775,159 @@ export default function MindMap() {
           onMouseDown={onCanvasMouseDown}
           onMouseUp={onCanvasMouseUp}
         >
+          {spacingPanel.open && (
+            <div
+              ref={spacingPanelRef}
+              data-pm-context-menu="spacing"
+              role="dialog"
+              aria-label="Node spacing controls"
+              style={{
+                position: "absolute",
+                left: spacingPanel.x,
+                top: spacingPanel.y,
+                zIndex: 60,
+                minWidth: 260,
+                maxWidth: 320,
+                borderRadius: "var(--radius-md)",
+                border: "var(--border-width) solid var(--border)",
+                background: "var(--surface-2)",
+                color: "var(--text)",
+                boxShadow: "0 12px 28px rgba(0,0,0,0.3)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                role="button"
+                aria-label="Drag node spacing panel"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rect = spacingPanelRef.current?.getBoundingClientRect();
+                  spacingDragRef.current.active = true;
+                  spacingDragRef.current.offsetX = rect
+                    ? e.clientX - rect.left
+                    : 0;
+                  spacingDragRef.current.offsetY = rect
+                    ? e.clientY - rect.top
+                    : 0;
+                  setIsSpacingDragging(true);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 12px",
+                  fontWeight: 600,
+                  cursor: isSpacingDragging ? "grabbing" : "grab",
+                  background: "var(--surface-1)",
+                  borderBottom: "var(--border-width) solid var(--border)",
+                }}
+              >
+                <span>Horizontal spacing</span>
+                <button
+                  type="button"
+                  onClick={closeSpacingPanel}
+                  aria-label="Close spacing panel"
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    color: "inherit",
+                    cursor: "pointer",
+                    fontSize: "1.05rem",
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <div style={{ padding: "10px 12px" }}>
+                {displayLevels === 0 && (
+                  <div style={{ fontSize: "0.85rem", opacity: 0.75 }}>
+                    No child levels to adjust.
+                  </div>
+                )}
+                {Array.from({ length: displayLevels }).map((_, idx) => {
+                  const level = idx + 1;
+                  const value = getLevelGapValue(level);
+                  return (
+                    <div
+                      key={`level-gap-${level}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        padding: "6px 0",
+                      }}
+                    >
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>
+                        Level {level}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setLevelGapValue(level, value - 5)}
+                          aria-label={`Decrease level ${level} spacing`}
+                          style={{
+                            height: 26,
+                            width: 26,
+                            borderRadius: "var(--radius-sm)",
+                            border: "var(--border-width) solid var(--border)",
+                            background: "transparent",
+                            color: "inherit",
+                            cursor: "pointer",
+                          }}
+                        >
+                          −
+                        </button>
+                        <div
+                          style={{
+                            minWidth: 44,
+                            textAlign: "center",
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {value}px
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setLevelGapValue(level, value + 5)}
+                          aria-label={`Increase level ${level} spacing`}
+                          style={{
+                            height: 26,
+                            width: 26,
+                            borderRadius: "var(--radius-sm)",
+                            border: "var(--border-width) solid var(--border)",
+                            background: "transparent",
+                            color: "inherit",
+                            cursor: "pointer",
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {displayLevels > 0 && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      fontSize: "0.75rem",
+                      opacity: 0.7,
+                    }}
+                  >
+                    Leaf levels stay at 30px minimum to avoid overlap.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <ReactFlow
             nodes={nodes}
             edges={renderedEdges}

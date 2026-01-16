@@ -19,6 +19,9 @@ export type MindMapComposeOptions = {
   nodeSize?: number;
   levelSpacing?: number;
   siblingSpacing?: number;
+  leafSiblingGap?: number;
+  minSiblingGap?: number;
+  levelHorizontalGaps?: number[];
 };
 
 export type MindMapComposeResult = {
@@ -42,6 +45,8 @@ type NodeInfo = {
 const DEFAULT_NODE_SIZE = 200;
 const DEFAULT_VERTICAL_GAP = 80;
 const DEFAULT_HORIZONTAL_GAP_RATIO = 1.4;
+const DEFAULT_LEAF_SIBLING_GAP = 30;
+const DEFAULT_MIN_SIBLING_GAP = 30;
 
 const normalizeTypeKind = (typeValue: unknown): NormalizedKind => {
   if (typeof typeValue !== "string") return "unknown";
@@ -103,6 +108,16 @@ export const composeMindMapGraphFromRoot = (
     Number.isFinite(options.siblingSpacing)
       ? options.siblingSpacing
       : Math.round(nodeSize * DEFAULT_HORIZONTAL_GAP_RATIO);
+  // Fixed 30px gap for last-level (leaf) siblings per hierarchy rule.
+  const leafSiblingGap = DEFAULT_LEAF_SIBLING_GAP;
+  const levelHorizontalGaps = Array.isArray(options.levelHorizontalGaps)
+    ? options.levelHorizontalGaps
+    : [];
+  const minSiblingGap =
+    typeof options.minSiblingGap === "number" &&
+    Number.isFinite(options.minSiblingGap)
+      ? Math.max(DEFAULT_MIN_SIBLING_GAP, options.minSiblingGap)
+      : DEFAULT_MIN_SIBLING_GAP;
 
   const registerNode = (info: NodeInfo) => {
     if (nodesById.has(info.id)) {
@@ -219,190 +234,144 @@ export const composeMindMapGraphFromRoot = (
     return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
   };
 
-  const getChildExtents = (count: number) => {
-    if (count <= 1) {
-      return { left: 0, right: 0, width: 0 };
-    }
-    if (count % 2 === 0) {
-      const extent = (count / 2 - 0.5) * columnGap;
-      return { left: extent, right: extent, width: extent * 2 };
-    }
-    const leftExtent = ((count - 2) / 2) * columnGap;
-    const rightExtent = (count / 2) * columnGap;
-    return { left: leftExtent, right: rightExtent, width: leftExtent + rightExtent };
-  };
-
-  const getOffsetsForCount = (count: number): number[] => {
-    if (count <= 1) return [0];
-    const offsets: number[] = [];
-    if (count % 2 === 0) {
-      const start = -(count / 2 - 0.5);
-      for (let i = 0; i < count; i += 1) {
-        offsets.push(start + i);
-      }
-      return offsets;
-    }
-    // Odd: symmetric pairs + extra node at the far right.
-    const evenPart = count - 1;
-    const start = -(evenPart / 2 - 0.5);
-    for (let i = 0; i < evenPart; i += 1) {
-      offsets.push(start + i);
-    }
-    offsets.push(evenPart / 2 + 0.5);
-    return offsets;
-  };
-
-  // Build rows by depth using stable parent ordering (folders A-Z, then files A-Z).
-  const rowOrder: string[][] = [];
-  rowOrder[0] = [rootNodeId];
-  let depth = 0;
-  while (rowOrder[depth] && rowOrder[depth].length > 0) {
-    const nextRow: string[] = [];
-    const parents = rowOrder[depth]
-      .map((id) => nodesById.get(id))
-      .filter(Boolean) as NodeInfo[];
-    for (const parent of parents) {
-      const children = parent.children
-        .map((id) => nodesById.get(id))
-        .filter(Boolean) as NodeInfo[];
-      children.sort(compareNodes);
-      nextRow.push(...children.map((child) => child.id));
-    }
-    if (nextRow.length > 0) rowOrder[depth + 1] = nextRow;
-    depth += 1;
-  }
-
   const nodes: Node[] = [];
   const positionedById = new Map<string, { x: number; y: number }>();
-  const minNodeGap = Math.max(40, Math.round(nodeSize * 0.2));
-  const minSpacing = nodeSize + minNodeGap;
+  const subtreeWidthById = new Map<string, number>();
 
-  const resolveRowOverlaps = (rowIds: string[]) => {
-    const row = rowIds
-      .map((id) => ({ id, pos: positionedById.get(id) }))
-      .filter((item) => item.pos) as { id: string; pos: { x: number; y: number } }[];
-    if (row.length < 2) return;
-
-    row.sort((a, b) => a.pos.x - b.pos.x);
-    for (let i = 1; i < row.length; i += 1) {
-      const prev = row[i - 1];
-      const cur = row[i];
-      const delta = cur.pos.x - prev.pos.x;
-      if (delta < minSpacing) {
-        cur.pos.x = prev.pos.x + minSpacing;
-      }
-    }
-
-    const minX = Math.min(...row.map((item) => item.pos.x));
-    const maxX = Math.max(...row.map((item) => item.pos.x));
-    const centerShift = rootPosition.x - (minX + maxX) / 2;
-    if (Math.abs(centerShift) > 0.001) {
-      row.forEach((item) => {
-        item.pos.x += centerShift;
-        positionedById.set(item.id, item.pos);
-      });
-    }
+  const getSortedChildren = (info: NodeInfo): NodeInfo[] => {
+    const children = info.children
+      .map((id) => nodesById.get(id))
+      .filter(Boolean) as NodeInfo[];
+    children.sort(compareNodes);
+    return children;
   };
 
-  rowOrder.forEach((row, rowIndex) => {
-    if (row.length === 0) return;
-    const rowY = rootPosition.y + rowIndex * (nodeSize + rowGap);
+  const isLeafNode = (info: NodeInfo): boolean => info.children.length === 0;
 
-    const infos = row
-      .map((id) => nodesById.get(id))
-      .filter(Boolean) as NodeInfo[];
+  const isLastButOneNode = (info: NodeInfo): boolean => {
+    if (info.children.length === 0) return false;
+    const childInfos = getSortedChildren(info);
+    return childInfos.length > 0 && childInfos.every(isLeafNode);
+  };
 
-    const hasPresetPositions = row.every((id) => positionedById.has(id));
-
-    if (!hasPresetPositions) {
-      const footprints = infos.map((info) => {
-        const childCount = info.children.length;
-        const extents = getChildExtents(childCount);
-        const clusterWidth = Math.max(nodeSize, extents.width);
-        return { id: info.id, width: clusterWidth };
-      });
-
-      // Sequential placement with spacing sized by child clusters to reduce overlap.
-      const xPositions: number[] = [];
-      let cursorX = 0;
-      footprints.forEach((item, index) => {
-        if (index === 0) {
-          xPositions.push(0);
-          cursorX = 0;
-          return;
-        }
-        const prev = footprints[index - 1];
-        const gap = (prev.width + item.width) / 2 + columnGap;
-        cursorX += gap;
-        xPositions.push(cursorX);
-      });
-
-      // Center the row around the root X.
-      const minX = Math.min(...xPositions);
-      const maxX = Math.max(...xPositions);
-      const rowCenter = (minX + maxX) / 2;
-      const rowShift = rootPosition.x - rowCenter;
-
-      infos.forEach((info, index) => {
-        const x = xPositions[index] + rowShift;
-        positionedById.set(info.id, { x, y: rowY });
-      });
+  const getLevelGapForDepth = (depth: number): number => {
+    if (depth <= 0) return columnGap;
+    const idx = depth - 1;
+    const candidate = levelHorizontalGaps[idx];
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return candidate;
     }
+    return columnGap;
+  };
 
-    resolveRowOverlaps(row);
+  const canTightenLastButOneGap = (gap: number): boolean => {
+    /**
+     * Last-but-one gap check (leaf safety):
+     * The leaf clusters of adjacent parent siblings are separated by the
+     * inter-parent gap. To keep leaf nodes from overlapping, that gap must
+     * stay >= minSiblingGap (30px default).
+     */
+    return gap >= minSiblingGap;
+  };
 
-    infos.forEach((info) => {
-      const pos = positionedById.get(info.id) ?? { x: rootPosition.x, y: rowY };
-      nodes.push({
-        id: info.id,
-        type: info.kind === "folder" ? "rootFolder" : "file",
-        position: pos,
-        data: info.data,
-      });
-    });
-
-    // Place children in the next row centered around each parent.
-    const nextRow = rowOrder[rowIndex + 1];
-    if (!nextRow) return;
-    const childrenInOrder = nextRow
-      .map((id) => nodesById.get(id))
-      .filter(Boolean) as NodeInfo[];
-    const childrenByParent = new Map<string, NodeInfo[]>();
-    childrenInOrder.forEach((child) => {
-      if (!child.parentId) return;
-      if (!childrenByParent.has(child.parentId)) {
-        childrenByParent.set(child.parentId, []);
-      }
-      childrenByParent.get(child.parentId)!.push(child);
-    });
-
-    for (const parent of infos) {
-      const parentPos = positionedById.get(parent.id);
-      if (!parentPos) continue;
-      const children = childrenByParent.get(parent.id) ?? [];
-      if (children.length === 0) continue;
-      children.sort(compareNodes);
-
-      const offsets = getOffsetsForCount(children.length);
-      children.forEach((child, idx) => {
-        const offset = offsets[idx] ?? 0;
-        const x = parentPos.x + offset * columnGap;
-        const existing = positionedById.get(child.id);
-        if (existing) return;
-        positionedById.set(child.id, {
-          x,
-          y: rowY + nodeSize + rowGap,
-        });
-      });
+  const getTightenedLastButOneGap = (startGap: number): number => {
+    /**
+     * Decrease parent gap toward 30px in 5px steps.
+     * Stop once the leaf-level separation would remain non-overlapping.
+     */
+    const initialGap = Math.max(minSiblingGap, startGap);
+    for (let gap = initialGap; gap >= minSiblingGap; gap -= 5) {
+      if (canTightenLastButOneGap(gap)) return gap;
     }
+    return minSiblingGap;
+  };
 
-    resolveRowOverlaps(nextRow);
-  });
+  const getSiblingGapForParent = (parent: NodeInfo, children: NodeInfo[]): number => {
+    /**
+     * Gap logic for last-level nodes:
+     * - If a parent's children are all leaf nodes (last level),
+     *   use a fixed 30px gap to keep file siblings readable.
+     * - Otherwise, use the standard column gap for subtree separation.
+     *
+     * Gap logic for last-but-one nodes:
+     * - If siblings are all parents of leaf nodes, reduce spacing as much as
+     *   possible while keeping a non-overlap minimum gap.
+     */
+    const childDepth = parent.depth + 1;
+    const baseGap = Math.max(minSiblingGap, getLevelGapForDepth(childDepth));
+    if (children.length === 0) return baseGap;
+    const allLeaves = children.every(isLeafNode);
+    if (allLeaves) {
+      return Math.max(minSiblingGap, leafSiblingGap);
+    }
+    const allLastButOne = children.every(isLastButOneNode);
+    if (allLastButOne) {
+      return getTightenedLastButOneGap(baseGap);
+    }
+    return baseGap;
+  };
 
-  // Apply computed child positions (if any) to nodes that were already emitted.
-  nodes.forEach((node) => {
-    const pos = positionedById.get(node.id);
-    if (pos) node.position = pos;
+  const computeSubtreeWidth = (info: NodeInfo): number => {
+    if (subtreeWidthById.has(info.id)) {
+      return subtreeWidthById.get(info.id)!;
+    }
+    const children = getSortedChildren(info);
+    if (children.length === 0) {
+      subtreeWidthById.set(info.id, nodeSize);
+      return nodeSize;
+    }
+    const childWidths = children.map((child) => computeSubtreeWidth(child));
+    const siblingGap = getSiblingGapForParent(info, children);
+    const childrenSpan =
+      childWidths.reduce((sum, width) => sum + width, 0) +
+      siblingGap * (children.length - 1);
+    const width = Math.max(nodeSize, childrenSpan);
+    subtreeWidthById.set(info.id, width);
+    return width;
+  };
+
+  const placeSubtree = (info: NodeInfo, leftX: number) => {
+    const width = subtreeWidthById.get(info.id) ?? nodeSize;
+    const x = leftX + width / 2;
+    const y = rootPosition.y + info.depth * (nodeSize + rowGap);
+    positionedById.set(info.id, { x, y });
+
+    const children = getSortedChildren(info);
+    if (children.length === 0) return;
+    const childWidths = children.map((child) =>
+      subtreeWidthById.get(child.id) ?? nodeSize
+    );
+    const siblingGap = getSiblingGapForParent(info, children);
+    const childrenSpan =
+      childWidths.reduce((sum, w) => sum + w, 0) +
+      siblingGap * (children.length - 1);
+    let cursorX = leftX + (width - childrenSpan) / 2;
+    children.forEach((child, index) => {
+      const childWidth = childWidths[index] ?? nodeSize;
+      placeSubtree(child, cursorX);
+      cursorX += childWidth + siblingGap;
+    });
+  };
+
+  const rootInfoForLayout = nodesById.get(rootNodeId);
+  if (rootInfoForLayout) {
+    const rootWidth = computeSubtreeWidth(rootInfoForLayout);
+    placeSubtree(rootInfoForLayout, rootPosition.x - rootWidth / 2);
+  }
+
+  nodesById.forEach((info) => {
+    const pos =
+      positionedById.get(info.id) ??
+      ({
+        x: rootPosition.x,
+        y: rootPosition.y + info.depth * (nodeSize + rowGap),
+      } as { x: number; y: number });
+    nodes.push({
+      id: info.id,
+      type: info.kind === "folder" ? "rootFolder" : "file",
+      position: pos,
+      data: info.data,
+    });
   });
 
   return { nodes, edges, warnings };

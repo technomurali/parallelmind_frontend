@@ -89,6 +89,7 @@ export interface AppSettings {
     nodeHeaderFontSize: number;
     nodeBodyFontSize: number;
     enableNodeFillColors: boolean;
+    levelHorizontalGaps?: number[];
     nodeFillColors: {
       root: string;
       level1: string;
@@ -202,6 +203,7 @@ export const useMindMapStore = create<MindMapStore>((set) => ({
         nodeHeaderFontSize: 4,
         nodeBodyFontSize: 7,
         enableNodeFillColors: false,
+        levelHorizontalGaps: Array.from({ length: 5 }, () => Math.round(200 * 1.4)),
         nodeFillColors: {
           root: '#1E1B4B',
           level1: '#312E81',
