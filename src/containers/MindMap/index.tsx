@@ -1720,6 +1720,54 @@ export default function MindMap() {
                   )}
                 </>
               )}
+              {contextMenu.node &&
+                !isFolderNode(contextMenu.node) &&
+                isTauri() && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={async () => {
+                      const node = contextMenu.node;
+                      closeContextMenu();
+                      if (!node) return;
+                      if (isFolderNode(node)) return;
+                      const path = (node?.data as any)?.path;
+                      if (typeof path !== "string" || !path) return;
+                      try {
+                        const { openPath } = await import(
+                          "@tauri-apps/plugin-opener"
+                        );
+                        await openPath(path);
+                      } catch (err) {
+                        console.error(
+                          "[MindMap] Context menu open file failed:",
+                          err
+                        );
+                      }
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "none",
+                      background: "transparent",
+                      color: "inherit",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-family)",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "transparent";
+                    }}
+                  >
+                    {uiText.contextMenus.file.openFile}
+                  </button>
+                )}
             </div>
           )}
         </div>

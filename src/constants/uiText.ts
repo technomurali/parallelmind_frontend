@@ -266,6 +266,9 @@ export const uiText = {
       collapse: 'Collapse All',
       export: 'Export Folder',
     },
+    file: {
+      openFile: 'Open File',
+    },
     canvas: {
       paste: 'Paste',
       selectAll: 'Select All',
