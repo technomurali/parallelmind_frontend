@@ -5,16 +5,14 @@
  * Visual style: SVG decision shape with editable Name + Purpose.
  */
 
-import { Handle, Position, type NodeProps } from "reactflow";
+import { type NodeProps } from "reactflow";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { getNodeFillColor } from "../../utils/nodeFillColors";
 
 const DECISION_PATH_D =
-  "M 80 120 H 360 C 360 126 360 176 360 180 H 80 C 80 173 80 126 80 120 Z " +
-  "M 220 90 L 250 120 L 190 120 Z " +
-  "M 220 210 L 250 180 L 190 180 Z " +
-  "M 50 150 L 80 120 L 80 180 Z " +
-  "M 390 150 L 360 120 L 360 180 Z";
+  "M 200 40 L 360 120 L 200 200 L 40 120 Z " +
+  "M 108 92 H 282 A 12 12 0 0 1 294 103 V 136 A 12 12 0 0 1 281 144 " +
+  "H 107 A 12 12 0 0 1 97 138 V 104 A 12 12 0 0 1 108 92 Z";
 
 export default function DecisionNode({ data, selected }: NodeProps<any>) {
   const settings = useMindMapStore((s) => s.settings);
@@ -52,8 +50,8 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
   const sizeScale = clampedSize / baseNodeSize;
 
   // SVG sizing: default matches the provided SVG path dimensions.
-  const svgWidth = Math.round(340 * sizeScale);
-  const svgHeight = Math.round(120 * sizeScale);
+  const svgWidth = Math.round(360 * sizeScale);
+  const svgHeight = Math.round(244 * sizeScale);
   const viewBoxWidth = 440;
   const viewBoxHeight = 300;
   const folderViewBoxWidth = 512;
@@ -66,29 +64,26 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
       ? baseStrokeWidth * (folderScale / decisionScale)
       : baseStrokeWidth;
 
-  // Handle placement: align to the top/bottom arrow points.
-  const handleWidth = 12;
-  const handleHeight = 6;
-  const handleStyleBase: React.CSSProperties = {
-    width: handleWidth,
-    height: handleHeight,
-    background: "var(--border)",
-    border: "none",
-    opacity: 1,
-    zIndex: 3,
-  };
-  const toHandlePxY = (y: number) =>
-    Math.round((y / viewBoxHeight) * svgHeight);
-  const topHandleTop =
-    toHandlePxY(90) - Math.round(handleHeight / 2) + 2;
-  const bottomHandleTop =
-    toHandlePxY(210) - Math.round(handleHeight / 2) - 2;
-  const handleLeft = `${(220 / viewBoxWidth) * 100}%`;
-
   const nameFontSize = Math.max(10, Math.round(12 * sizeScale));
   const purposeFontSize = Math.max(9, Math.round(10 * sizeScale));
   const contentGap = Math.max(2, Math.round(4 * sizeScale));
   const contentPadding = Math.max(6, Math.round(10 * sizeScale));
+  const toContentPxX = (x: number) =>
+    Math.round((x / viewBoxWidth) * svgWidth);
+  const toContentPxY = (y: number) =>
+    Math.round((y / viewBoxHeight) * svgHeight);
+  const nameBandTop = toContentPxY(40);
+  const nameBandHeight = Math.max(8, toContentPxY(92) - nameBandTop);
+  const sideLabelTop = toContentPxY(120);
+  const leftLabelX = toContentPxX(74);
+  const rightLabelX = toContentPxX(326);
+  const sideLabelFontSize = Math.max(8, Math.round(9 * sizeScale));
+  const innerBoxLeft = toContentPxX(108);
+  const innerBoxRight = toContentPxX(294);
+  const innerBoxTop = toContentPxY(92);
+  const innerBoxBottom = toContentPxY(144);
+  const innerBoxWidth = Math.max(0, innerBoxRight - innerBoxLeft);
+  const innerBoxHeight = Math.max(0, innerBoxBottom - innerBoxTop);
 
   return (
     <div
@@ -113,30 +108,6 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
         }}
         aria-hidden="true"
       >
-        <Handle
-          type="target"
-          position={Position.Top}
-          id="target-top"
-          style={{
-            ...handleStyleBase,
-            left: handleLeft,
-            top: topHandleTop,
-            transform: "translate(-50%, 0)",
-            borderRadius: "9px 9px 0 0",
-          }}
-        />
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          id="source-bottom"
-          style={{
-            ...handleStyleBase,
-            left: handleLeft,
-            top: bottomHandleTop,
-            transform: "translate(-50%, 0)",
-            borderRadius: "0 0 9px 9px",
-          }}
-        />
         <svg
           width="100%"
           height="100%"
@@ -162,17 +133,46 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
             position: "absolute",
             inset: 0,
             padding: `${contentPadding}px`,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: contentGap,
             textAlign: "center",
             pointerEvents: "none",
           }}
         >
           <div
             style={{
+              position: "absolute",
+              left: leftLabelX,
+              top: sideLabelTop,
+              transform: "translate(-50%, -50%)",
+              fontSize: `${sideLabelFontSize}px`,
+              fontWeight: 600,
+              opacity: 0.85,
+            }}
+          >
+            False
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              left: rightLabelX,
+              top: sideLabelTop,
+              transform: "translate(-50%, -50%)",
+              fontSize: `${sideLabelFontSize}px`,
+              fontWeight: 600,
+              opacity: 0.85,
+            }}
+          >
+            True
+          </div>
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 30,
+              top: nameBandTop,
+              height: nameBandHeight,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               fontWeight: 700,
               fontSize: `${nameFontSize}px`,
               lineHeight: 1.2,
@@ -186,6 +186,15 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
           {isExpanded && (
             <div
               style={{
+                position: "absolute",
+                left: innerBoxLeft,
+                top: innerBoxTop,
+                width: innerBoxWidth,
+                height: innerBoxHeight,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: contentGap,
                 fontSize: `${purposeFontSize}px`,
                 lineHeight: 1.25,
                 wordBreak: "break-word",
