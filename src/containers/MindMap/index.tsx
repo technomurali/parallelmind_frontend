@@ -480,29 +480,9 @@ export default function MindMap() {
     setContextMenu({ open: true, x, y, node });
   };
 
-  /**
-   * Double-click opens the node folder in the OS file explorer (Tauri desktop).
-   * This is feature-detected and silent on failure (no alerts/toasts).
-   */
-  const onNodeDoubleClick = async (_: unknown, node: Node) => {
-    // Web browsers cannot open local folders in the OS file explorer.
-    if (!isTauri()) {
-      // No-op by design; we avoid alerts/toasts.
-      return;
-    }
-
-    // Only folders should open in the OS file explorer.
-    if (!isFolderNode(node)) return;
-
-    const path = (node?.data as any)?.path;
-    if (typeof path !== "string" || !path) return;
-    try {
-      const { openPath } = await import("@tauri-apps/plugin-opener");
-      await openPath(path);
-    } catch (err) {
-      // Keep UX silent (no alerts/toasts), but log for debugging.
-      console.error("[MindMap] Double-click open failed:", err);
-    }
+  const onNodeDoubleClick = (_: unknown, _node: Node) => {
+    // Intentionally disabled: folder open is now only via context menu.
+    return;
   };
 
   // Close context menu on outside click / Escape.
