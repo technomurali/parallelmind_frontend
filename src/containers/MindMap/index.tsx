@@ -21,7 +21,7 @@ import ReactFlow, {
   type ReactFlowInstance,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { FiMenu, FiZoomIn } from "react-icons/fi";
+import { FiMenu } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import { FileManager } from "../../data/fileManager";
 import type { IndexNode, RootFolderJson } from "../../data/fileManager";
@@ -820,9 +820,9 @@ export default function MindMap() {
             <button
               type="button"
               onClick={() => setZoomViewActive((prev) => !prev)}
-              aria-label="Toggle Zoom View mode"
+              aria-label="Show Details"
               aria-pressed={zoomViewActive}
-              title="Zoom View mode"
+              title="Show Details"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -844,10 +844,23 @@ export default function MindMap() {
                   zoomViewActive ? "var(--surface-1)" : "transparent";
               }}
             >
-              <FiZoomIn
-                style={{ fontSize: "var(--icon-size-md)" }}
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 400 320"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
                 aria-hidden="true"
-              />
+              >
+                <path
+                  d="M 64 40 H 336 A 24 24 0 0 1 360 64 V 216 A 24 24 0 0 1 336 240 H 176 L 128 288 V 240 H 64 A 24 24 0 0 1 40 216 V 64 A 24 24 0 0 1 64 40 Z"
+                  stroke="currentColor"
+                  strokeWidth="16"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+              </svg>
             </button>
             <button
               type="button"

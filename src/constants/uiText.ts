@@ -48,7 +48,7 @@ export const uiText = {
    */
   menus: {
     file: 'File',
-    configRootFolder: 'Configure Root Folder',
+    configRootFolder: 'Congnitive File Explorer',
   },
 
   /**
