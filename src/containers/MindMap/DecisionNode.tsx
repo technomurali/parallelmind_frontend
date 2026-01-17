@@ -32,7 +32,6 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
       : "";
 
   const stroke = selected ? "var(--primary-color)" : "var(--border)";
-  const strokeWidth = selected ? 6 : 4;
   const levelValue =
     typeof (data as any)?.level === "number" ? (data as any).level : 0;
   const fillColor = getNodeFillColor(
@@ -57,6 +56,15 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
   const svgHeight = Math.round(120 * sizeScale);
   const viewBoxWidth = 440;
   const viewBoxHeight = 300;
+  const folderViewBoxWidth = 512;
+  const folderSvgWidth = 200 * sizeScale;
+  const folderScale = folderSvgWidth / folderViewBoxWidth;
+  const decisionScale = svgWidth / viewBoxWidth;
+  const baseStrokeWidth = selected ? 6 : 4;
+  const strokeWidth =
+    decisionScale > 0
+      ? baseStrokeWidth * (folderScale / decisionScale)
+      : baseStrokeWidth;
 
   // Handle placement: align to the top/bottom arrow points.
   const handleWidth = 12;
