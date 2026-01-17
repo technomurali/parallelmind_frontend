@@ -84,6 +84,7 @@ export default function RightPanel() {
 
   // Used to auto-focus and visually guide the user when name is mandatory.
   const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const purposeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const detailsTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastHydratedSelectedIdRef = useRef<string | null>(null);
 
@@ -206,8 +207,9 @@ export default function RightPanel() {
   }, [isDraftNode, selectedNodeId]);
 
   useEffect(() => {
+    resizeTextarea(purposeTextareaRef.current);
     resizeTextarea(detailsTextareaRef.current);
-  }, [draft.details, selectedNodeId]);
+  }, [draft.purpose, draft.details, selectedNodeId]);
 
   // Save callback: updates in-memory state and persists only when we already have a persistence mechanism.
   const commitSave = async () => {
@@ -692,6 +694,7 @@ export default function RightPanel() {
                     />
                   ) : (
                     <textarea
+                      ref={purposeTextareaRef}
                       value={draft.purpose}
                       onChange={(e) =>
                         onFieldChange("purpose")(e.target.value)
@@ -701,14 +704,15 @@ export default function RightPanel() {
                       }}
                       placeholder={uiText.placeholders.nodePurpose}
                       aria-label={uiText.fields.nodeDetails.purpose}
-                      rows={6}
+                      rows={2}
                       style={{
                         // Textarea fills 100% of its label container.
                         width: "100%",
                         minWidth: 0,
                         // Border-box ensures padding/border are included in width calculation.
                         boxSizing: "border-box",
-                        resize: "vertical",
+                        resize: "none",
+                        overflow: "hidden",
                         borderRadius: "var(--radius-md)",
                         border: "var(--border-width) solid var(--border)",
                         padding: "var(--space-2)",

@@ -38,6 +38,10 @@ export default function FileNode({
     typeof (data as any)?.purpose === "string" && (data as any).purpose.trim()
       ? (data as any).purpose.trim()
       : null;
+  const displayPurpose =
+    typeof nodePurpose === "string" && nodePurpose.length > 250
+      ? `${nodePurpose.slice(0, 250)}...`
+      : nodePurpose;
 
 
   const stroke = selected ? "var(--primary-color)" : "var(--border)";
@@ -366,7 +370,7 @@ export default function FileNode({
                 top: `${Math.max(1, Math.round(3 * sizeScale))}px`,
                 }}
               >
-                {nodePurpose ?? ""}
+                {displayPurpose ?? ""}
               </div>
             </div>
           </div>

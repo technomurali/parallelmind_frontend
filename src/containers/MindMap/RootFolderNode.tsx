@@ -184,6 +184,10 @@ export default function RootFolderNode({
         (data as any).description.trim()
           ? (data as any).description.trim()
           : null);
+  const displayPurpose =
+    typeof nodePurpose === "string" && nodePurpose.length > 250
+      ? `${nodePurpose.slice(0, 250)}...`
+      : nodePurpose;
 
 
   // Visual size (CSS px) for the SVG node.
@@ -445,7 +449,7 @@ export default function RootFolderNode({
                 lineHeight: "1.25",
               }}
             >
-              {nodePurpose ?? ""}
+              {displayPurpose ?? ""}
             </div>
           </div>
         )}
