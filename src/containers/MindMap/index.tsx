@@ -897,6 +897,8 @@ export default function MindMap() {
               right: "var(--panel-header-padding-x)",
               zIndex: 50,
               minWidth: 200,
+              width: 100,
+              maxWidth: 100,
               borderRadius: "var(--radius-md)",
               border: "var(--border-width) solid var(--border)",
               background: "var(--surface-2)",
@@ -910,6 +912,8 @@ export default function MindMap() {
                 padding: "8px 10px",
                 fontSize: "0.85em",
                 opacity: 0.85,
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
               }}
             >
               View: Details
@@ -931,6 +935,8 @@ export default function MindMap() {
                 color: "inherit",
                 cursor: "pointer",
                 fontFamily: "var(--font-family)",
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background =
@@ -969,6 +975,8 @@ export default function MindMap() {
                 color: "inherit",
                 cursor: "pointer",
                 fontFamily: "var(--font-family)",
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background =
@@ -1027,6 +1035,8 @@ export default function MindMap() {
                 color: "inherit",
                 cursor: "pointer",
                 fontFamily: "var(--font-family)",
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background =
@@ -1056,6 +1066,8 @@ export default function MindMap() {
                 color: "inherit",
                 cursor: "pointer",
                 fontFamily: "var(--font-family)",
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background =
@@ -1434,6 +1446,8 @@ export default function MindMap() {
                 top: paneMenu.y,
                 zIndex: 50,
                 minWidth: 180,
+                width: 90,
+                maxWidth: 90,
                 borderRadius: "var(--radius-md)",
                 border: "var(--border-width) solid var(--border)",
                 background: "var(--surface-2)",
@@ -1475,7 +1489,7 @@ export default function MindMap() {
                     selected: true,
                   };
 
-                  const existing = useMindMapStore.getState().nodes ?? [];
+                  const existing = nodes ?? [];
                   const next = [
                     ...existing.map((n: any) => ({
                       ...n,
@@ -1497,6 +1511,8 @@ export default function MindMap() {
                   color: "inherit",
                   cursor: paneMenu.parentNodeId ? "pointer" : "not-allowed",
                   fontFamily: "var(--font-family)",
+                  whiteSpace: "normal",
+                  overflowWrap: "anywhere",
                   opacity: paneMenu.parentNodeId ? 1 : 0.5,
                 }}
                 onMouseEnter={(e) => {
@@ -1549,7 +1565,7 @@ export default function MindMap() {
                     selected: true,
                   };
 
-                  const existing = useMindMapStore.getState().nodes ?? [];
+                  const existing = nodes ?? [];
                   const next = [
                     ...existing.map((n: any) => ({
                       ...n,
@@ -1571,6 +1587,8 @@ export default function MindMap() {
                   color: "inherit",
                   cursor: paneMenu.parentNodeId ? "pointer" : "not-allowed",
                   fontFamily: "var(--font-family)",
+                  whiteSpace: "normal",
+                  overflowWrap: "anywhere",
                   opacity: paneMenu.parentNodeId ? 1 : 0.5,
                 }}
                 onMouseEnter={(e) => {
