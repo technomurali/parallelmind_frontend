@@ -129,6 +129,9 @@ export default function RightPanel() {
   }, [nodes, selectedNodeId]);
 
   const isDraftNode = !!(selectedNode?.data as any)?.isDraft;
+  const isDecisionNode =
+    (selectedNode?.data as any)?.node_type === "decision" ||
+    (selectedNode?.data as any)?.type === "decision";
   const parentIdForDraft =
     typeof (selectedNode?.data as any)?.parentId === "string"
       ? ((selectedNode?.data as any)?.parentId as string)
@@ -217,6 +220,12 @@ export default function RightPanel() {
       name: draft.name.trim(),
       purpose: draft.purpose,
     });
+
+    if (isDecisionNode) {
+      setDirty(false);
+      setSaveStatus("saved");
+      return;
+    }
 
     // Persist to parallelmind_index.json only for the root node (existing mechanism).
     if (selectedNodeId === "00") {
@@ -590,7 +599,7 @@ export default function RightPanel() {
                     }}
                     placeholder={uiText.placeholders.nodeName}
                     aria-label={uiText.fields.nodeDetails.name}
-                    disabled={!isDraftNode}
+                    disabled={!isDraftNode && !isDecisionNode}
                     style={{
                       // Input fills 100% of its label container.
                       width: "100%",
@@ -603,16 +612,18 @@ export default function RightPanel() {
                         ? "var(--border-width) solid var(--primary-color)"
                         : "var(--border-width) solid var(--border)",
                       padding: "var(--space-2)",
-                      background: isDraftNode
-                        ? "var(--surface-1)"
-                        : "var(--surface-2)",
+                      background:
+                        isDraftNode || isDecisionNode
+                          ? "var(--surface-1)"
+                          : "var(--surface-2)",
                       color: "var(--text)",
                       fontFamily: "var(--font-family)",
                       boxShadow: isDraftNode
                         ? "0 0 0 2px rgba(100, 108, 255, 0.2)"
                         : "none",
-                      cursor: isDraftNode ? "text" : "not-allowed",
-                      opacity: isDraftNode ? 1 : 0.7,
+                      cursor:
+                        isDraftNode || isDecisionNode ? "text" : "not-allowed",
+                      opacity: isDraftNode || isDecisionNode ? 1 : 0.7,
                     }}
                   />
                   {/* Name validation message (draft nodes only). */}

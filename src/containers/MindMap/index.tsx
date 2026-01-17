@@ -37,6 +37,7 @@ import {
 } from "../../utils/viewportGuards";
 import RootFolderNode from "./RootFolderNode";
 import FileNode from "./FileNode";
+import DecisionNode from "./DecisionNode";
 
 /**
  * MindMap component
@@ -153,7 +154,7 @@ export default function MindMap() {
     return () => window.clearTimeout(timeout);
   }, [layoutSaveStatus]);
   const nodeTypes = useMemo(
-    () => ({ rootFolder: RootFolderNode, file: FileNode }),
+    () => ({ rootFolder: RootFolderNode, file: FileNode, decision: DecisionNode }),
     []
   );
   const renderedEdges = useMemo(() => {
@@ -200,6 +201,8 @@ export default function MindMap() {
     y: number;
   } | null>(null);
   const [isPanning, setIsPanning] = useState(false);
+  const decisionMenuLabel = (uiText.contextMenus.canvas as any)
+    .newDecision as string;
 
   const closeContextMenu = () =>
     setContextMenu((s) =>
@@ -653,7 +656,21 @@ export default function MindMap() {
       };
     });
 
-    setNodes(withSelection);
+    const existingCustomNodes = existing.filter(
+      (node: any) => !!(node?.data as any)?.nonPersistent
+    );
+    const customNodes = existingCustomNodes.map((node: any) => ({
+      ...node,
+      selected: node.id === selectedNodeId,
+    }));
+    const mergedNodes = [
+      ...withSelection,
+      ...customNodes.filter(
+        (node: any) => !withSelection.some((n) => n.id === node.id)
+      ),
+    ];
+
+    setNodes(mergedNodes);
     setEdges(composedEdges);
     setInlineEditNodeId("00");
   }, [
@@ -1507,6 +1524,70 @@ export default function MindMap() {
                 disabled={!paneMenu.parentNodeId}
               >
                 {uiText.contextMenus.canvas.newFile}
+              </button>
+
+              {/* New Decision */}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const flowPos = paneMenu.flowPos;
+                  closePaneMenu();
+                  if (!flowPos) return;
+
+                  const decisionNodeId = `decision_${Date.now()}_${Math.random()
+                    .toString(16)
+                    .slice(2)}`;
+
+                  const decisionNode: Node = {
+                    id: decisionNodeId,
+                    type: "decision",
+                    position: flowPos,
+                    data: {
+                      type: "decision",
+                      node_type: "decision",
+                      name: "Decision",
+                      purpose: "Describe purpose...",
+                      allowNameEdit: true,
+                      nonPersistent: true,
+                    },
+                    selected: true,
+                  };
+
+                  const existing = nodes ?? [];
+                  const next = [
+                    ...existing.map((n: any) => ({
+                      ...n,
+                      selected: n?.id === decisionNodeId,
+                    })),
+                    decisionNode,
+                  ];
+                  setNodes(next);
+                  selectNode(decisionNodeId);
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-family)",
+                  whiteSpace: "normal",
+                  overflowWrap: "anywhere",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+              >
+                {decisionMenuLabel}
               </button>
 
               {/* New Folder (existing behavior) */}
