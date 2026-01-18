@@ -38,6 +38,7 @@ import {
 import RootFolderNode from "./RootFolderNode";
 import FileNode from "./FileNode";
 import DecisionNode from "./DecisionNode";
+import ImageNode from "./ImageNode";
 
 /**
  * MindMap component
@@ -154,7 +155,12 @@ export default function MindMap() {
     return () => window.clearTimeout(timeout);
   }, [layoutSaveStatus]);
   const nodeTypes = useMemo(
-    () => ({ rootFolder: RootFolderNode, file: FileNode, decision: DecisionNode }),
+    () => ({
+      rootFolder: RootFolderNode,
+      file: FileNode,
+      decision: DecisionNode,
+      image: ImageNode,
+    }),
     []
   );
   const renderedEdges = useMemo(() => {
@@ -1580,6 +1586,69 @@ export default function MindMap() {
                 disabled={!paneMenu.parentNodeId}
               >
                 {uiText.contextMenus.canvas.newFile}
+              </button>
+
+              {/* New Image Node */}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const flowPos = paneMenu.flowPos;
+                  closePaneMenu();
+                  if (!flowPos) return;
+
+                  const imageNodeId = `image_${Date.now()}_${Math.random()
+                    .toString(16)
+                    .slice(2)}`;
+
+                  const imageNode: Node = {
+                    id: imageNodeId,
+                    type: "image",
+                    position: flowPos,
+                    data: {
+                      type: "image",
+                      node_type: "image",
+                      name: "",
+                      purpose: "",
+                      nonPersistent: true,
+                    },
+                    selected: true,
+                  };
+
+                  const existing = nodes ?? [];
+                  const next = [
+                    ...existing.map((n: any) => ({
+                      ...n,
+                      selected: n?.id === imageNodeId,
+                    })),
+                    imageNode,
+                  ];
+                  setNodes(next);
+                  selectNode(imageNodeId);
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-family)",
+                  whiteSpace: "normal",
+                  overflowWrap: "anywhere",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+              >
+                {uiText.contextMenus.canvas.newImageNode}
               </button>
 
               {/* New Decision */}
