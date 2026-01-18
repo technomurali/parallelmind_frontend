@@ -38,7 +38,7 @@ import {
 import RootFolderNode from "./RootFolderNode";
 import FileNode from "./FileNode";
 import DecisionNode from "./DecisionNode";
-import ImageNode from "./ImageNode";
+import PortraitImage from "./PortraitImage";
 
 /**
  * MindMap component
@@ -159,7 +159,7 @@ export default function MindMap() {
       rootFolder: RootFolderNode,
       file: FileNode,
       decision: DecisionNode,
-      image: ImageNode,
+      portraitImage: PortraitImage,
     }),
     []
   );
@@ -638,16 +638,16 @@ export default function MindMap() {
             y: rect.top + rect.height / 2,
           };
           const flowPos = rf.screenToFlowPosition(center);
-          const imageNodeId = `image_${Date.now()}_${Math.random()
+          const imageNodeId = `portraitImage_${Date.now()}_${Math.random()
             .toString(16)
             .slice(2)}`;
           const imageNode: Node = {
             id: imageNodeId,
-            type: "image",
+            type: "portraitImage",
             position: flowPos,
             data: {
-              type: "image",
-              node_type: "image",
+              type: "portraitImage",
+              node_type: "portraitImage",
               imageSrc: dataUrl,
               imageWidth: img.width,
               imageHeight: img.height,
@@ -1665,17 +1665,17 @@ export default function MindMap() {
                   closePaneMenu();
                   if (!flowPos) return;
 
-                  const imageNodeId = `image_${Date.now()}_${Math.random()
+                  const imageNodeId = `portraitImage_${Date.now()}_${Math.random()
                     .toString(16)
                     .slice(2)}`;
 
                   const imageNode: Node = {
                     id: imageNodeId,
-                    type: "image",
+                    type: "portraitImage",
                     position: flowPos,
                     data: {
-                      type: "image",
-                      node_type: "image",
+                      type: "portraitImage",
+                      node_type: "portraitImage",
                       name: "",
                       purpose: "",
                       nonPersistent: true,
@@ -1716,7 +1716,7 @@ export default function MindMap() {
                     "transparent";
                 }}
               >
-                {uiText.contextMenus.canvas.newImageNode}
+                {uiText.contextMenus.canvas.newPortraitImage}
               </button>
 
               {/* New Decision */}

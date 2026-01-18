@@ -1,5 +1,5 @@
 /**
- * ImageNode.tsx
+ * PortraitImage.tsx
  *
  * ReactFlow custom node component for displaying an image-style node.
  * Visual style: Rounded outer frame with a solid inner rectangle.
@@ -15,7 +15,7 @@ const OUTER_PATH =
   "A 10 10 0 0 1 9 486 V 20 A 10 10 0 0 1 20 10 Z";
 const INNER_PATH = "M 42 51 H 364 V 446 H 40 Z";
 
-export default function ImageNode({
+export default function PortraitImage({
   id,
   data,
   selected,
@@ -98,7 +98,7 @@ export default function ImageNode({
         );
       }
     } catch (err) {
-      console.error("[ImageNode] Persist node size failed:", err);
+      console.error("[PortraitImage] Persist node size failed:", err);
     }
   };
 
