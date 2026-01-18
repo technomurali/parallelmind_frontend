@@ -93,6 +93,7 @@ export default function RightPanel() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
+  const [fileDetailsExpanded, setFileDetailsExpanded] = useState(true);
 
   // Used to auto-focus and visually guide the user when name is mandatory.
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -256,6 +257,10 @@ export default function RightPanel() {
     resizeTextarea(purposeTextareaRef.current);
     resizeTextarea(detailsTextareaRef.current);
   }, [draft.purpose, draft.details, selectedNodeId]);
+
+  useEffect(() => {
+    setFileDetailsExpanded(true);
+  }, [selectedNodeId]);
 
   // Save callback: updates in-memory state and persists only when we already have a persistence mechanism.
   const commitSave = async () => {
@@ -821,137 +826,215 @@ export default function RightPanel() {
                   gridTemplateColumns: "1fr",
                 }}
               >
-                {!isDecisionNode && (
-                  <label
+                <div
+                  style={{
+                    borderRadius: "var(--radius-md)",
+                    border: "var(--border-width) solid var(--border)",
+                    background: "var(--surface-2)",
+                    padding: "var(--space-2)",
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 2,
+                      background: "var(--surface-2)",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setFileDetailsExpanded((prev) => !prev)}
+                      aria-expanded={fileDetailsExpanded}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        width: "100%",
+                        fontWeight: 700,
+                        fontSize: "0.8rem",
+                        letterSpacing: "0.02em",
+                        textTransform: "uppercase",
+                        opacity: 0.85,
+                        paddingBottom: "calc(var(--space-1) + 20px)",
+                        marginBottom: "calc(var(--space-1) + 20px)",
+                        borderBottom: "var(--border-width) solid var(--border)",
+                        border: "none",
+                        background: "transparent",
+                        color: "inherit",
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <span>{uiText.fields.nodeDetails.sectionTitle}</span>
+                      <span aria-hidden="true">
+                        {fileDetailsExpanded ? "−" : "+"}
+                      </span>
+                    </button>
+                  </div>
+                  <div
                     style={{
                       display: "grid",
                       gap: "var(--space-2)",
-                      // Critical: label must be 100% width to fill its grid column.
                       width: "100%",
                       minWidth: 0,
                     }}
                   >
-                    <div style={{ fontWeight: 600 }}>
-                      {uiText.fields.nodeDetails.name}
-                    </div>
-                    <input
-                      ref={nameInputRef}
-                      value={draft.name}
-                      onChange={(e) => onFieldChange("name")(e.target.value)}
-                      onBlur={() => {
-                        void commitSave();
-                      }}
-                      placeholder={uiText.placeholders.nodeName}
-                      aria-label={uiText.fields.nodeDetails.name}
-                      disabled={!isDraftNode && !renameActive}
-                      style={{
-                        // Input fills 100% of its label container.
-                        width: "100%",
-                        minWidth: 0,
-                        // Border-box ensures padding/border are included in width calculation.
-                        boxSizing: "border-box",
-                        borderRadius: "var(--radius-md)",
-                        // Visually highlight the required field for draft nodes.
-                        border: isDraftNode || renameActive
-                          ? "var(--border-width) solid var(--primary-color)"
-                          : "var(--border-width) solid var(--border)",
-                        padding: "var(--space-2)",
-                        background: isDraftNode || renameActive
-                          ? "var(--surface-1)"
-                          : "var(--surface-2)",
-                        color: "var(--text)",
-                        fontFamily: "var(--font-family)",
-                        boxShadow: isDraftNode || renameActive
-                          ? "0 0 0 2px rgba(100, 108, 255, 0.2)"
-                          : "none",
-                        cursor: isDraftNode || renameActive ? "text" : "not-allowed",
-                        opacity: isDraftNode || renameActive ? 1 : 0.7,
-                      }}
-                    />
-                    {/* Name validation message (draft nodes only). */}
-                    {isDraftNode && nameError && (
-                      <div
-                        style={{
-                          fontSize: "0.8em",
-                          color: "var(--danger, #e5484d)",
-                          opacity: 0.95,
-                        }}
-                      >
-                        {nameError}
-                      </div>
-                    )}
-                  </label>
-                )}
+                    {fileDetailsExpanded && (
+                      <>
+                        {!isDecisionNode && (
+                          <label
+                            style={{
+                              display: "grid",
+                              gap: "var(--space-2)",
+                              // Critical: label must be 100% width to fill its grid column.
+                              width: "100%",
+                              minWidth: 0,
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                              {uiText.fields.nodeDetails.name}
+                            </div>
+                            <input
+                              ref={nameInputRef}
+                              value={draft.name}
+                              onChange={(e) => onFieldChange("name")(e.target.value)}
+                              onBlur={() => {
+                                void commitSave();
+                              }}
+                              placeholder={uiText.placeholders.nodeName}
+                              aria-label={uiText.fields.nodeDetails.name}
+                              disabled={!isDraftNode && !renameActive}
+                              style={{
+                                // Input fills 100% of its label container.
+                                width: "100%",
+                                minWidth: 0,
+                                // Border-box ensures padding/border are included in width calculation.
+                                boxSizing: "border-box",
+                                borderRadius: "var(--radius-md)",
+                                // Visually highlight the required field for draft nodes.
+                                border: isDraftNode || renameActive
+                                  ? "var(--border-width) solid var(--primary-color)"
+                                  : "var(--border-width) solid var(--border)",
+                                padding: "var(--space-2)",
+                                background: isDraftNode || renameActive
+                                  ? "var(--surface-1)"
+                                  : "var(--surface-2)",
+                                color: "var(--text)",
+                                fontFamily: "var(--font-family)",
+                                boxShadow: isDraftNode || renameActive
+                                  ? "0 0 0 2px rgba(100, 108, 255, 0.2)"
+                                  : "none",
+                                cursor:
+                                  isDraftNode || renameActive
+                                    ? "text"
+                                    : "not-allowed",
+                                opacity: isDraftNode || renameActive ? 1 : 0.7,
+                              }}
+                            />
+                            {/* Name validation message (draft nodes only). */}
+                            {isDraftNode && nameError && (
+                              <div
+                                style={{
+                                  fontSize: "0.8em",
+                                  color: "var(--danger, #e5484d)",
+                                  opacity: 0.95,
+                                }}
+                              >
+                                {nameError}
+                              </div>
+                            )}
+                          </label>
+                        )}
 
-                {/* Label container: must span full grid column width. */}
-                <label
-                  style={{
-                    display: "grid",
-                    gap: "var(--space-2)",
-                    // Critical: label must be 100% width to fill its grid column.
-                    width: "100%",
-                    minWidth: 0,
-                  }}
-                >
-                  <div style={{ fontWeight: 600 }}>
-                    {isDecisionNode
-                      ? "If & Else Statement"
-                      : uiText.fields.nodeDetails.purpose}
+                        {/* Label container: must span full grid column width. */}
+                        <label
+                          style={{
+                            display: "grid",
+                            gap: "var(--space-2)",
+                            // Critical: label must be 100% width to fill its grid column.
+                            width: "100%",
+                            minWidth: 0,
+                          }}
+                        >
+                          <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                            {isDecisionNode
+                              ? uiText.fields.nodeDetails.decisionStatement
+                              : uiText.fields.nodeDetails.purpose}
+                          </div>
+                          {isDecisionNode ? (
+                            <input
+                              value={draft.purpose}
+                              onChange={(e) =>
+                                onFieldChange("purpose")(e.target.value)
+                              }
+                              onBlur={() => {
+                                void commitSave();
+                              }}
+                              placeholder={uiText.placeholders.nodePurpose}
+                              aria-label={uiText.fields.nodeDetails.purpose}
+                              style={{
+                                width: "100%",
+                                minWidth: 0,
+                                boxSizing: "border-box",
+                                borderRadius: "var(--radius-md)",
+                                border: "var(--border-width) solid var(--border)",
+                                padding: "var(--space-2)",
+                                background: "var(--surface-1)",
+                                color: "var(--text)",
+                                fontFamily: "var(--font-family)",
+                              }}
+                            />
+                          ) : (
+                            <textarea
+                              ref={purposeTextareaRef}
+                              value={draft.purpose}
+                              onChange={(e) =>
+                                onFieldChange("purpose")(e.target.value)
+                              }
+                              onBlur={() => {
+                                void commitSave();
+                              }}
+                              placeholder={uiText.placeholders.nodePurpose}
+                              aria-label={uiText.fields.nodeDetails.purpose}
+                              rows={2}
+                              style={{
+                                // Textarea fills 100% of its label container.
+                                width: "100%",
+                                minWidth: 0,
+                                // Border-box ensures padding/border are included in width calculation.
+                                boxSizing: "border-box",
+                                resize: "none",
+                                overflow: "hidden",
+                                borderRadius: "var(--radius-md)",
+                                border: "var(--border-width) solid var(--border)",
+                                padding: "var(--space-2)",
+                                background: "var(--surface-1)",
+                                color: "var(--text)",
+                                fontFamily: "var(--font-family)",
+                              }}
+                            />
+                          )}
+                        </label>
+                      </>
+                    )}
                   </div>
-                  {isDecisionNode ? (
-                    <input
-                      value={draft.purpose}
-                      onChange={(e) =>
-                        onFieldChange("purpose")(e.target.value)
-                      }
-                      onBlur={() => {
-                        void commitSave();
-                      }}
-                      placeholder={uiText.placeholders.nodePurpose}
-                      aria-label={uiText.fields.nodeDetails.purpose}
-                      style={{
-                        width: "100%",
-                        minWidth: 0,
-                        boxSizing: "border-box",
-                        borderRadius: "var(--radius-md)",
-                        border: "var(--border-width) solid var(--border)",
-                        padding: "var(--space-2)",
-                        background: "var(--surface-1)",
-                        color: "var(--text)",
-                        fontFamily: "var(--font-family)",
-                      }}
-                    />
-                  ) : (
-                    <textarea
-                      ref={purposeTextareaRef}
-                      value={draft.purpose}
-                      onChange={(e) =>
-                        onFieldChange("purpose")(e.target.value)
-                      }
-                      onBlur={() => {
-                        void commitSave();
-                      }}
-                      placeholder={uiText.placeholders.nodePurpose}
-                      aria-label={uiText.fields.nodeDetails.purpose}
-                      rows={2}
-                      style={{
-                        // Textarea fills 100% of its label container.
-                        width: "100%",
-                        minWidth: 0,
-                        // Border-box ensures padding/border are included in width calculation.
-                        boxSizing: "border-box",
-                        resize: "none",
-                        overflow: "hidden",
-                        borderRadius: "var(--radius-md)",
-                        border: "var(--border-width) solid var(--border)",
-                        padding: "var(--space-2)",
-                        background: "var(--surface-1)",
-                        color: "var(--text)",
-                        fontFamily: "var(--font-family)",
-                      }}
-                    />
-                  )}
-                </label>
+                  <div
+                    style={{
+                      marginTop: "var(--space-2)",
+                      fontSize: "0.75em",
+                      opacity: 0.9,
+                    }}
+                  >
+                    {fileDetailsExpanded &&
+                      (saveStatus === "saving"
+                        ? uiText.statusMessages.saving
+                        : saveStatus === "saved"
+                        ? uiText.statusMessages.saved
+                        : uiText.statusMessages.idle)}
+                  </div>
+                </div>
+
                 {isDecisionNode && (
                   <label
                     style={{
@@ -961,7 +1044,9 @@ export default function RightPanel() {
                       minWidth: 0,
                     }}
                   >
-                    <div style={{ fontWeight: 600 }}>Details</div>
+                    <div style={{ fontWeight: 600 }}>
+                      {uiText.fields.nodeDetails.decisionDetailsLabel}
+                    </div>
                     <textarea
                       ref={detailsTextareaRef}
                       value={draft.details}
@@ -971,8 +1056,8 @@ export default function RightPanel() {
                       onBlur={() => {
                         void commitSave();
                       }}
-                      placeholder="Enter details"
-                      aria-label="Details"
+                      placeholder={uiText.placeholders.nodeDecisionDetails}
+                      aria-label={uiText.fields.nodeDetails.decisionDetailsLabel}
                       rows={2}
                       style={{
                         width: "100%",
@@ -1133,22 +1218,6 @@ export default function RightPanel() {
                   </div>
                 )}
 
-                {/* Save status is always visible at the bottom of the container. */}
-                <div
-                  style={{
-                    marginTop: "auto",
-                    opacity: 0.9,
-                    // Ensure status text is small like normal body text (not header-like).
-                    fontSize: "0.75em",
-                    fontWeight: "normal",
-                  }}
-                >
-                  {saveStatus === "saving"
-                    ? uiText.statusMessages.saving
-                    : saveStatus === "saved"
-                    ? uiText.statusMessages.saved
-                    : uiText.statusMessages.idle}
-                </div>
               </div>
             </div>
           )}

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Node } from "reactflow";
-import { marked } from "marked";
 import { uiText } from "../constants/uiText";
 import { FileManager } from "../data/fileManager";
 
@@ -86,11 +85,16 @@ export default function SmartPad({
 }: SmartPadProps) {
   const fileManager = useMemo(() => new FileManager(), []);
   const filePreviewRequestRef = useRef(0);
+  const picklistRef = useRef<HTMLDivElement | null>(null);
+  const contentEditableRef = useRef<HTMLDivElement | null>(null);
   const [preview, setPreview] = useState<PreviewState>({
     status: "idle",
     content: "",
     isMarkdown: false,
   });
+  const editableContentRef = useRef("");
+  const [isContentEmpty, setIsContentEmpty] = useState(true);
+  const [picklistOpen, setPicklistOpen] = useState(false);
 
   useEffect(() => {
     const requestId = ++filePreviewRequestRef.current;
@@ -167,10 +171,39 @@ export default function SmartPad({
     void load();
   }, [selectedNode, rootDirectoryHandle, fileManager]);
 
-  const markdownHtml = useMemo(() => {
-    if (!preview.isMarkdown || !preview.content) return "";
-    return marked.parse(preview.content);
-  }, [preview.content, preview.isMarkdown]);
+  useEffect(() => {
+    if (!picklistOpen) return;
+
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (picklistRef.current && target && picklistRef.current.contains(target)) {
+        return;
+      }
+      setPicklistOpen(false);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPicklistOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", onMouseDown, true);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown, true);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [picklistOpen]);
+
+  useEffect(() => {
+    if (preview.status !== "ready" && preview.status !== "empty") return;
+    editableContentRef.current = preview.content;
+    setIsContentEmpty(!preview.content);
+    if (contentEditableRef.current) {
+      contentEditableRef.current.textContent = preview.content;
+    }
+  }, [preview.content, preview.status]);
 
   if (preview.status === "idle" || preview.status === "ineligible") {
     return null;
@@ -193,13 +226,96 @@ export default function SmartPad({
       <div
         style={{
           padding: "8px 10px",
-          fontWeight: 600,
-          fontSize: "0.85rem",
           borderBottom: "var(--border-width) solid var(--border)",
           background: "var(--surface-1)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
         }}
       >
-        {uiText.fields.nodeDetails.fileContent}
+        <div
+          ref={picklistRef}
+          style={{
+            position: "relative",
+            display: "inline-flex",
+          }}
+        >
+          <button
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded={picklistOpen}
+            aria-label={uiText.smartPad.picklistAriaLabel}
+            onClick={() => setPicklistOpen((prev) => !prev)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "4px 8px",
+              borderRadius: "var(--radius-sm)",
+              border: "var(--border-width) solid var(--border)",
+              background: "var(--surface-2)",
+              color: "var(--text)",
+              cursor: "pointer",
+              fontSize: "0.8rem",
+              fontWeight: 600,
+              fontFamily: "var(--font-family)",
+            }}
+          >
+            <span>{uiText.smartPad.picklistDefault}</span>
+            <span aria-hidden="true">v</span>
+          </button>
+          {picklistOpen && (
+            <div
+              role="listbox"
+              aria-label={uiText.smartPad.picklistAriaLabel}
+              style={{
+                position: "absolute",
+                right: 0,
+                top: "calc(100% + 6px)",
+                minWidth: 160,
+                borderRadius: "var(--radius-md)",
+                border: "var(--border-width) solid var(--border)",
+                background: "var(--surface-1)",
+                color: "var(--text)",
+                boxShadow: "0 10px 24px rgba(0,0,0,0.2)",
+                padding: "6px",
+                zIndex: 10,
+              }}
+            >
+              {uiText.smartPad.picklistOptions.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="option"
+                  aria-selected={option === uiText.smartPad.picklistDefault}
+                  onClick={() => setPicklistOpen(false)}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "8px 10px",
+                    borderRadius: "var(--radius-sm)",
+                    border: "none",
+                    background: "transparent",
+                    color: "inherit",
+                    cursor: "pointer",
+                    fontFamily: "var(--font-family)",
+                    fontSize: "0.9rem",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "var(--surface-2)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "transparent";
+                  }}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <div
         style={{
@@ -217,29 +333,51 @@ export default function SmartPad({
         {preview.status === "error" && (
           <div>{uiText.placeholders.fileContentUnavailable}</div>
         )}
-        {preview.status === "empty" && (
-          <div>{uiText.placeholders.fileContentEmpty}</div>
-        )}
-        {preview.status === "ready" &&
-          (preview.isMarkdown ? (
+        {(preview.status === "ready" || preview.status === "empty") && (
+          <>
+            {isContentEmpty && (
+              <div
+                style={{
+                  marginBottom: "var(--space-2)",
+                  fontSize: "0.8rem",
+                  opacity: 0.6,
+                }}
+              >
+                {uiText.placeholders.fileContentEmpty}
+              </div>
+            )}
             <div
-              style={{ whiteSpace: "normal" }}
-              dangerouslySetInnerHTML={{ __html: markdownHtml }}
-            />
-          ) : (
-            <pre
+              ref={contentEditableRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={(event) => {
+                const target = event.currentTarget;
+                const nextValue = target.innerText;
+                editableContentRef.current = nextValue;
+                setIsContentEmpty(!nextValue);
+              }}
               style={{
-                margin: 0,
+                minHeight: 120,
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
                 fontFamily:
                   "var(--font-family-mono, ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace)",
+                outline: "none",
+                cursor: "text",
               }}
-            >
-              {preview.content}
-            </pre>
-          ))}
+            />
+          </>
+        )}
       </div>
+      <div
+        style={{
+          padding: "8px 10px",
+          borderTop: "var(--border-width) solid var(--border)",
+          background: "var(--surface-1)",
+          minHeight: "15px",
+        }}
+        aria-hidden="true"
+      />
     </div>
   );
 }

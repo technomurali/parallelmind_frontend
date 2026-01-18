@@ -66,10 +66,25 @@ export const uiText = {
     nodeDetails: {
       name: 'Name',
       purpose: 'Purpose',
-      fileContent: 'File content',
+      sectionTitle: 'File details',
+      decisionStatement: 'If & Else Statement',
+      decisionDetailsLabel: 'Details',
       createdTime: 'Created',
       updatedTime: 'Updated',
     },
+  },
+  smartPad: {
+    picklistDefault: 'Body',
+    picklistAriaLabel: 'SmartPad format',
+    picklistOptions: [
+      'Title',
+      'Subtitle',
+      'Heading',
+      'Subheading',
+      'Section',
+      'Subsection',
+      'Body',
+    ],
   },
 
   /**
@@ -295,6 +310,7 @@ export const uiText = {
     nodeName: 'Enter node name',
     nodeContent: 'Enter node content...',
     nodePurpose: 'Enter purpose',
+    nodeDecisionDetails: 'Enter details',
     fileContentEmpty: 'No content to display.',
     fileContentUnavailable: 'Unable to load file content.',
     settingsContainer: 'Settings Container',
