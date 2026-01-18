@@ -74,17 +74,8 @@ export const uiText = {
     },
   },
   smartPad: {
-    picklistDefault: 'Body',
-    picklistAriaLabel: 'SmartPad format',
-    picklistOptions: [
-      'Title',
-      'Subtitle',
-      'Heading',
-      'Subheading',
-      'Section',
-      'Subsection',
-      'Body',
-    ],
+    previewToggleShow: 'Show markdown preview',
+    previewToggleCode: 'Show markdown code',
   },
 
   /**

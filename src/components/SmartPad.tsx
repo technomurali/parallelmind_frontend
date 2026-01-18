@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Node } from "reactflow";
+import { FiEye, FiEyeOff } from "react-icons/fi";
+import { marked } from "marked";
 import { uiText } from "../constants/uiText";
 import { FileManager } from "../data/fileManager";
 
@@ -85,8 +87,8 @@ export default function SmartPad({
 }: SmartPadProps) {
   const fileManager = useMemo(() => new FileManager(), []);
   const filePreviewRequestRef = useRef(0);
-  const picklistRef = useRef<HTMLDivElement | null>(null);
   const contentEditableRef = useRef<HTMLDivElement | null>(null);
+  const previewEditableRef = useRef<HTMLDivElement | null>(null);
   const [preview, setPreview] = useState<PreviewState>({
     status: "idle",
     content: "",
@@ -94,7 +96,7 @@ export default function SmartPad({
   });
   const editableContentRef = useRef("");
   const [isContentEmpty, setIsContentEmpty] = useState(true);
-  const [picklistOpen, setPicklistOpen] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
 
   useEffect(() => {
     const requestId = ++filePreviewRequestRef.current;
@@ -172,38 +174,30 @@ export default function SmartPad({
   }, [selectedNode, rootDirectoryHandle, fileManager]);
 
   useEffect(() => {
-    if (!picklistOpen) return;
-
-    const onMouseDown = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (picklistRef.current && target && picklistRef.current.contains(target)) {
-        return;
-      }
-      setPicklistOpen(false);
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setPicklistOpen(false);
-      }
-    };
-
-    window.addEventListener("mousedown", onMouseDown, true);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("mousedown", onMouseDown, true);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [picklistOpen]);
-
-  useEffect(() => {
     if (preview.status !== "ready" && preview.status !== "empty") return;
     editableContentRef.current = preview.content;
     setIsContentEmpty(!preview.content);
     if (contentEditableRef.current) {
       contentEditableRef.current.textContent = preview.content;
     }
+    if (previewEditableRef.current && isPreview) {
+      previewEditableRef.current.innerHTML = marked.parse(preview.content) as string;
+    }
   }, [preview.content, preview.status]);
+
+  useEffect(() => {
+    if (isPreview) {
+      if (previewEditableRef.current) {
+        previewEditableRef.current.innerHTML = marked.parse(
+          editableContentRef.current
+        ) as string;
+      }
+      return;
+    }
+    if (contentEditableRef.current) {
+      contentEditableRef.current.textContent = editableContentRef.current;
+    }
+  }, [isPreview]);
 
   if (preview.status === "idle" || preview.status === "ineligible") {
     return null;
@@ -233,89 +227,37 @@ export default function SmartPad({
           justifyContent: "flex-end",
         }}
       >
-        <div
-          ref={picklistRef}
+        <button
+          type="button"
+          aria-pressed={isPreview}
+          aria-label={
+            isPreview
+              ? uiText.smartPad.previewToggleCode
+              : uiText.smartPad.previewToggleShow
+          }
+          title={
+            isPreview
+              ? uiText.smartPad.previewToggleCode
+              : uiText.smartPad.previewToggleShow
+          }
+          onClick={() => {
+            setIsPreview((prev) => !prev);
+          }}
           style={{
-            position: "relative",
             display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 28,
+            height: 28,
+            borderRadius: "var(--radius-sm)",
+            border: "var(--border-width) solid var(--border)",
+            background: isPreview ? "var(--surface-1)" : "var(--surface-2)",
+            color: "var(--text)",
+            cursor: "pointer",
           }}
         >
-          <button
-            type="button"
-            aria-haspopup="listbox"
-            aria-expanded={picklistOpen}
-            aria-label={uiText.smartPad.picklistAriaLabel}
-            onClick={() => setPicklistOpen((prev) => !prev)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "4px 8px",
-              borderRadius: "var(--radius-sm)",
-              border: "var(--border-width) solid var(--border)",
-              background: "var(--surface-2)",
-              color: "var(--text)",
-              cursor: "pointer",
-              fontSize: "0.8rem",
-              fontWeight: 600,
-              fontFamily: "var(--font-family)",
-            }}
-          >
-            <span>{uiText.smartPad.picklistDefault}</span>
-            <span aria-hidden="true">v</span>
-          </button>
-          {picklistOpen && (
-            <div
-              role="listbox"
-              aria-label={uiText.smartPad.picklistAriaLabel}
-              style={{
-                position: "absolute",
-                right: 0,
-                top: "calc(100% + 6px)",
-                minWidth: 160,
-                borderRadius: "var(--radius-md)",
-                border: "var(--border-width) solid var(--border)",
-                background: "var(--surface-1)",
-                color: "var(--text)",
-                boxShadow: "0 10px 24px rgba(0,0,0,0.2)",
-                padding: "6px",
-                zIndex: 10,
-              }}
-            >
-              {uiText.smartPad.picklistOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  role="option"
-                  aria-selected={option === uiText.smartPad.picklistDefault}
-                  onClick={() => setPicklistOpen(false)}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "8px 10px",
-                    borderRadius: "var(--radius-sm)",
-                    border: "none",
-                    background: "transparent",
-                    color: "inherit",
-                    cursor: "pointer",
-                    fontFamily: "var(--font-family)",
-                    fontSize: "0.9rem",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background =
-                      "var(--surface-2)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background =
-                      "transparent";
-                  }}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+          {isPreview ? <FiEyeOff aria-hidden="true" /> : <FiEye aria-hidden="true" />}
+        </button>
       </div>
       <div
         style={{
@@ -346,26 +288,65 @@ export default function SmartPad({
                 {uiText.placeholders.fileContentEmpty}
               </div>
             )}
-            <div
-              ref={contentEditableRef}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={(event) => {
-                const target = event.currentTarget;
-                const nextValue = target.innerText;
-                editableContentRef.current = nextValue;
-                setIsContentEmpty(!nextValue);
-              }}
-              style={{
-                minHeight: 120,
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                fontFamily:
-                  "var(--font-family-mono, ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace)",
-                outline: "none",
-                cursor: "text",
-              }}
-            />
+            {isPreview && (
+              <style>
+                {`
+                  .pm-smartpad-preview h1,
+                  .pm-smartpad-preview h2,
+                  .pm-smartpad-preview h3,
+                  .pm-smartpad-preview h4,
+                  .pm-smartpad-preview h5,
+                  .pm-smartpad-preview h6,
+                  .pm-smartpad-preview p {
+                    margin: 0 0 6px 0;
+                  }
+                  .pm-smartpad-preview h1:last-child,
+                  .pm-smartpad-preview h2:last-child,
+                  .pm-smartpad-preview h3:last-child,
+                  .pm-smartpad-preview h4:last-child,
+                  .pm-smartpad-preview h5:last-child,
+                  .pm-smartpad-preview h6:last-child,
+                  .pm-smartpad-preview p:last-child {
+                    margin-bottom: 0;
+                  }
+                `}
+              </style>
+            )}
+            {isPreview ? (
+              <div
+                ref={previewEditableRef}
+                style={{
+                  minHeight: 60,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  lineHeight: 1.2,
+                  outline: "none",
+                  cursor: "default",
+                }}
+                className="pm-smartpad-preview"
+              />
+            ) : (
+              <div
+                ref={contentEditableRef}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={(event) => {
+                  const target = event.currentTarget;
+                  const nextValue = target.innerText;
+                  editableContentRef.current = nextValue;
+                  setIsContentEmpty(!nextValue);
+                }}
+                style={{
+                  minHeight: 120,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  fontFamily:
+                    "var(--font-family-mono, ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace)",
+                  outline: "none",
+                  cursor: "text",
+                }}
+              />
+            )}
           </>
         )}
       </div>
