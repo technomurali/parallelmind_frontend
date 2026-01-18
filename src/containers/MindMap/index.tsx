@@ -459,9 +459,10 @@ export default function MindMap() {
     // Convert the click to flow coordinates so the new node appears exactly
     // where the user right-clicked on the canvas.
     const flowPos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
-    // If nothing is selected, fall back to root ("00") when available.
+    const selectedNode =
+      selectedNodeId && (nodes ?? []).find((node) => node?.id === selectedNodeId);
     const parentNodeId =
-      selectedNodeId ?? (rootFolderJson ? "00" : null);
+      selectedNode && isFolderNode(selectedNode) ? selectedNode.id : null;
     setPaneMenu({ open: true, x, y, flowPos, parentNodeId });
   };
 
@@ -489,38 +490,65 @@ export default function MindMap() {
   };
 
   // Close context menu on outside click / Escape.
+  // Task-2: Detect any subsequent mouse click (left or right)
+  // Task-3: Identify click location (inside vs outside menu)
+  // Task-4: Hide context menu if click is outside
   useEffect(() => {
     if (!contextMenu.open && !paneMenu.open && !canvasMenu.open) return;
 
-    const onMouseDown = (ev: MouseEvent) => {
-      const target = ev.target as HTMLElement | null;
-      if (!target) {
-        closeContextMenu();
-        closePaneMenu();
-        closeCanvasMenu();
-        return;
-      }
-      if (target.closest('[data-pm-context-menu="node"]')) return;
-      if (target.closest('[data-pm-context-menu="pane"]')) return;
-      if (target.closest('[data-pm-context-menu="canvas"]')) return;
-      if (target.closest('[data-pm-context-menu="spacing"]')) return;
+    const isClickInsideMenu = (target: HTMLElement | null): boolean => {
+      if (!target) return false;
+      // Check if click is inside any context menu area
+      return !!(
+        target.closest('[data-pm-context-menu="node"]') ||
+        target.closest('[data-pm-context-menu="pane"]') ||
+        target.closest('[data-pm-context-menu="canvas"]') ||
+        target.closest('[data-pm-context-menu="spacing"]')
+      );
+    };
+
+    const closeAllMenus = () => {
       closeContextMenu();
       closePaneMenu();
       closeCanvasMenu();
     };
 
-    const onKeyDown = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") {
-        closeContextMenu();
-        closePaneMenu();
-        closeCanvasMenu();
+    // Handle both mousedown and click events for better reliability
+    // mousedown: catches clicks early, click: catches clicks after mouseup
+    const onMouseDown = (ev: MouseEvent) => {
+      const target = ev.target as HTMLElement | null;
+      // Task-3: Identify click location
+      if (!isClickInsideMenu(target)) {
+        // Task-4: Hide context menu if click is outside
+        // Use setTimeout to allow menu item clicks to process first
+        setTimeout(() => {
+          closeAllMenus();
+        }, 0);
       }
     };
 
-    window.addEventListener("mousedown", onMouseDown);
+    const onClick = (ev: MouseEvent) => {
+      const target = ev.target as HTMLElement | null;
+      // Task-3: Identify click location
+      if (!isClickInsideMenu(target)) {
+        // Task-4: Hide context menu if click is outside
+        closeAllMenus();
+      }
+    };
+
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") {
+        closeAllMenus();
+      }
+    };
+
+    // Listen to both mousedown and click for comprehensive coverage
+    window.addEventListener("mousedown", onMouseDown, true);
+    window.addEventListener("click", onClick, true);
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousedown", onMouseDown, true);
+      window.removeEventListener("click", onClick, true);
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [contextMenu.open, paneMenu.open, canvasMenu.open]);
