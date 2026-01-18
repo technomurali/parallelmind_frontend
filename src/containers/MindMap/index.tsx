@@ -430,6 +430,7 @@ export default function MindMap() {
   };
 
   const onCanvasMouseDown = (event: any) => {
+    canvasBodyRef.current?.focus();
     if (!zoomViewActive) return;
     const target = event.target as HTMLElement | null;
     if (target?.closest(".react-flow__pane")) {
@@ -608,6 +609,72 @@ export default function MindMap() {
       window.removeEventListener("mouseup", onWindowMouseUp);
     };
   }, [zoomViewActive]);
+
+  useEffect(() => {
+    const el = canvasBodyRef.current;
+    if (!el || !rf) return;
+
+    const onPaste = (event: ClipboardEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl !== el) return;
+      const items = event.clipboardData?.items ?? [];
+      const imageItem = Array.from(items).find((item) =>
+        item.type.startsWith("image/")
+      );
+      if (!imageItem) return;
+      const file = imageItem.getAsFile();
+      if (!file) return;
+      event.preventDefault();
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === "string" ? reader.result : "";
+        if (!dataUrl) return;
+        const img = new Image();
+        img.onload = () => {
+          const rect = el.getBoundingClientRect();
+          const center = {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+          };
+          const flowPos = rf.screenToFlowPosition(center);
+          const imageNodeId = `image_${Date.now()}_${Math.random()
+            .toString(16)
+            .slice(2)}`;
+          const imageNode: Node = {
+            id: imageNodeId,
+            type: "image",
+            position: flowPos,
+            data: {
+              type: "image",
+              node_type: "image",
+              imageSrc: dataUrl,
+              imageWidth: img.width,
+              imageHeight: img.height,
+              nonPersistent: true,
+            },
+            selected: true,
+          };
+          const next = [
+            ...(nodes ?? []).map((n: any) => ({
+              ...n,
+              selected: n?.id === imageNodeId,
+            })),
+            imageNode,
+          ];
+          setNodes(next);
+          selectNode(imageNodeId);
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    el.addEventListener("paste", onPaste);
+    return () => {
+      el.removeEventListener("paste", onPaste);
+    };
+  }, [rf, nodes, setNodes, selectNode]);
 
   /**
    * Effect: Create/replace root node when root folder is selected
@@ -1182,6 +1249,7 @@ export default function MindMap() {
                 : "zoom-in"
               : undefined,
           }}
+          tabIndex={0}
           onMouseDown={onCanvasMouseDown}
           onMouseUp={onCanvasMouseUp}
         >

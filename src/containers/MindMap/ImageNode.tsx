@@ -13,7 +13,7 @@ import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 const OUTER_PATH =
   "M 20 10 H 380 A 10 10 0 0 1 390 20 V 488 A 10 10 0 0 1 376 497 H 20 " +
   "A 10 10 0 0 1 9 486 V 20 A 10 10 0 0 1 20 10 Z";
-const INNER_PATH = "M 42 51 H 364 V 418 H 40 Z";
+const INNER_PATH = "M 42 51 H 364 V 446 H 40 Z";
 
 export default function ImageNode({
   id,
@@ -63,6 +63,10 @@ export default function ImageNode({
     opacity: 1,
     zIndex: 3,
   };
+
+  const imageSrc =
+    typeof (data as any)?.imageSrc === "string" ? (data as any).imageSrc : "";
+  const imageClipId = `pm-image-clip-${id}`;
 
   const snapOffsetX =
     dragging && typeof xPos === "number" ? Math.round(xPos) - xPos : 0;
@@ -172,6 +176,11 @@ export default function ImageNode({
             shapeRendering={dragging ? "crispEdges" : "geometricPrecision"}
             style={{ display: "block" }}
           >
+            <defs>
+              <clipPath id={imageClipId}>
+                <path d={INNER_PATH} />
+              </clipPath>
+            </defs>
             <path
               d={OUTER_PATH}
               fill="#ffffff"
@@ -181,6 +190,17 @@ export default function ImageNode({
               strokeLinecap="round"
             />
             <path d={INNER_PATH} fill="#000000" />
+            {imageSrc && (
+              <image
+                href={imageSrc}
+                x="42"
+                y="51"
+                width="322"
+                height="367"
+                preserveAspectRatio="xMidYMid meet"
+                clipPath={`url(#${imageClipId})`}
+              />
+            )}
           </svg>
 
           <div
@@ -193,8 +213,8 @@ export default function ImageNode({
             <div
               style={{
                 position: "absolute",
-                top: Math.max(6, Math.round(16 * sizeScale)),
-                right: Math.max(4, Math.round(10 * sizeScale)),
+                top: Math.max(0, Math.round(4 * sizeScale)),
+                right: Math.max(6, Math.round(12 * sizeScale)),
                 display: "flex",
                 gap: Math.max(2, Math.round(4 * sizeScale)),
                 zIndex: 6,
@@ -213,7 +233,7 @@ export default function ImageNode({
                   borderRadius: 0,
                   border: "none",
                   background: "transparent",
-                  color: "var(--text)",
+                  color: "#000000",
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
@@ -239,7 +259,7 @@ export default function ImageNode({
                   borderRadius: 0,
                   border: "none",
                   background: "transparent",
-                  color: "var(--text)",
+                  color: "#000000",
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
