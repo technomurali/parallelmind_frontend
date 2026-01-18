@@ -31,14 +31,21 @@ export default function RightPanel() {
   const activeTab = useMindMapStore(selectActiveTab);
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
   const nodes = activeTab?.nodes ?? [];
+  const edges = activeTab?.edges ?? [];
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
+  const setNodes = useMindMapStore((s) => s.setNodes);
+  const setEdges = useMindMapStore((s) => s.setEdges);
   const pendingChildCreation = activeTab?.pendingChildCreation ?? null;
   const finalizePendingChildCreation = useMindMapStore(
     (s) => s.finalizePendingChildCreation
   );
+  const setPendingChildCreation = useMindMapStore(
+    (s) => s.setPendingChildCreation
+  );
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
   const setRoot = useMindMapStore((s) => s.setRoot);
+  const selectNode = useMindMapStore((s) => s.selectNode);
 
   const dragRef = useRef<{
     startX: number;
@@ -81,6 +88,7 @@ export default function RightPanel() {
     "idle"
   );
   const [dirty, setDirty] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // Used to auto-focus and visually guide the user when name is mandatory.
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -101,6 +109,7 @@ export default function RightPanel() {
       setDraft({ name: "", purpose: "", details: "" });
       setSaveStatus("idle");
       setDirty(false);
+      setCreateError(null);
       lastHydratedSelectedIdRef.current = null;
       return;
     }
@@ -121,6 +130,7 @@ export default function RightPanel() {
     if (selectionChanged) {
       setSaveStatus("idle");
       setDirty(false);
+      setCreateError(null);
     }
     lastHydratedSelectedIdRef.current = selectedNodeId;
   }, [nodes, selectedNodeId]);
@@ -145,6 +155,21 @@ export default function RightPanel() {
     typeof (selectedNode?.data as any)?.parentId === "string"
       ? ((selectedNode?.data as any)?.parentId as string)
       : null;
+
+  const findFolderNodeById = (
+    list: any[],
+    nodeId: string
+  ): { child?: any[] } | null => {
+    for (const item of list ?? []) {
+      if (!item || typeof item !== "object") continue;
+      if (item.id === nodeId && Array.isArray(item.child)) return item;
+      if (Array.isArray(item.child)) {
+        const nested = findFolderNodeById(item.child, nodeId);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  };
 
   /**
    * File-name style validation (minimal and purpose-fit).
@@ -177,13 +202,15 @@ export default function RightPanel() {
       return uiText.alerts.nodeNameInvalidFileName;
 
     // Sibling conflict (same level).
-    if (parentIdForDraft) {
-      const conflict = (nodes ?? []).some((n: any) => {
-        if (!n || n.id === selectedNodeId) return false;
-        const pid = (n.data as any)?.parentId;
-        if (pid !== parentIdForDraft) return false;
+    if (parentIdForDraft && rootFolderJson) {
+      const siblings =
+        parentIdForDraft === "00"
+          ? rootFolderJson.child ?? []
+          : findFolderNodeById(rootFolderJson.child ?? [], parentIdForDraft)
+              ?.child ?? [];
+      const conflict = siblings.some((sibling: any) => {
         const siblingName =
-          typeof (n.data as any)?.name === "string" ? (n.data as any).name : "";
+          typeof sibling?.name === "string" ? sibling.name : "";
         return siblingName.trim().toLowerCase() === trimmed.toLowerCase();
       });
       if (conflict) return uiText.alerts.nodeNameConflictAtLevel;
@@ -226,6 +253,14 @@ export default function RightPanel() {
         nameInputRef.current?.focus();
         return;
       }
+      updateNodeData(selectedNodeId, {
+        name: draft.name.trim(),
+        purpose: draft.purpose,
+        details: draft.details,
+      });
+      setDirty(false);
+      setSaveStatus("idle");
+      return;
     }
 
     // Always update in-memory node data (the UI is driven from centralized state).
@@ -396,6 +431,103 @@ export default function RightPanel() {
       setDirty(true);
       setSaveStatus("saving");
     };
+
+  const canCreateDraft =
+    isDraftNode &&
+    !!parentIdForDraft &&
+    !nameError &&
+    (!!rootDirectoryHandle ||
+      (typeof rootFolderJson?.path === "string" &&
+        rootFolderJson.path.trim().length > 0));
+
+  const onCreateDraft = async () => {
+    if (!isDraftNode || !selectedNodeId) return;
+    setCreateError(null);
+    const err = validateNodeNameForDraft(draft.name);
+    if (err) {
+      setCreateError(err);
+      nameInputRef.current?.focus();
+      return;
+    }
+    if (!parentIdForDraft || !rootFolderJson) {
+      setCreateError(uiText.alerts.errorCreateFailed);
+      return;
+    }
+
+    const trimmedName = draft.name.trim();
+    const draftNodeId = selectedNodeId;
+    const edgeId = parentIdForDraft
+      ? `e_${parentIdForDraft}_${draftNodeId}`
+      : null;
+    setSaveStatus("saving");
+    try {
+      const result = rootDirectoryHandle
+        ? await fileManager.createFolderChildFromHandle({
+            dirHandle: rootDirectoryHandle,
+            existing: rootFolderJson,
+            parentNodeId: parentIdForDraft,
+            name: trimmedName,
+            purpose: draft.purpose,
+          })
+        : await fileManager.createFolderChildFromPath({
+            dirPath: rootFolderJson.path,
+            existing: rootFolderJson,
+            parentNodeId: parentIdForDraft,
+            name: trimmedName,
+            purpose: draft.purpose,
+          });
+      // Fade out the draft node + edge before removing them.
+      setNodes(
+        (nodes ?? []).map((node: any) => {
+          if (node?.id !== draftNodeId) return node;
+          return {
+            ...node,
+            data: { ...(node.data ?? {}), isDraftClosing: true },
+            style: {
+              ...(node.style ?? {}),
+              opacity: 0,
+              transition: "opacity 180ms ease",
+            },
+          };
+        })
+      );
+      if (edgeId) {
+        setEdges(
+          edges.map((edge: any) => {
+            if (edge?.id !== edgeId) return edge;
+            return {
+              ...edge,
+              data: { ...(edge.data ?? {}), isDraftClosing: true },
+              style: {
+                ...(edge.style ?? {}),
+                opacity: 0,
+                transition: "opacity 180ms ease",
+              },
+            };
+          })
+        );
+      }
+      setRoot(rootDirectoryHandle ?? null, result.root);
+      setPendingChildCreation(null);
+      selectNode(result.node.id);
+      setDirty(false);
+      setSaveStatus("saved");
+      window.setTimeout(() => {
+        const latest = useMindMapStore.getState();
+        const latestTab = selectActiveTab(latest);
+        const latestNodes = latestTab?.nodes ?? [];
+        const latestEdges = latestTab?.edges ?? [];
+        setNodes(latestNodes.filter((node: any) => node?.id !== draftNodeId));
+        if (edgeId) {
+          setEdges(latestEdges.filter((edge: any) => edge?.id !== edgeId));
+        }
+      }, 200);
+    } catch (error) {
+      console.error("[RightPanel] Create folder failed:", error);
+      setCreateError(uiText.alerts.errorCreateFailed);
+      setSaveStatus("idle");
+    }
+  };
 
   /**
    * Formats an ISO timestamp into a readable datetime string:
@@ -762,6 +894,49 @@ export default function RightPanel() {
                   </label>
                 )}
               </div>
+
+              {isDraftNode && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-2)",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => void onCreateDraft()}
+                    disabled={!canCreateDraft}
+                    style={{
+                      borderRadius: "999px",
+                      border: "var(--border-width) solid var(--border)",
+                      background: canCreateDraft
+                        ? "var(--surface-1)"
+                        : "var(--surface-2)",
+                      color: "var(--text)",
+                      padding: "4px 12px",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      cursor: canCreateDraft ? "pointer" : "not-allowed",
+                      opacity: canCreateDraft ? 1 : 0.6,
+                    }}
+                  >
+                    {uiText.buttons.create}
+                  </button>
+                  {createError && (
+                    <div
+                      style={{
+                        fontSize: "0.8em",
+                        color: "var(--danger, #e5484d)",
+                        opacity: 0.95,
+                      }}
+                    >
+                      {createError}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Read-only timestamps (root only). Kept small and easy to scan. */}
               {selectedNodeId === "00" && (

@@ -423,11 +423,13 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       // "Reversible before save": if the user deselects before providing a name,
       // discard the temporary node and clear the pending flow.
       if (isDraft && !hasName) {
+        const edgeId = `e_${pending.parentNodeId}_${pending.tempNodeId}`;
         return {
           ...state,
           tabs: updateTabById(state.tabs, state.activeTabId, (active) => ({
             ...active,
             nodes: (active.nodes ?? []).filter((n: any) => n?.id !== pending.tempNodeId),
+            edges: (active.edges ?? []).filter((e: any) => e?.id !== edgeId),
             pendingChildCreation: null,
             selectedNodeId: null,
           })),

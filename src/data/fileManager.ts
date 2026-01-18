@@ -157,6 +157,92 @@ export class FileManager {
     return p ? `${p}/${c}` : c;
   }
 
+  private splitRelPath(relPath: string): string[] {
+    return (relPath ?? "")
+      .split(/[\\/]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+
+  private async getDirectoryHandleByRelPath(
+    rootHandle: FileSystemDirectoryHandle,
+    relPath: string
+  ): Promise<FileSystemDirectoryHandle> {
+    let current = rootHandle;
+    const parts = this.splitRelPath(relPath);
+    for (const part of parts) {
+      current = await current.getDirectoryHandle(part, { create: false });
+    }
+    return current;
+  }
+
+  private findFolderById(
+    nodes: IndexNode[],
+    parentId: string
+  ): IndexFolderNode | null {
+    for (const node of nodes ?? []) {
+      if (!node || typeof node !== "object") continue;
+      if (this.isFolderNode(node)) {
+        if (node.id === parentId) return node;
+        const nested = this.findFolderById(node.child ?? [], parentId);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  }
+
+  private insertChildFolder(args: {
+    nodes: IndexNode[];
+    parentId: string;
+    child: IndexFolderNode;
+    now: string;
+  }): { nodes: IndexNode[]; inserted: boolean } {
+    const { nodes, parentId, child, now } = args;
+    let inserted = false;
+    const nextNodes = (nodes ?? []).map((node) => {
+      if (!node || typeof node !== "object") return node;
+      if (this.isFolderNode(node)) {
+        if (node.id === parentId) {
+          inserted = true;
+          return {
+            ...node,
+            child: [...(node.child ?? []), child],
+            updated_on: now,
+          };
+        }
+        const nextChildren = this.insertChildFolder({
+          nodes: node.child ?? [],
+          parentId,
+          child,
+          now,
+        });
+        if (nextChildren.inserted) {
+          inserted = true;
+          return { ...node, child: nextChildren.nodes };
+        }
+      }
+      return node;
+    });
+    return { nodes: nextNodes, inserted };
+  }
+
+  private resolveParentInfo(args: {
+    root: RootFolderJson;
+    parentNodeId: string;
+  }): { level: number; path: string } | null {
+    const { root, parentNodeId } = args;
+    if (!parentNodeId) return null;
+    if (parentNodeId === "00" || parentNodeId === root.id) {
+      return { level: 0, path: typeof root.path === "string" ? root.path : "" };
+    }
+    const parentNode = this.findFolderById(root.child ?? [], parentNodeId);
+    if (!parentNode) return null;
+    return {
+      level: typeof parentNode.level === "number" ? parentNode.level : 0,
+      path: typeof parentNode.path === "string" ? parentNode.path : "",
+    };
+  }
+
   /**
    * Parses root folder index JSON and normalizes to the v1.0.0 schema.
    * Returns null when the payload is missing/invalid (treated as "no index").
@@ -1326,6 +1412,135 @@ export class FileManager {
     const fileName = this.getIndexFileNameFromPath(dirPath);
     await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, fileName);
     return updatedRoot;
+  }
+
+  async createFolderChildFromHandle(args: {
+    dirHandle: FileSystemDirectoryHandle;
+    existing: RootFolderJson;
+    parentNodeId: string;
+    name: string;
+    purpose: string;
+  }): Promise<{ root: RootFolderJson; node: IndexFolderNode }> {
+    const { dirHandle, existing, parentNodeId, name, purpose } = args;
+    const now = this.nowIso();
+    const parentInfo = this.resolveParentInfo({
+      root: existing,
+      parentNodeId,
+    });
+    if (!parentInfo) throw new Error("Parent folder not found.");
+    const nextLevel = parentInfo.level + 1;
+    if (nextLevel > FileManager.MAX_LEVEL) {
+      throw new Error("Maximum folder depth exceeded.");
+    }
+
+    const parentRelPath = parentInfo.path ?? "";
+    const childRelPath = this.joinRel(parentRelPath, name);
+
+    const parentHandle = await this.getDirectoryHandleByRelPath(
+      dirHandle,
+      parentRelPath
+    );
+    await parentHandle.getDirectoryHandle(name, { create: true });
+
+    const childNode: IndexFolderNode = {
+      id: this.generateUuid(),
+      name,
+      purpose: typeof purpose === "string" ? purpose : "",
+      type: this.folderTypeForLevel(nextLevel),
+      level: nextLevel as 1 | 2 | 3 | 4,
+      path: childRelPath,
+      created_on: now,
+      updated_on: now,
+      last_viewed_on: now,
+      views: 0,
+      child: [],
+    };
+
+    const parentIsRoot = parentNodeId === "00" || parentNodeId === existing.id;
+    const updatedRoot = parentIsRoot
+      ? {
+          ...existing,
+          updated_on: now,
+          child: [...(existing.child ?? []), childNode],
+        }
+      : (() => {
+          const updated = this.insertChildFolder({
+            nodes: existing.child ?? [],
+            parentId: parentNodeId,
+            child: childNode,
+            now,
+          });
+          if (!updated.inserted) {
+            throw new Error("Parent folder not found.");
+          }
+          return { ...existing, updated_on: now, child: updated.nodes };
+        })();
+
+    await this.writeRootFolderJson(dirHandle, updatedRoot);
+    return { root: updatedRoot, node: childNode };
+  }
+
+  async createFolderChildFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson;
+    parentNodeId: string;
+    name: string;
+    purpose: string;
+  }): Promise<{ root: RootFolderJson; node: IndexFolderNode }> {
+    const { dirPath, existing, parentNodeId, name, purpose } = args;
+    const now = this.nowIso();
+    const parentInfo = this.resolveParentInfo({
+      root: { ...existing, path: dirPath },
+      parentNodeId,
+    });
+    if (!parentInfo) throw new Error("Parent folder not found.");
+    const nextLevel = parentInfo.level + 1;
+    if (nextLevel > FileManager.MAX_LEVEL) {
+      throw new Error("Maximum folder depth exceeded.");
+    }
+
+    const parentAbsPath =
+      parentNodeId === "00" || parentNodeId === existing.id
+        ? dirPath
+        : parentInfo.path ?? dirPath;
+    const childAbsPath = this.joinPath(parentAbsPath, name);
+    const { mkdir } = await import("@tauri-apps/plugin-fs");
+    await mkdir(childAbsPath, { recursive: false });
+
+    const childNode: IndexFolderNode = {
+      id: this.generateUuid(),
+      name,
+      purpose: typeof purpose === "string" ? purpose : "",
+      type: this.folderTypeForLevel(nextLevel),
+      level: nextLevel as 1 | 2 | 3 | 4,
+      path: childAbsPath,
+      created_on: now,
+      updated_on: now,
+      last_viewed_on: now,
+      views: 0,
+      child: [],
+    };
+
+    const baseRoot = { ...existing, path: dirPath, updated_on: now };
+    const parentIsRoot = parentNodeId === "00" || parentNodeId === existing.id;
+    const updatedRoot = parentIsRoot
+      ? { ...baseRoot, child: [...(baseRoot.child ?? []), childNode] }
+      : (() => {
+          const updated = this.insertChildFolder({
+            nodes: baseRoot.child ?? [],
+            parentId: parentNodeId,
+            child: childNode,
+            now,
+          });
+          if (!updated.inserted) {
+            throw new Error("Parent folder not found.");
+          }
+          return { ...baseRoot, child: updated.nodes };
+        })();
+
+    const fileName = this.getIndexFileNameFromPath(dirPath);
+    await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, fileName);
+    return { root: updatedRoot, node: childNode };
   }
 
   async appendRootErrorMessageFromHandle(args: {

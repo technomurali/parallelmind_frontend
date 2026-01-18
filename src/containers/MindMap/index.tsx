@@ -699,7 +699,16 @@ export default function MindMap() {
     ];
 
     setNodes(mergedNodes);
-    setEdges(composedEdges);
+    const existingEdges = selectActiveTab(useMindMapStore.getState())?.edges ?? [];
+    const customEdges = (existingEdges ?? []).filter(
+      (edge: any) => !!(edge?.data as any)?.nonPersistent
+    );
+    const composedIds = new Set((composedEdges ?? []).map((edge) => edge.id));
+    const mergedEdges = [
+      ...composedEdges,
+      ...customEdges.filter((edge: any) => !composedIds.has(edge.id)),
+    ];
+    setEdges(mergedEdges);
     setInlineEditNodeId("00");
   }, [
     rf,
@@ -1514,6 +1523,10 @@ export default function MindMap() {
                     id: tempNodeId,
                     type: "file",
                     position: flowPos,
+                    style: {
+                      opacity: 1,
+                      transition: "opacity 180ms ease",
+                    },
                     data: {
                       type: "file",
                       node_type: "file",
@@ -1523,6 +1536,8 @@ export default function MindMap() {
                       parentId: parentNodeId,
                       // Marks the node as temporary until the required name is saved.
                       isDraft: true,
+                      // Keep draft nodes when the graph is recomposed.
+                      nonPersistent: true,
                     },
                     selected: true,
                   };
@@ -1652,6 +1667,10 @@ export default function MindMap() {
                     // Reuse existing folder renderer for now.
                     type: "rootFolder",
                     position: flowPos,
+                    style: {
+                      opacity: 1,
+                      transition: "opacity 180ms ease",
+                    },
                     data: {
                       type: "folder",
                       node_type: "folder",
@@ -1663,11 +1682,29 @@ export default function MindMap() {
                       parentId: parentNodeId,
                       // Marks the node as temporary until the required name is saved.
                       isDraft: true,
+                      // Keep draft nodes when the graph is recomposed.
+                      nonPersistent: true,
                     },
                     selected: true,
                   };
 
                   const existing = nodes ?? [];
+                  const edgeId = `e_${parentNodeId}_${tempNodeId}`;
+                  const nextEdges = (edges ?? []).some(
+                    (edge: any) => edge?.id === edgeId
+                  )
+                    ? edges
+                    : [
+                        ...(edges ?? []),
+                        {
+                          id: edgeId,
+                          source: parentNodeId,
+                          target: tempNodeId,
+                          type: "default",
+                          style: { opacity: 1, transition: "opacity 180ms ease" },
+                          data: { isDraft: true, nonPersistent: true },
+                        },
+                      ];
                   const next = [
                     ...existing.map((n: any) => ({
                       ...n,
@@ -1676,6 +1713,7 @@ export default function MindMap() {
                     tempNode,
                   ];
                   setNodes(next);
+                  setEdges(nextEdges);
                   setPendingChildCreation({ tempNodeId, parentNodeId });
                   selectNode(tempNodeId);
                 }}
