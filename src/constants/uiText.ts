@@ -77,6 +77,10 @@ export const uiText = {
     previewToggleShow: 'Show markdown preview',
     previewToggleCode: 'Show markdown code',
   },
+  appFooter: {
+    desktopMode: 'Desktop mode',
+    browserMode: 'Browser mode',
+  },
 
   /**
    * Button labels

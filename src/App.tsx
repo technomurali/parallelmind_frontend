@@ -10,7 +10,7 @@
  * Also includes inline styles for resize handles used for panel resizing.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import './App.css'
 import LeftPanel from './containers/LeftPanel'
 import MindMap from './containers/MindMap'
@@ -29,11 +29,41 @@ import { useMindMapStore } from './store/mindMapStore'
 function App() {
   const settingsOpen = useMindMapStore((s) => s.settingsOpen)
   const theme = useMindMapStore((s) => s.settings.theme)
+  const appWrapperRef = useRef<HTMLDivElement | null>(null)
+  const isDesktopMode =
+    typeof (window as any).__TAURI_INTERNALS__ !== 'undefined'
+  const appModeLabel = isDesktopMode
+    ? uiText.appFooter.desktopMode
+    : uiText.appFooter.browserMode
 
   useEffect(() => {
     // Drive the global theme via CSS variables in `src/styles/theme.css`.
     document.documentElement.dataset.theme = theme
   }, [theme])
+
+  useEffect(() => {
+    ;(globalThis as any).__PM_APP_MODE__ = isDesktopMode
+      ? 'desktop'
+      : 'browser'
+  }, [isDesktopMode])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'F11') return
+      event.preventDefault()
+      if (document.fullscreenElement) {
+        void document.exitFullscreen?.()
+        return
+      }
+      const target = appWrapperRef.current ?? document.documentElement
+      void target.requestFullscreen?.()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [])
 
   return (
     <>
@@ -57,7 +87,7 @@ function App() {
         }
       `}</style>
 
-      <div className="pm-app-wrapper">
+      <div className="pm-app-wrapper" ref={appWrapperRef}>
         <GlobalHeaderBar />
         {settingsOpen ? (
           <div className="pm-app" aria-label={uiText.ariaLabels.workspace}>
@@ -70,7 +100,9 @@ function App() {
             <RightPanel />
           </div>
         )}
-        <footer className="pm-app-footer"></footer>
+        <footer className="pm-app-footer" style={{ fontSize: '0.65rem' }}>
+          {appModeLabel}
+        </footer>
       </div>
     </>
   )
