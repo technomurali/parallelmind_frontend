@@ -172,8 +172,11 @@ export default function MindMap() {
     }));
   }, [edges, settings.appearance.edgeStyle]);
 
+  const FILE_NODE_BASE_WIDTH = 125;
+  const DEFAULT_IMAGE_WIDTH_RATIO = 0.8;
+
   const getPolaroidDimensions = (width: number, height: number) => {
-    const maxWidth = 280;
+    const maxWidth = Math.round(FILE_NODE_BASE_WIDTH * DEFAULT_IMAGE_WIDTH_RATIO);
     const padding = 12;
     const captionGap = 12;
     const captionHeight = 28;
@@ -193,7 +196,7 @@ export default function MindMap() {
   const renderedNodes = useMemo(() => {
     if (!nodes?.length) return nodes;
     return nodes.map((node: any) => {
-      if (node?.type !== "portraitImage" && node?.type !== "landscapeImage") {
+      if (node?.type !== "polaroidImage") {
         return node;
       }
       const imageWidth =

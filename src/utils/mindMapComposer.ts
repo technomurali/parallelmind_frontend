@@ -32,10 +32,21 @@ export type MindMapComposeResult = {
 
 type NormalizedKind = "folder" | "file" | "unknown";
 
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "bmp",
+  "svg",
+]);
+
 type NodeInfo = {
   id: string;
   depth: number;
   kind: NormalizedKind;
+  renderType: "rootFolder" | "file" | "polaroidImage";
   data: Record<string, unknown>;
   children: string[];
   parentId: string | null;
@@ -164,6 +175,11 @@ export const composeMindMapGraphFromRoot = (
     const id = rawId || createSyntheticNodeId(parentId, index, nodeName);
     const kind = normalizeTypeKind((node as any)?.type);
     const nameValue = typeof nodeName === "string" ? nodeName.trim() : "";
+    const extension =
+      typeof (node as any)?.extension === "string"
+        ? (node as any).extension.toLowerCase()
+        : "";
+    const isImageFile = kind === "file" && IMAGE_EXTENSIONS.has(extension);
 
     if (kind === "unknown") {
       warnings.push(
@@ -177,6 +193,7 @@ export const composeMindMapGraphFromRoot = (
       id,
       depth,
       kind,
+      renderType: kind === "folder" ? "rootFolder" : isImageFile ? "polaroidImage" : "file",
       data,
       children: [],
       parentId,
@@ -210,6 +227,7 @@ export const composeMindMapGraphFromRoot = (
     id: rootNodeId,
     depth: 0,
     kind: normalizedRootKind,
+    renderType: "rootFolder",
     data: normalizeNodeData(root, normalizedRootKind),
     children: [],
     parentId: null,
@@ -368,7 +386,7 @@ export const composeMindMapGraphFromRoot = (
       } as { x: number; y: number });
     nodes.push({
       id: info.id,
-      type: info.kind === "folder" ? "rootFolder" : "file",
+      type: info.renderType,
       position: pos,
       data: info.data,
     });

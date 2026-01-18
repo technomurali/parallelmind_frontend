@@ -7,12 +7,32 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Handle, NodeResizer, Position, type NodeProps } from "reactflow";
-import { useMindMapStore } from "../../store/mindMapStore";
+import { FileManager } from "../../data/fileManager";
+import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 
-const MAX_IMAGE_WIDTH = 280;
+const FILE_NODE_BASE_WIDTH = 125;
+const DEFAULT_IMAGE_WIDTH_RATIO = 0.8;
+const MAX_IMAGE_WIDTH = Math.round(FILE_NODE_BASE_WIDTH * DEFAULT_IMAGE_WIDTH_RATIO);
 const FRAME_PADDING = 12;
 const CAPTION_GAP = 12;
 const CAPTION_HEIGHT = 28;
+
+const isDirectImageSource = (value: string) =>
+  value.startsWith("data:") ||
+  value.startsWith("blob:") ||
+  value.startsWith("http://") ||
+  value.startsWith("https://");
+
+const getImageMimeType = (pathValue: string) => {
+  const extension = (pathValue.split(".").pop() ?? "").toLowerCase();
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  if (extension === "png") return "image/png";
+  if (extension === "gif") return "image/gif";
+  if (extension === "webp") return "image/webp";
+  if (extension === "bmp") return "image/bmp";
+  if (extension === "svg") return "image/svg+xml";
+  return "application/octet-stream";
+};
 
 const getPolaroidSize = (width: number, height: number) => {
   const safeWidth = Math.max(1, width);
@@ -35,10 +55,17 @@ export default function ImageNode({
   dragging,
 }: NodeProps<any>) {
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
+  const rootDirectoryHandle =
+    useMindMapStore(selectActiveTab)?.rootDirectoryHandle ?? null;
+  const fileManager = useMemo(() => new FileManager(), []);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
-  const imageSrc =
-    typeof (data as any)?.imageSrc === "string" ? (data as any).imageSrc : "";
+  const rawImageSource =
+    typeof (data as any)?.imageSrc === "string"
+      ? (data as any).imageSrc
+      : typeof (data as any)?.path === "string"
+      ? (data as any).path
+      : "";
   const caption =
     typeof (data as any)?.caption === "string" ? (data as any).caption : "";
   const storedWidth =
@@ -48,24 +75,112 @@ export default function ImageNode({
 
   const defaultSize = useMemo(() => {
     if (storedWidth > 0 && storedHeight > 0) {
-      return { w: storedWidth, h: storedHeight };
+      return {
+        w: storedWidth,
+        h: storedHeight,
+        imageWidth: Math.max(1, storedWidth - FRAME_PADDING * 2),
+        imageHeight: Math.max(
+          1,
+          storedHeight - (FRAME_PADDING * 2 + CAPTION_GAP + CAPTION_HEIGHT)
+        ),
+      };
     }
-    return { w: 220, h: 260 };
+    const fallback = getPolaroidSize(220, 260);
+    return {
+      w: fallback.w,
+      h: fallback.h,
+      imageWidth: fallback.imageWidth,
+      imageHeight: fallback.imageHeight,
+    };
   }, [storedWidth, storedHeight]);
 
   const [size, setSize] = useState(defaultSize);
+  const [resolvedImageSrc, setResolvedImageSrc] = useState("");
+
+  useEffect(() => {
+    const source = (rawImageSource ?? "").trim();
+    if (!source) {
+      setResolvedImageSrc("");
+      return;
+    }
+    if (isDirectImageSource(source)) {
+      setResolvedImageSrc(source);
+      return;
+    }
+
+    let isActive = true;
+    let objectUrl: string | null = null;
+
+    const resolveFromHandle = async () => {
+      if (!rootDirectoryHandle) return false;
+      try {
+        const file = await fileManager.getFileFromHandle({
+          rootHandle: rootDirectoryHandle,
+          relPath: source,
+        });
+        objectUrl = URL.createObjectURL(file);
+        if (isActive) setResolvedImageSrc(objectUrl);
+        return true;
+      } catch (err) {
+        console.warn("[ImageNode] Failed to load image from handle:", err);
+        return false;
+      }
+    };
+
+    const resolveFromPath = async () => {
+      const isTauri = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+      if (!isTauri) return false;
+      try {
+        const { readFile } = await import("@tauri-apps/plugin-fs");
+        const bytes = await readFile(source);
+        const blob = new Blob([bytes], { type: getImageMimeType(source) });
+        objectUrl = URL.createObjectURL(blob);
+        if (isActive) setResolvedImageSrc(objectUrl);
+        return true;
+      } catch (err) {
+        console.warn("[ImageNode] Failed to load image from path:", err);
+        return false;
+      }
+    };
+
+    void (async () => {
+      const resolved = await resolveFromHandle();
+      if (!resolved) {
+        await resolveFromPath();
+      }
+    })();
+
+    return () => {
+      isActive = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [fileManager, rawImageSource, rootDirectoryHandle]);
+
+  const imageSrc = resolvedImageSrc;
 
   useEffect(() => {
     if (!imageSrc) return;
 
-    const applySize = (next: {
+  const applySize = (next: {
       w: number;
       h: number;
       imageWidth: number;
       imageHeight: number;
     }) => {
       setSize((prev) =>
-        prev.w === next.w && prev.h === next.h ? prev : { w: next.w, h: next.h }
+        prev.w === next.w &&
+        prev.h === next.h &&
+        prev.imageWidth === next.imageWidth &&
+        prev.imageHeight === next.imageHeight
+          ? prev
+          : {
+              w: next.w,
+              h: next.h,
+              imageWidth: next.imageWidth,
+              imageHeight: next.imageHeight,
+            }
       );
       const needsUpdate =
         (data as any)?.nodeWidth !== next.w ||
@@ -100,10 +215,7 @@ export default function ImageNode({
     };
   }, [data, id, imageSrc, updateNodeData]);
 
-  const imageAreaHeight = Math.max(
-    0,
-    size.h - (FRAME_PADDING * 2 + CAPTION_GAP + CAPTION_HEIGHT)
-  );
+  const imageAreaHeight = Math.max(0, size.imageHeight);
   const handleWidth = 18;
   const handleHeight = 9;
   const handleBaseStyle: React.CSSProperties = {
@@ -143,10 +255,22 @@ export default function ImageNode({
           if (!params) return;
           const nextWidth = Math.max(1, Math.round(params.width));
           const nextHeight = Math.max(1, Math.round(params.height));
-          setSize({ w: nextWidth, h: nextHeight });
+          const nextImageWidth = Math.max(1, nextWidth - FRAME_PADDING * 2);
+          const nextImageHeight = Math.max(
+            1,
+            nextHeight - (FRAME_PADDING * 2 + CAPTION_GAP + CAPTION_HEIGHT)
+          );
+          setSize({
+            w: nextWidth,
+            h: nextHeight,
+            imageWidth: nextImageWidth,
+            imageHeight: nextImageHeight,
+          });
           updateNodeData(id, {
             nodeWidth: nextWidth,
             nodeHeight: nextHeight,
+            imageWidth: nextImageWidth,
+            imageHeight: nextImageHeight,
           });
         }}
       />
@@ -176,40 +300,45 @@ export default function ImageNode({
           opacity: 0.3,
         }}
       />
-      {imageSrc ? (
-        <img
-          ref={imgRef}
-          src={imageSrc}
-          alt=""
-          style={{
-            width: "100%",
-            height: "auto",
-            maxHeight: imageAreaHeight,
-            objectFit: "contain",
-            display: "block",
-            borderRadius: 4,
-            background: "#000000",
-          }}
-        />
-      ) : (
-        <div
-          style={{
-            width: "100%",
-            height: imageAreaHeight,
-            borderRadius: 4,
-            background: "linear-gradient(135deg, #f0f0f0, #e6e6e6)",
-            color: "#666666",
-            fontSize: 12,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            textAlign: "center",
-            padding: 8,
-          }}
-        >
-          Paste an image
-        </div>
-      )}
+      <div
+        style={{
+          width: size.imageWidth,
+          height: imageAreaHeight,
+          borderRadius: 4,
+          background: imageSrc
+            ? "#000000"
+            : "linear-gradient(135deg, #f0f0f0, #e6e6e6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+        }}
+      >
+        {imageSrc ? (
+          <img
+            ref={imgRef}
+            src={imageSrc}
+            alt=""
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              display: "block",
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              color: "#666666",
+              fontSize: 12,
+              textAlign: "center",
+              padding: 8,
+            }}
+          >
+            Paste an image
+          </div>
+        )}
+      </div>
       <div
         style={{
           minHeight: CAPTION_HEIGHT,
