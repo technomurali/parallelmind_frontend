@@ -5,7 +5,7 @@
  * Visual style: SVG decision shape with editable Name + Purpose.
  */
 
-import { type NodeProps } from "reactflow";
+import { Handle, Position, type NodeProps } from "reactflow";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { getNodeFillColor } from "../../utils/nodeFillColors";
 
@@ -84,6 +84,26 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
   const innerBoxBottom = toContentPxY(144);
   const innerBoxWidth = Math.max(0, innerBoxRight - innerBoxLeft);
   const innerBoxHeight = Math.max(0, innerBoxBottom - innerBoxTop);
+  const handleDiameter = 12;
+  const toHandlePxX = (x: number) =>
+    Math.round((x / viewBoxWidth) * svgWidth);
+  const toHandlePxY = (y: number) =>
+    Math.round((y / viewBoxHeight) * svgHeight);
+  const topHandleLeft = toHandlePxX(200);
+  const topHandleTop = toHandlePxY(40);
+  const leftHandleLeft = toHandlePxX(40);
+  const leftHandleTop = toHandlePxY(120);
+  const rightHandleLeft = toHandlePxX(360);
+  const rightHandleTop = toHandlePxY(120);
+  const handleStyleBase: React.CSSProperties = {
+    width: handleDiameter,
+    height: handleDiameter,
+    background: "var(--border)",
+    border: "none",
+    borderRadius: 999,
+    opacity: 1,
+    zIndex: 4,
+  };
 
   return (
     <div
@@ -108,6 +128,39 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
         }}
         aria-hidden="true"
       >
+        <Handle
+          type="target"
+          position={Position.Top}
+          id="target-top"
+          style={{
+            ...handleStyleBase,
+            left: topHandleLeft,
+            top: topHandleTop,
+            transform: "translate(-50%, -50%)",
+          }}
+        />
+        <Handle
+          type="source"
+          position={Position.Left}
+          id="source-left"
+          style={{
+            ...handleStyleBase,
+            left: leftHandleLeft,
+            top: leftHandleTop,
+            transform: "translate(-50%, -50%)",
+          }}
+        />
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="source-right"
+          style={{
+            ...handleStyleBase,
+            left: rightHandleLeft,
+            top: rightHandleTop,
+            transform: "translate(-50%, -50%)",
+          }}
+        />
         <svg
           width="100%"
           height="100%"
