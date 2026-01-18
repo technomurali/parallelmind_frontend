@@ -18,6 +18,7 @@ import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import { FileManager } from "../../data/fileManager";
 import { useAutoSave } from "../../hooks/useAutoSave";
+import { marked } from "marked";
 
 /**
  * RightPanel component
@@ -77,6 +78,66 @@ export default function RightPanel() {
   };
 
   const fileManager = useMemo(() => new FileManager(), []);
+  const filePreviewRequestRef = useRef(0);
+
+  const normalizeExtension = (value: unknown): string => {
+    if (typeof value !== "string") return "";
+    return value.trim().replace(/^\./, "").toLowerCase();
+  };
+
+  const TEXT_EXTENSIONS = new Set([
+    "txt",
+    "md",
+    "markdown",
+    "mdx",
+    "json",
+    "csv",
+    "tsv",
+    "yaml",
+    "yml",
+    "xml",
+    "html",
+    "css",
+    "js",
+    "jsx",
+    "ts",
+    "tsx",
+    "log",
+    "ini",
+    "conf",
+    "toml",
+    "env",
+    "py",
+    "java",
+    "go",
+    "rs",
+    "c",
+    "cpp",
+    "h",
+    "hpp",
+    "cs",
+    "php",
+    "rb",
+    "sh",
+    "bat",
+    "ps1",
+    "sql",
+  ]);
+
+  const isMarkdownExtension = (ext: string): boolean =>
+    ext === "md" || ext === "markdown";
+
+  const isTextExtension = (ext: string): boolean =>
+    !!ext && TEXT_EXTENSIONS.has(ext);
+
+  const isTextMime = (mimeType: string): boolean => {
+    const lower = (mimeType ?? "").toLowerCase();
+    if (!lower) return false;
+    if (lower.startsWith("text/")) return true;
+    if (lower.includes("json") || lower.includes("xml")) return true;
+    if (lower.includes("yaml") || lower.includes("markdown")) return true;
+    return false;
+  };
 
   // Draft state lives only in this container to satisfy "single container rule".
   const [draft, setDraft] = useState({
@@ -84,6 +145,11 @@ export default function RightPanel() {
     purpose: "",
     details: "",
   });
+  const [filePreview, setFilePreview] = useState<{
+    status: "idle" | "loading" | "ready" | "empty" | "ineligible" | "error";
+    content: string;
+    isMarkdown: boolean;
+  }>({ status: "idle", content: "", isMarkdown: false });
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
   );
@@ -172,6 +238,17 @@ export default function RightPanel() {
     (selectedNode?.data as any)?.node_type === "folder" ||
     (selectedNode?.data as any)?.type === "folder" ||
     selectedNode?.type === "rootFolder";
+  const isFileNode =
+    (selectedNode?.data as any)?.node_type === "file" ||
+    (selectedNode?.data as any)?.type === "file" ||
+    selectedNode?.type === "file";
+  const selectedNodePath =
+    typeof (selectedNode?.data as any)?.path === "string"
+      ? ((selectedNode?.data as any)?.path as string).trim()
+      : "";
+  const selectedNodeExtension =
+    normalizeExtension((selectedNode?.data as any)?.extension) ||
+    normalizeExtension(selectedNodePath.split(".").pop());
 
   const findFolderNodeById = (
     list: any[],
@@ -256,6 +333,88 @@ export default function RightPanel() {
     resizeTextarea(purposeTextareaRef.current);
     resizeTextarea(detailsTextareaRef.current);
   }, [draft.purpose, draft.details, selectedNodeId]);
+
+  useEffect(() => {
+    const requestId = ++filePreviewRequestRef.current;
+
+    const resetPreview = (status: "idle" | "ineligible" | "error") => {
+      setFilePreview({ status, content: "", isMarkdown: false });
+    };
+
+    if (!selectedNodeId || !selectedNode || !isFileNode) {
+      resetPreview("idle");
+      return;
+    }
+
+    const nodePath = selectedNodePath;
+    const extensionValue = selectedNodeExtension;
+    const isMarkdown = isMarkdownExtension(extensionValue);
+    const extensionEligible = isTextExtension(extensionValue) || isMarkdown;
+
+    if (!nodePath) {
+      resetPreview("ineligible");
+      return;
+    }
+
+    const load = async () => {
+      setFilePreview({ status: "loading", content: "", isMarkdown });
+
+      try {
+        if (rootDirectoryHandle) {
+          const file = await fileManager.getFileFromHandle({
+            rootHandle: rootDirectoryHandle,
+            relPath: nodePath,
+          });
+          const mimeType = file.type ?? "";
+          const eligible =
+            isMarkdown || extensionEligible || isTextMime(mimeType);
+          if (!eligible) {
+            resetPreview("ineligible");
+            return;
+          }
+          const content = await file.text();
+          if (filePreviewRequestRef.current !== requestId) return;
+          setFilePreview({
+            status: content ? "ready" : "empty",
+            content,
+            isMarkdown,
+          });
+          return;
+        }
+
+        if (!extensionEligible) {
+          resetPreview("ineligible");
+          return;
+        }
+
+        const content = await fileManager.readTextFileFromPath(nodePath);
+        if (filePreviewRequestRef.current !== requestId) return;
+        setFilePreview({
+          status: content ? "ready" : "empty",
+          content,
+          isMarkdown,
+        });
+      } catch (error) {
+        console.error("[RightPanel] Failed to load file content:", error);
+        if (filePreviewRequestRef.current !== requestId) return;
+        resetPreview("error");
+      }
+    };
+
+    void load();
+  }, [
+    selectedNodeId,
+    selectedNodePath,
+    selectedNodeExtension,
+    isFileNode,
+    rootDirectoryHandle,
+    fileManager,
+  ]);
+
+  const markdownHtml = useMemo(() => {
+    if (!filePreview.isMarkdown || !filePreview.content) return "";
+    return marked.parse(filePreview.content);
+  }, [filePreview.content, filePreview.isMarkdown]);
 
   // Save callback: updates in-memory state and persists only when we already have a persistence mechanism.
   const commitSave = async () => {
@@ -952,6 +1111,69 @@ export default function RightPanel() {
                     />
                   )}
                 </label>
+                {isFileNode &&
+                  filePreview.status !== "idle" &&
+                  filePreview.status !== "ineligible" && (
+                    <div
+                      style={{
+                        borderRadius: "var(--radius-md)",
+                        border: "var(--border-width) solid var(--border)",
+                        background: "var(--surface-2)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: "8px 10px",
+                          fontWeight: 600,
+                          fontSize: "0.85rem",
+                          borderBottom: "var(--border-width) solid var(--border)",
+                          background: "var(--surface-1)",
+                        }}
+                      >
+                        {uiText.fields.nodeDetails.fileContent}
+                      </div>
+                      <div
+                        style={{
+                          padding: "10px",
+                          maxHeight: "240px",
+                          overflow: "auto",
+                          fontSize: "0.85rem",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {filePreview.status === "loading" && (
+                          <div>{uiText.statusMessages.loading}</div>
+                        )}
+                        {filePreview.status === "error" && (
+                          <div>{uiText.placeholders.fileContentUnavailable}</div>
+                        )}
+                        {filePreview.status === "empty" && (
+                          <div>{uiText.placeholders.fileContentEmpty}</div>
+                        )}
+                        {filePreview.status === "ready" &&
+                          (filePreview.isMarkdown ? (
+                            <div
+                              style={{ whiteSpace: "normal" }}
+                              dangerouslySetInnerHTML={{ __html: markdownHtml }}
+                            />
+                          ) : (
+                            <pre
+                              style={{
+                                margin: 0,
+                                whiteSpace: "pre-wrap",
+                                wordBreak: "break-word",
+                                fontFamily:
+                                  "var(--font-family-mono, ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace)",
+                              }}
+                            >
+                              {filePreview.content}
+                            </pre>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
                 {isDecisionNode && (
                   <label
                     style={{

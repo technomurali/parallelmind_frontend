@@ -195,6 +195,22 @@ export class FileManager {
     return current;
   }
 
+  private async getFileHandleByRelPath(
+    rootHandle: FileSystemDirectoryHandle,
+    relPath: string
+  ): Promise<FileSystemFileHandle> {
+    const parts = this.splitRelPath(relPath);
+    const fileName = parts.pop();
+    if (!fileName) {
+      throw new Error("File path is missing a filename.");
+    }
+    const dirRel = parts.join("/");
+    const dirHandle = dirRel
+      ? await this.getDirectoryHandleByRelPath(rootHandle, dirRel)
+      : rootHandle;
+    return await dirHandle.getFileHandle(fileName, { create: false });
+  }
+
   private findFolderById(
     nodes: IndexNode[],
     parentId: string
@@ -1176,6 +1192,32 @@ export class FileManager {
     }
 
     return null;
+  }
+
+  async getFileFromHandle(args: {
+    rootHandle: FileSystemDirectoryHandle;
+    relPath: string;
+  }): Promise<File> {
+    const { rootHandle, relPath } = args;
+    const fileHandle = await this.getFileHandleByRelPath(rootHandle, relPath);
+    return await fileHandle.getFile();
+  }
+
+  async readTextFileFromHandle(args: {
+    rootHandle: FileSystemDirectoryHandle;
+    relPath: string;
+  }): Promise<{ content: string; mimeType: string }> {
+    const file = await this.getFileFromHandle(args);
+    const content = await file.text();
+    return { content, mimeType: file.type ?? "" };
+  }
+
+  async readTextFileFromPath(filePath: string): Promise<string> {
+    if (!filePath || typeof filePath !== "string") {
+      throw new Error("File path is required.");
+    }
+    const { readTextFile } = await import("@tauri-apps/plugin-fs");
+    return await readTextFile(filePath);
   }
 
   /**
