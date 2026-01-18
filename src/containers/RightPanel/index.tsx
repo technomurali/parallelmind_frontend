@@ -89,6 +89,10 @@ export default function RightPanel() {
   );
   const [dirty, setDirty] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [renameActive, setRenameActive] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
 
   // Used to auto-focus and visually guide the user when name is mandatory.
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -110,6 +114,10 @@ export default function RightPanel() {
       setSaveStatus("idle");
       setDirty(false);
       setCreateError(null);
+      setRenameActive(false);
+      setActionError(null);
+      setDeleteConfirmOpen(false);
+      setDeleteInProgress(false);
       lastHydratedSelectedIdRef.current = null;
       return;
     }
@@ -131,6 +139,10 @@ export default function RightPanel() {
       setSaveStatus("idle");
       setDirty(false);
       setCreateError(null);
+      setRenameActive(false);
+      setActionError(null);
+      setDeleteConfirmOpen(false);
+      setDeleteInProgress(false);
     }
     lastHydratedSelectedIdRef.current = selectedNodeId;
   }, [nodes, selectedNodeId]);
@@ -155,6 +167,11 @@ export default function RightPanel() {
     typeof (selectedNode?.data as any)?.parentId === "string"
       ? ((selectedNode?.data as any)?.parentId as string)
       : null;
+  const isRootNode = selectedNodeId === "00";
+  const isFolderNode =
+    (selectedNode?.data as any)?.node_type === "folder" ||
+    (selectedNode?.data as any)?.type === "folder" ||
+    selectedNode?.type === "rootFolder";
 
   const findFolderNodeById = (
     list: any[],
@@ -220,7 +237,9 @@ export default function RightPanel() {
   };
 
   const nameError =
-    isDraftNode && selectedNodeId ? validateNodeNameForDraft(draft.name) : null;
+    (isDraftNode || renameActive) && selectedNodeId
+      ? validateNodeNameForDraft(draft.name)
+      : null;
 
   // Auto-focus the name field when a draft node is selected to guide the required step.
   useEffect(() => {
@@ -265,8 +284,7 @@ export default function RightPanel() {
 
     // Always update in-memory node data (the UI is driven from centralized state).
     updateNodeData(selectedNodeId, {
-      // Store trimmed name to match filesystem expectation and conflict checks.
-      name: draft.name.trim(),
+      ...(isDraftNode ? { name: draft.name.trim() } : {}),
       purpose: draft.purpose,
       details: draft.details,
     });
@@ -529,6 +547,85 @@ export default function RightPanel() {
     }
   };
 
+  const canRenameFolder =
+    isFolderNode && !isRootNode && !isDraftNode && !!selectedNodeId;
+
+  const onRenameFolder = async () => {
+    if (!canRenameFolder || !selectedNodeId || !rootFolderJson) return;
+    setActionError(null);
+    if (!renameActive) {
+      setRenameActive(true);
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+      return;
+    }
+    const err = validateNodeNameForDraft(draft.name);
+    if (err) {
+      setActionError(err);
+      nameInputRef.current?.focus();
+      return;
+    }
+    if (!rootFolderJson.path) {
+      setActionError(uiText.alerts.errorCreateFailed);
+      return;
+    }
+    setSaveStatus("saving");
+    try {
+      const result = await fileManager.renameFolderChildFromPath({
+        dirPath: rootFolderJson.path,
+        existing: rootFolderJson,
+        nodeId: selectedNodeId,
+        newName: draft.name.trim(),
+      });
+      setRoot(null, result.root);
+      setRenameActive(false);
+      setDirty(false);
+      setSaveStatus("saved");
+    } catch (error) {
+      console.error("[RightPanel] Rename folder failed:", error);
+      setActionError(uiText.alerts.errorCreateFailed);
+      setSaveStatus("idle");
+    }
+  };
+
+  const canDeleteFolder =
+    isFolderNode && !isRootNode && !isDraftNode && !!selectedNodeId;
+
+  const onDeleteFolder = async () => {
+    if (!canDeleteFolder || !selectedNodeId || !rootFolderJson) return;
+    setActionError(null);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteFolder = async () => {
+    if (!canDeleteFolder || !selectedNodeId || !rootFolderJson) return;
+    setDeleteInProgress(true);
+    if (!rootFolderJson.path) {
+      setActionError(uiText.alerts.errorDeleteFailed);
+      setDeleteInProgress(false);
+      setDeleteConfirmOpen(false);
+      return;
+    }
+    setSaveStatus("saving");
+    try {
+      const result = await fileManager.deleteFolderChildFromPath({
+        dirPath: rootFolderJson.path,
+        existing: rootFolderJson,
+        nodeId: selectedNodeId,
+      });
+      setRoot(null, result.root);
+      setDirty(false);
+      setSaveStatus("saved");
+      setDeleteConfirmOpen(false);
+    } catch (error) {
+      console.error("[RightPanel] Delete folder failed:", error);
+      setActionError(uiText.alerts.errorDeleteFailed);
+      setSaveStatus("idle");
+    } finally {
+      setDeleteInProgress(false);
+    }
+  };
+
   /**
    * Formats an ISO timestamp into a readable datetime string:
    * YYYY-MM-DD HH:MM:SS (24h).
@@ -746,7 +843,7 @@ export default function RightPanel() {
                       }}
                       placeholder={uiText.placeholders.nodeName}
                       aria-label={uiText.fields.nodeDetails.name}
-                      disabled={!isDraftNode}
+                      disabled={!isDraftNode && !renameActive}
                       style={{
                         // Input fills 100% of its label container.
                         width: "100%",
@@ -755,20 +852,20 @@ export default function RightPanel() {
                         boxSizing: "border-box",
                         borderRadius: "var(--radius-md)",
                         // Visually highlight the required field for draft nodes.
-                        border: isDraftNode
+                        border: isDraftNode || renameActive
                           ? "var(--border-width) solid var(--primary-color)"
                           : "var(--border-width) solid var(--border)",
                         padding: "var(--space-2)",
-                        background: isDraftNode
+                        background: isDraftNode || renameActive
                           ? "var(--surface-1)"
                           : "var(--surface-2)",
                         color: "var(--text)",
                         fontFamily: "var(--font-family)",
-                        boxShadow: isDraftNode
+                        boxShadow: isDraftNode || renameActive
                           ? "0 0 0 2px rgba(100, 108, 255, 0.2)"
                           : "none",
-                        cursor: isDraftNode ? "text" : "not-allowed",
-                        opacity: isDraftNode ? 1 : 0.7,
+                        cursor: isDraftNode || renameActive ? "text" : "not-allowed",
+                        opacity: isDraftNode || renameActive ? 1 : 0.7,
                       }}
                     />
                     {/* Name validation message (draft nodes only). */}
@@ -938,6 +1035,69 @@ export default function RightPanel() {
                 </div>
               )}
 
+              {canRenameFolder || canDeleteFolder ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-2)",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {canRenameFolder && (
+                    <button
+                      type="button"
+                      onClick={() => void onRenameFolder()}
+                      style={{
+                        borderRadius: "999px",
+                        border: "var(--border-width) solid var(--border)",
+                        background: renameActive
+                          ? "var(--surface-1)"
+                          : "var(--surface-2)",
+                        color: "var(--text)",
+                        padding: "4px 12px",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {renameActive ? uiText.buttons.save : uiText.buttons.rename}
+                    </button>
+                  )}
+                  {canDeleteFolder && (
+                    <button
+                      type="button"
+                      onClick={() => void onDeleteFolder()}
+                      disabled={deleteInProgress}
+                      style={{
+                        borderRadius: "999px",
+                        border: "var(--border-width) solid var(--border)",
+                        background: "var(--surface-2)",
+                        color: "var(--danger, #e5484d)",
+                        padding: "4px 12px",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        cursor: deleteInProgress ? "not-allowed" : "pointer",
+                        opacity: deleteInProgress ? 0.6 : 1,
+                      }}
+                    >
+                      {uiText.buttons.delete}
+                    </button>
+                  )}
+                  {actionError && (
+                    <div
+                      style={{
+                        fontSize: "0.8em",
+                        color: "var(--danger, #e5484d)",
+                        opacity: 0.95,
+                      }}
+                    >
+                      {actionError}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
               {/* Read-only timestamps (root only). Kept small and easy to scan. */}
               {selectedNodeId === "00" && (
                 <div
@@ -980,6 +1140,81 @@ export default function RightPanel() {
         </div>
       ) : (
         <div className="pm-panel__collapsed" aria-hidden="true" />
+      )}
+      {deleteConfirmOpen && (
+        <div
+          role="dialog"
+          aria-label={uiText.alerts.confirmDeleteFolder}
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.4)",
+            zIndex: 80,
+            padding: "var(--space-3)",
+          }}
+        >
+          <div
+            style={{
+              minWidth: 220,
+              maxWidth: 320,
+              borderRadius: "var(--radius-md)",
+              border: "var(--border-width) solid var(--border)",
+              background: "var(--surface-2)",
+              color: "var(--text)",
+              padding: "12px",
+              boxShadow: "0 12px 28px rgba(0,0,0,0.35)",
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: "8px" }}>
+              {uiText.alerts.confirmDeleteFolder}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "8px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(false)}
+                style={{
+                  borderRadius: "999px",
+                  border: "var(--border-width) solid var(--border)",
+                  background: "var(--surface-1)",
+                  color: "var(--text)",
+                  padding: "4px 12px",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {uiText.buttons.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeleteFolder()}
+                disabled={deleteInProgress}
+                style={{
+                  borderRadius: "999px",
+                  border: "var(--border-width) solid var(--border)",
+                  background: "var(--surface-2)",
+                  color: "var(--danger, #e5484d)",
+                  padding: "4px 12px",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  cursor: deleteInProgress ? "not-allowed" : "pointer",
+                  opacity: deleteInProgress ? 0.6 : 1,
+                }}
+              >
+                {uiText.buttons.delete}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </aside>
   );

@@ -157,6 +157,25 @@ export class FileManager {
     return p ? `${p}/${c}` : c;
   }
 
+  private parentPathFromPath(pathValue: string): string {
+    const raw = (pathValue ?? "").replace(/[\\/]+$/, "");
+    const sep = raw.includes("\\") ? "\\" : "/";
+    const idx = raw.lastIndexOf(sep);
+    if (idx <= 0) return "";
+    return raw.slice(0, idx);
+  }
+
+  private replacePathPrefix(pathValue: string, oldPrefix: string, nextPrefix: string): string {
+    if (!pathValue) return pathValue;
+    if (pathValue === oldPrefix) return nextPrefix;
+    const sep = oldPrefix.includes("\\") ? "\\" : "/";
+    const prefix = oldPrefix.endsWith(sep) ? oldPrefix : `${oldPrefix}${sep}`;
+    if (pathValue.startsWith(prefix)) {
+      return `${nextPrefix}${pathValue.slice(oldPrefix.length)}`;
+    }
+    return pathValue;
+  }
+
   private splitRelPath(relPath: string): string[] {
     return (relPath ?? "")
       .split(/[\\/]/)
@@ -189,6 +208,124 @@ export class FileManager {
       }
     }
     return null;
+  }
+
+  private findNodeById(nodes: IndexNode[], nodeId: string): IndexNode | null {
+    for (const node of nodes ?? []) {
+      if (!node || typeof node !== "object") continue;
+      if (node.id === nodeId) return node;
+      if (this.isFolderNode(node)) {
+        const nested = this.findNodeById(node.child ?? [], nodeId);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  }
+
+  private collectNodeIds(node: IndexNode | null, out: Set<string>) {
+    if (!node) return;
+    if (typeof node.id === "string") out.add(node.id);
+    if (this.isFolderNode(node)) {
+      (node.child ?? []).forEach((child) => this.collectNodeIds(child, out));
+    }
+  }
+
+  private updateSubtreePaths(args: {
+    node: IndexNode;
+    oldPrefix: string;
+    nextPrefix: string;
+    now: string;
+  }): IndexNode {
+    const { node, oldPrefix, nextPrefix, now } = args;
+    if (this.isFolderNode(node)) {
+      const nextPath = this.replacePathPrefix(node.path, oldPrefix, nextPrefix);
+      return {
+        ...node,
+        path: nextPath,
+        updated_on: now,
+        child: (node.child ?? []).map((child) =>
+          this.updateSubtreePaths({ node: child, oldPrefix, nextPrefix, now })
+        ),
+      };
+    }
+    return {
+      ...node,
+      path: this.replacePathPrefix(node.path, oldPrefix, nextPrefix),
+      updated_on: now,
+    };
+  }
+
+  private renameFolderInTree(args: {
+    nodes: IndexNode[];
+    nodeId: string;
+    newName: string;
+    now: string;
+  }): { nodes: IndexNode[]; renamed: IndexFolderNode | null; oldPath: string | null } {
+    const { nodes, nodeId, newName, now } = args;
+    let renamed: IndexFolderNode | null = null;
+    let oldPath: string | null = null;
+    const nextNodes = (nodes ?? []).map((node) => {
+      if (!node || typeof node !== "object") return node;
+      if (this.isFolderNode(node)) {
+        if (node.id === nodeId) {
+          oldPath = node.path;
+          const parentPath = this.parentPathFromPath(node.path);
+          const nextPath = parentPath
+            ? this.joinPath(parentPath, newName)
+            : this.joinRel("", newName);
+          const updated = this.updateSubtreePaths({
+            node: { ...node, name: newName, path: nextPath },
+            oldPrefix: node.path,
+            nextPrefix: nextPath,
+            now,
+          }) as IndexFolderNode;
+          renamed = updated;
+          return updated;
+        }
+        const nextChildren = this.renameFolderInTree({
+          nodes: node.child ?? [],
+          nodeId,
+          newName,
+          now,
+        });
+        if (nextChildren.renamed) {
+          renamed = nextChildren.renamed;
+          oldPath = nextChildren.oldPath;
+          return { ...node, child: nextChildren.nodes };
+        }
+      }
+      return node;
+    });
+    return { nodes: nextNodes, renamed, oldPath };
+  }
+
+  private removeFolderFromTree(args: {
+    nodes: IndexNode[];
+    nodeId: string;
+  }): { nodes: IndexNode[]; removed: IndexNode | null } {
+    const { nodes, nodeId } = args;
+    let removed: IndexNode | null = null;
+    const nextNodes = (nodes ?? []).filter((node) => {
+      if (!node || typeof node !== "object") return false;
+      if (node.id === nodeId) {
+        removed = node;
+        return false;
+      }
+      return true;
+    }).map((node) => {
+      if (this.isFolderNode(node)) {
+        const next = this.removeFolderFromTree({
+          nodes: node.child ?? [],
+          nodeId,
+        });
+        if (next.removed) {
+          removed = next.removed;
+          return { ...node, child: next.nodes };
+        }
+      }
+      return node;
+    });
+    return { nodes: nextNodes, removed };
   }
 
   private insertChildFolder(args: {
@@ -1541,6 +1678,90 @@ export class FileManager {
     const fileName = this.getIndexFileNameFromPath(dirPath);
     await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, fileName);
     return { root: updatedRoot, node: childNode };
+  }
+
+  async renameFolderChildFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson;
+    nodeId: string;
+    newName: string;
+  }): Promise<{ root: RootFolderJson; node: IndexFolderNode }> {
+    const { dirPath, existing, nodeId, newName } = args;
+    const now = this.nowIso();
+    const target = this.findNodeById(existing.child ?? [], nodeId);
+    if (!target || !this.isFolderNode(target)) {
+      throw new Error("Folder node not found.");
+    }
+    const oldPath = target.path;
+    if (!oldPath) throw new Error("Folder path not found.");
+    const parentPath = this.parentPathFromPath(oldPath);
+    const nextPath = parentPath ? this.joinPath(parentPath, newName) : this.joinRel("", newName);
+
+    const { rename } = await import("@tauri-apps/plugin-fs");
+    await rename(oldPath, nextPath);
+
+    const updated = this.renameFolderInTree({
+      nodes: existing.child ?? [],
+      nodeId,
+      newName,
+      now,
+    });
+    if (!updated.renamed || !updated.oldPath) {
+      throw new Error("Folder node not found.");
+    }
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      path: dirPath,
+      updated_on: now,
+      child: updated.nodes,
+    };
+    const fileName = this.getIndexFileNameFromPath(dirPath);
+    await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, fileName);
+    return { root: updatedRoot, node: updated.renamed };
+  }
+
+  async deleteFolderChildFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson;
+    nodeId: string;
+  }): Promise<{ root: RootFolderJson; removedIds: string[] }> {
+    const { dirPath, existing, nodeId } = args;
+    const now = this.nowIso();
+    const target = this.findNodeById(existing.child ?? [], nodeId);
+    if (!target || !this.isFolderNode(target)) {
+      throw new Error("Folder node not found.");
+    }
+    const targetPath = target.path;
+    if (!targetPath) throw new Error("Folder path not found.");
+    const { remove } = await import("@tauri-apps/plugin-fs");
+    await remove(targetPath, { recursive: true });
+
+    const removedIds = new Set<string>();
+    this.collectNodeIds(target, removedIds);
+    const updated = this.removeFolderFromTree({
+      nodes: existing.child ?? [],
+      nodeId,
+    });
+    if (!updated.removed) {
+      throw new Error("Folder node not found.");
+    }
+    const nextPositions = { ...(existing.node_positions ?? {}) };
+    const nextSizes = { ...(existing.node_size ?? {}) };
+    removedIds.forEach((id) => {
+      delete nextPositions[id];
+      delete nextSizes[id];
+    });
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      path: dirPath,
+      updated_on: now,
+      child: updated.nodes,
+      node_positions: nextPositions,
+      node_size: nextSizes,
+    };
+    const fileName = this.getIndexFileNameFromPath(dirPath);
+    await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, fileName);
+    return { root: updatedRoot, removedIds: Array.from(removedIds) };
   }
 
   async appendRootErrorMessageFromHandle(args: {
