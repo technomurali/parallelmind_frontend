@@ -38,7 +38,7 @@ import {
 import RootFolderNode from "./RootFolderNode";
 import FileNode from "./FileNode";
 import DecisionNode from "./DecisionNode";
-import PortraitImage from "./PortraitImage";
+import ImageNode from "./ImageNode";
 
 /**
  * MindMap component
@@ -81,6 +81,7 @@ export default function MindMap() {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasBodyRef = useRef<HTMLDivElement | null>(null);
   const spacingPanelRef = useRef<HTMLDivElement | null>(null);
+  const lastMousePositionRef = useRef({ x: 0, y: 0 });
   const spacingDragRef = useRef<{
     active: boolean;
     offsetX: number;
@@ -159,7 +160,7 @@ export default function MindMap() {
       rootFolder: RootFolderNode,
       file: FileNode,
       decision: DecisionNode,
-      portraitImage: PortraitImage,
+      polaroidImage: ImageNode,
     }),
     []
   );
@@ -170,6 +171,54 @@ export default function MindMap() {
       type: edgeType,
     }));
   }, [edges, settings.appearance.edgeStyle]);
+
+  const getPolaroidDimensions = (width: number, height: number) => {
+    const maxWidth = 280;
+    const padding = 12;
+    const captionGap = 12;
+    const captionHeight = 28;
+    const safeWidth = Math.max(1, width);
+    const safeHeight = Math.max(1, height);
+    const scale = Math.min(1, maxWidth / safeWidth);
+    const imageWidth = Math.round(safeWidth * scale);
+    const imageHeight = Math.round(safeHeight * scale);
+    return {
+      nodeWidth: imageWidth + padding * 2,
+      nodeHeight: imageHeight + padding * 2 + captionGap + captionHeight,
+      imageWidth,
+      imageHeight,
+    };
+  };
+
+  const renderedNodes = useMemo(() => {
+    if (!nodes?.length) return nodes;
+    return nodes.map((node: any) => {
+      if (node?.type !== "portraitImage" && node?.type !== "landscapeImage") {
+        return node;
+      }
+      const imageWidth =
+        typeof node?.data?.imageWidth === "number" ? node.data.imageWidth : 0;
+      const imageHeight =
+        typeof node?.data?.imageHeight === "number" ? node.data.imageHeight : 0;
+      const { nodeWidth, nodeHeight } =
+        imageWidth > 0 && imageHeight > 0
+          ? getPolaroidDimensions(imageWidth, imageHeight)
+          : { nodeWidth: undefined, nodeHeight: undefined };
+      return {
+        ...node,
+        type: "polaroidImage",
+        data: {
+          ...(node.data ?? {}),
+          type: "polaroidImage",
+          node_type: "polaroidImage",
+        },
+        style:
+          typeof nodeWidth === "number" && typeof nodeHeight === "number"
+            ? { ...(node.style ?? {}), width: nodeWidth, height: nodeHeight }
+            : node.style,
+      };
+    });
+  }, [nodes]);
 
   const isTauri = () =>
     typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
@@ -443,6 +492,55 @@ export default function MindMap() {
     setIsPanning(false);
   };
 
+  const createImageNode = (args: {
+    flowPos: { x: number; y: number };
+    type: "polaroidImage";
+    imageSrc?: string;
+    imageWidth?: number;
+    imageHeight?: number;
+    nodeWidth?: number;
+    nodeHeight?: number;
+    caption?: string;
+  }) => {
+    const imageNodeId = `${args.type}_${Date.now()}_${Math.random()
+      .toString(16)
+      .slice(2)}`;
+    const imageNode: Node = {
+      id: imageNodeId,
+      type: args.type,
+      position: args.flowPos,
+      style:
+        typeof args.nodeWidth === "number" && typeof args.nodeHeight === "number"
+          ? { width: args.nodeWidth, height: args.nodeHeight }
+          : undefined,
+      data: {
+        type: args.type,
+        node_type: args.type,
+        ...(args.imageSrc
+          ? {
+              imageSrc: args.imageSrc,
+              imageWidth: args.imageWidth,
+              imageHeight: args.imageHeight,
+              nodeWidth: args.nodeWidth,
+              nodeHeight: args.nodeHeight,
+            }
+          : {}),
+        ...(args.caption ? { caption: args.caption } : {}),
+        nonPersistent: true,
+      },
+      selected: true,
+    };
+    const next = [
+      ...(nodes ?? []).map((n: any) => ({
+        ...n,
+        selected: n?.id === imageNodeId,
+      })),
+      imageNode,
+    ];
+    setNodes(next);
+    selectNode(imageNodeId);
+  };
+
   /**
    * Right-click context menu for the canvas/pane.
    *
@@ -611,12 +709,14 @@ export default function MindMap() {
   }, [zoomViewActive]);
 
   useEffect(() => {
+    if (!rf) return;
     const el = canvasBodyRef.current;
-    if (!el || !rf) return;
+    if (!el) return;
 
     const onPaste = (event: ClipboardEvent) => {
-      const activeEl = document.activeElement;
-      if (activeEl !== el) return;
+      const target = event.target as HTMLElement | null;
+      if (document.activeElement !== el && !el.contains(target)) return;
+
       const items = event.clipboardData?.items ?? [];
       const imageItem = Array.from(items).find((item) =>
         item.type.startsWith("image/")
@@ -626,53 +726,42 @@ export default function MindMap() {
       if (!file) return;
       event.preventDefault();
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = typeof reader.result === "string" ? reader.result : "";
-        if (!dataUrl) return;
-        const img = new Image();
-        img.onload = () => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const { nodeWidth, nodeHeight } = getPolaroidDimensions(
+          img.naturalWidth,
+          img.naturalHeight
+        );
+        const lastPos = lastMousePositionRef.current;
+        let flowPos = rf.screenToFlowPosition(lastPos);
+        if (!lastPos.x && !lastPos.y) {
           const rect = el.getBoundingClientRect();
           const center = {
             x: rect.left + rect.width / 2,
             y: rect.top + rect.height / 2,
           };
-          const flowPos = rf.screenToFlowPosition(center);
-          const imageNodeId = `portraitImage_${Date.now()}_${Math.random()
-            .toString(16)
-            .slice(2)}`;
-          const imageNode: Node = {
-            id: imageNodeId,
-            type: "portraitImage",
-            position: flowPos,
-            data: {
-              type: "portraitImage",
-              node_type: "portraitImage",
-              imageSrc: dataUrl,
-              imageWidth: img.width,
-              imageHeight: img.height,
-              nonPersistent: true,
-            },
-            selected: true,
-          };
-          const next = [
-            ...(nodes ?? []).map((n: any) => ({
-              ...n,
-              selected: n?.id === imageNodeId,
-            })),
-            imageNode,
-          ];
-          setNodes(next);
-          selectNode(imageNodeId);
-        };
-        img.src = dataUrl;
+          flowPos = rf.screenToFlowPosition(center);
+        }
+        createImageNode({
+          flowPos,
+          type: "polaroidImage",
+          imageSrc: url,
+          imageWidth: img.naturalWidth,
+          imageHeight: img.naturalHeight,
+          nodeWidth,
+          nodeHeight,
+        });
       };
-      reader.readAsDataURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
     };
 
-    el.addEventListener("paste", onPaste);
+    document.addEventListener("paste", onPaste);
     return () => {
-      el.removeEventListener("paste", onPaste);
+      document.removeEventListener("paste", onPaste);
     };
   }, [rf, nodes, setNodes, selectNode]);
 
@@ -1252,6 +1341,12 @@ export default function MindMap() {
           tabIndex={0}
           onMouseDown={onCanvasMouseDown}
           onMouseUp={onCanvasMouseUp}
+          onMouseMove={(event) => {
+            lastMousePositionRef.current = {
+              x: event.clientX,
+              y: event.clientY,
+            };
+          }}
         >
           {spacingPanel.open && (
             <div
@@ -1407,7 +1502,7 @@ export default function MindMap() {
             </div>
           )}
           <ReactFlow
-            nodes={nodes}
+            nodes={renderedNodes}
             edges={renderedEdges}
             fitView
             nodeTypes={nodeTypes}
@@ -1656,7 +1751,7 @@ export default function MindMap() {
                 {uiText.contextMenus.canvas.newFile}
               </button>
 
-              {/* New Image Node */}
+              {/* New Polaroid Image */}
               <button
                 type="button"
                 role="menuitem"
@@ -1664,35 +1759,7 @@ export default function MindMap() {
                   const flowPos = paneMenu.flowPos;
                   closePaneMenu();
                   if (!flowPos) return;
-
-                  const imageNodeId = `portraitImage_${Date.now()}_${Math.random()
-                    .toString(16)
-                    .slice(2)}`;
-
-                  const imageNode: Node = {
-                    id: imageNodeId,
-                    type: "portraitImage",
-                    position: flowPos,
-                    data: {
-                      type: "portraitImage",
-                      node_type: "portraitImage",
-                      name: "",
-                      purpose: "",
-                      nonPersistent: true,
-                    },
-                    selected: true,
-                  };
-
-                  const existing = nodes ?? [];
-                  const next = [
-                    ...existing.map((n: any) => ({
-                      ...n,
-                      selected: n?.id === imageNodeId,
-                    })),
-                    imageNode,
-                  ];
-                  setNodes(next);
-                  selectNode(imageNodeId);
+                  createImageNode({ flowPos, type: "polaroidImage" });
                 }}
                 style={{
                   width: "100%",
@@ -1716,7 +1783,7 @@ export default function MindMap() {
                     "transparent";
                 }}
               >
-                {uiText.contextMenus.canvas.newPortraitImage}
+                {uiText.contextMenus.canvas.newPolaroidImage}
               </button>
 
               {/* New Decision */}

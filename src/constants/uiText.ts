@@ -286,7 +286,7 @@ export const uiText = {
       clearSelection: 'Clear Selection',
       newFile: 'New File',
       newFolder: 'New Folder',
-      newPortraitImage: 'Portrait Image',
+      newPolaroidImage: 'Polaroid Image',
       newDecision: 'Decision',
       fitView: 'Fit View',
       zoomIn: 'Zoom In',
