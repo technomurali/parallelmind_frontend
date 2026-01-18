@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
+  type Edge,
   type EdgeChange,
   type Node,
   type NodeChange,
@@ -93,6 +94,8 @@ export default function MindMap() {
   const [layoutSaveStatus, setLayoutSaveStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const [showParentPath, setShowParentPath] = useState(false);
+  const [showChildrenPath, setShowChildrenPath] = useState(false);
   const [pendingNodePositions, setPendingNodePositions] = useState<
     Record<string, { x: number; y: number }> | null
   >(null);
@@ -164,13 +167,65 @@ export default function MindMap() {
     }),
     []
   );
+  const parentPath = useMemo(() => {
+    if (!showParentPath || !selectedNodeId) {
+      return { nodeIds: new Set<string>(), edgeIds: new Set<string>() };
+    }
+    const edgeByTarget = new Map<string, Edge>();
+    (edges ?? []).forEach((edge: any) => {
+      if (edge?.target && edge?.source) {
+        edgeByTarget.set(edge.target, edge);
+      }
+    });
+    const nodeIds = new Set<string>();
+    const edgeIds = new Set<string>();
+    let currentId: string | null = selectedNodeId;
+    while (currentId && edgeByTarget.has(currentId)) {
+      const edge = edgeByTarget.get(currentId);
+      if (!edge) break;
+      edgeIds.add(edge.id);
+      nodeIds.add(edge.source);
+      currentId = edge.source;
+    }
+    return { nodeIds, edgeIds };
+  }, [edges, selectedNodeId, showParentPath]);
+
+  const childrenPath = useMemo(() => {
+    if (!showChildrenPath || !selectedNodeId) {
+      return { nodeIds: new Set<string>(), edgeIds: new Set<string>() };
+    }
+    const nodeIds = new Set<string>();
+    const edgeIds = new Set<string>();
+    (edges ?? []).forEach((edge: any) => {
+      if (edge?.source === selectedNodeId && edge?.target) {
+        edgeIds.add(edge.id);
+        nodeIds.add(edge.target);
+      }
+    });
+    return { nodeIds, edgeIds };
+  }, [edges, selectedNodeId, showChildrenPath]);
+
   const renderedEdges = useMemo(() => {
     const edgeType = settings.appearance.edgeStyle || "default";
-    return (edges ?? []).map((edge: any) => ({
-      ...edge,
-      type: edgeType,
-    }));
-  }, [edges, settings.appearance.edgeStyle]);
+    return (edges ?? []).map((edge: any) => {
+      const highlight =
+        parentPath.edgeIds.has(edge?.id) || childrenPath.edgeIds.has(edge?.id);
+      return {
+        ...edge,
+        type: edgeType,
+        animated: highlight,
+        style: highlight
+          ? {
+              ...(edge?.style ?? {}),
+              stroke: "rgba(57, 255, 235, 0.95)",
+              strokeWidth: 3,
+              strokeDasharray: "8 6",
+              filter: "drop-shadow(0 0 6px rgba(57, 255, 235, 0.8))",
+            }
+          : edge?.style,
+      };
+    });
+  }, [edges, parentPath.edgeIds, childrenPath.edgeIds, settings.appearance.edgeStyle]);
 
   const FILE_NODE_BASE_WIDTH = 125;
   const DEFAULT_IMAGE_WIDTH_RATIO = 0.8;
@@ -196,8 +251,22 @@ export default function MindMap() {
   const renderedNodes = useMemo(() => {
     if (!nodes?.length) return nodes;
     return nodes.map((node: any) => {
+      const highlight =
+        parentPath.nodeIds.has(node?.id) || childrenPath.nodeIds.has(node?.id);
+      const highlightStyle = highlight
+        ? {
+            boxShadow: "0 0 12px rgba(57, 255, 235, 0.9)",
+            borderColor: "rgba(57, 255, 235, 0.9)",
+          }
+        : null;
+
       if (node?.type !== "polaroidImage") {
-        return node;
+        return {
+          ...node,
+          style: highlightStyle
+            ? { ...(node.style ?? {}), ...highlightStyle }
+            : node.style,
+        };
       }
       const imageWidth =
         typeof node?.data?.imageWidth === "number" ? node.data.imageWidth : 0;
@@ -207,6 +276,10 @@ export default function MindMap() {
         imageWidth > 0 && imageHeight > 0
           ? getPolaroidDimensions(imageWidth, imageHeight)
           : { nodeWidth: undefined, nodeHeight: undefined };
+      const sizeStyle =
+        typeof nodeWidth === "number" && typeof nodeHeight === "number"
+          ? { ...(node.style ?? {}), width: nodeWidth, height: nodeHeight }
+          : node.style;
       return {
         ...node,
         type: "polaroidImage",
@@ -215,13 +288,10 @@ export default function MindMap() {
           type: "polaroidImage",
           node_type: "polaroidImage",
         },
-        style:
-          typeof nodeWidth === "number" && typeof nodeHeight === "number"
-            ? { ...(node.style ?? {}), width: nodeWidth, height: nodeHeight }
-            : node.style,
+        style: highlightStyle ? { ...(sizeStyle ?? {}), ...highlightStyle } : sizeStyle,
       };
     });
-  }, [nodes]);
+  }, [nodes, parentPath.nodeIds, childrenPath.nodeIds]);
 
   const isTauri = () =>
     typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
@@ -1973,6 +2043,68 @@ export default function MindMap() {
                 padding: "6px",
               }}
             >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setShowParentPath((prev) => !prev);
+                  closeContextMenu();
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-family)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+              >
+                {showParentPath
+                  ? uiText.contextMenus.node.hideParentPath
+                  : uiText.contextMenus.node.showParentPath}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setShowChildrenPath((prev) => !prev);
+                  closeContextMenu();
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-family)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+              >
+                {showChildrenPath
+                  ? uiText.contextMenus.node.hideChildren
+                  : uiText.contextMenus.node.showChildren}
+              </button>
               {contextMenu.node && isFolderNode(contextMenu.node) && (
                 <>
                   {isTauri() && (

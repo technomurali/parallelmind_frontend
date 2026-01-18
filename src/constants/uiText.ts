@@ -265,6 +265,10 @@ export const uiText = {
       paste: 'Paste',
       export: 'Export',
       properties: 'Properties',
+      showParentPath: 'Show Parent path',
+      hideParentPath: 'Hide Parent path',
+      showChildren: 'Show children',
+      hideChildren: 'Hide children',
     },
     folder: {
       openFolder: 'Open Folder',
