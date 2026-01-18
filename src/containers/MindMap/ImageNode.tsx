@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { NodeProps } from "reactflow";
+import { Handle, NodeResizer, Position, type NodeProps } from "reactflow";
 import { useMindMapStore } from "../../store/mindMapStore";
 
 const MAX_IMAGE_WIDTH = 280;
@@ -104,6 +104,14 @@ export default function ImageNode({
     0,
     size.h - (FRAME_PADDING * 2 + CAPTION_GAP + CAPTION_HEIGHT)
   );
+  const handleWidth = 18;
+  const handleHeight = 9;
+  const handleBaseStyle: React.CSSProperties = {
+    width: handleWidth,
+    height: handleHeight,
+    background: "#d3d3d3",
+    border: "1px solid #bfbfbf",
+  };
 
   return (
     <div
@@ -127,6 +135,47 @@ export default function ImageNode({
         transition: dragging ? "none" : "box-shadow 0.2s ease, border 0.2s ease",
       }}
     >
+      <NodeResizer
+        isVisible={selected}
+        minWidth={160}
+        minHeight={200}
+        onResizeEnd={(_, params) => {
+          if (!params) return;
+          const nextWidth = Math.max(1, Math.round(params.width));
+          const nextHeight = Math.max(1, Math.round(params.height));
+          setSize({ w: nextWidth, h: nextHeight });
+          updateNodeData(id, {
+            nodeWidth: nextWidth,
+            nodeHeight: nextHeight,
+          });
+        }}
+      />
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="target-top"
+        style={{
+          ...handleBaseStyle,
+          top: -10,
+          left: "50%",
+          transform: "translate(-50%, 0)",
+          borderRadius: "9px 9px 0 0",
+          opacity: 0.3,
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="source-bottom"
+        style={{
+          ...handleBaseStyle,
+          bottom: -10,
+          left: "50%",
+          transform: "translate(-50%, 0)",
+          borderRadius: "0 0 9px 9px",
+          opacity: 0.3,
+        }}
+      />
       {imageSrc ? (
         <img
           ref={imgRef}
