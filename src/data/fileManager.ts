@@ -2116,6 +2116,153 @@ export class FileManager {
     return { root: updatedRoot, removedIds: [nodeId] };
   }
 
+  async createImageFileChildFromHandle(args: {
+    dirHandle: FileSystemDirectoryHandle;
+    existing: RootFolderJson;
+    parentNodeId: string;
+    fileName: string; // includes extension
+    imageFile: File;
+    caption?: string;
+    purpose?: string;
+  }): Promise<{ root: RootFolderJson; node: IndexFileNode }> {
+    const { dirHandle, existing, parentNodeId, fileName, imageFile, caption, purpose } = args;
+    const now = this.nowIso();
+    const parentInfo = this.resolveParentInfo({
+      root: existing,
+      parentNodeId,
+    });
+    if (!parentInfo) throw new Error("Parent folder not found.");
+    const nextLevel = parentInfo.level + 1;
+    if (nextLevel > FileManager.MAX_LEVEL) {
+      throw new Error("Maximum folder depth exceeded.");
+    }
+
+    const parentRelPath = parentInfo.path ?? "";
+    const childRelPath = this.joinRel(parentRelPath, fileName);
+    const parentHandle = await this.getDirectoryHandleByRelPath(
+      dirHandle,
+      parentRelPath
+    );
+
+    const fh = await parentHandle.getFileHandle(fileName, { create: true });
+    const writable = await (fh as any).createWritable?.();
+    if (writable) {
+      await writable.write(imageFile);
+      await writable.close();
+    } else {
+      throw new Error("Failed to create image file.");
+    }
+
+    const parts = this.splitFileName(fileName);
+    const childNode: IndexFileNode = {
+      id: this.generateUuid(),
+      name: parts.name,
+      extension: parts.extension,
+      purpose: typeof purpose === "string" ? purpose : (typeof caption === "string" ? caption : ""),
+      type: this.fileTypeForLevel(nextLevel),
+      level: nextLevel as 1 | 2 | 3 | 4,
+      path: childRelPath,
+      created_on: now,
+      updated_on: now,
+      last_viewed_on: now,
+      views: 0,
+    };
+
+    const parentIsRoot = parentNodeId === "00" || parentNodeId === existing.id;
+    const updatedRoot = parentIsRoot
+      ? {
+          ...existing,
+          updated_on: now,
+          child: [...(existing.child ?? []), childNode],
+        }
+      : (() => {
+          const updated = this.insertChildFile({
+            nodes: existing.child ?? [],
+            parentId: parentNodeId,
+            child: childNode,
+            now,
+          });
+          if (!updated.inserted) {
+            throw new Error("Parent folder not found.");
+          }
+          return { ...existing, updated_on: now, child: updated.nodes };
+        })();
+
+    await this.writeRootFolderJson(dirHandle, updatedRoot);
+    return { root: updatedRoot, node: childNode };
+  }
+
+  async createImageFileChildFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson;
+    parentNodeId: string;
+    fileName: string; // includes extension
+    imageFile: File;
+    caption?: string;
+    purpose?: string;
+  }): Promise<{ root: RootFolderJson; node: IndexFileNode }> {
+    const { dirPath, existing, parentNodeId, fileName, imageFile, caption, purpose } = args;
+    const now = this.nowIso();
+    const parentInfo = this.resolveParentInfo({
+      root: { ...existing, path: dirPath },
+      parentNodeId,
+    });
+    if (!parentInfo) throw new Error("Parent folder not found.");
+    const nextLevel = parentInfo.level + 1;
+    if (nextLevel > FileManager.MAX_LEVEL) {
+      throw new Error("Maximum folder depth exceeded.");
+    }
+
+    const parentAbsPath =
+      parentNodeId === "00" || parentNodeId === existing.id
+        ? dirPath
+        : parentInfo.path ?? dirPath;
+    const childAbsPath = this.joinPath(parentAbsPath, fileName);
+
+    const { exists, writeFile } = await import("@tauri-apps/plugin-fs");
+    if (await exists(childAbsPath)) {
+      throw new Error("File already exists.");
+    }
+    const arrayBuffer = await imageFile.arrayBuffer();
+    await writeFile(childAbsPath, new Uint8Array(arrayBuffer));
+
+    const parts = this.splitFileName(fileName);
+    const childNode: IndexFileNode = {
+      id: this.generateUuid(),
+      name: parts.name,
+      extension: parts.extension,
+      purpose: typeof purpose === "string" ? purpose : (typeof caption === "string" ? caption : ""),
+      type: this.fileTypeForLevel(nextLevel),
+      level: nextLevel as 1 | 2 | 3 | 4,
+      path: childAbsPath,
+      created_on: now,
+      updated_on: now,
+      last_viewed_on: now,
+      views: 0,
+    };
+
+    const baseRoot = { ...existing, path: dirPath, updated_on: now };
+    const parentIsRoot = parentNodeId === "00" || parentNodeId === existing.id;
+    const updatedRoot = parentIsRoot
+      ? { ...baseRoot, child: [...(baseRoot.child ?? []), childNode] }
+      : (() => {
+          const updated = this.insertChildFile({
+            nodes: baseRoot.child ?? [],
+            parentId: parentNodeId,
+            child: childNode,
+            now,
+          });
+          if (!updated.inserted) {
+            throw new Error("Parent folder not found.");
+          }
+          return { ...baseRoot, child: updated.nodes };
+        })();
+
+    const indexFileName = this.getIndexFileNameFromPath(dirPath);
+    await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, indexFileName);
+    return { root: updatedRoot, node: childNode };
+  }
+
   async appendRootErrorMessageFromHandle(args: {
     dirHandle: FileSystemDirectoryHandle;
     existing: RootFolderJson | null;

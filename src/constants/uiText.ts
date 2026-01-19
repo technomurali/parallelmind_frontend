@@ -65,6 +65,7 @@ export const uiText = {
   fields: {
     nodeDetails: {
       name: 'Name',
+      caption: 'Caption',
       purpose: 'Purpose',
       sectionTitle: 'File details',
       decisionStatement: 'If & Else Statement',

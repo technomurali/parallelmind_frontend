@@ -577,55 +577,6 @@ export default function MindMap() {
     setIsPanning(false);
   };
 
-  const createImageNode = (args: {
-    flowPos: { x: number; y: number };
-    type: "polaroidImage";
-    imageSrc?: string;
-    imageWidth?: number;
-    imageHeight?: number;
-    nodeWidth?: number;
-    nodeHeight?: number;
-    caption?: string;
-  }) => {
-    const imageNodeId = `${args.type}_${Date.now()}_${Math.random()
-      .toString(16)
-      .slice(2)}`;
-    const imageNode: Node = {
-      id: imageNodeId,
-      type: args.type,
-      position: args.flowPos,
-      style:
-        typeof args.nodeWidth === "number" && typeof args.nodeHeight === "number"
-          ? { width: args.nodeWidth, height: args.nodeHeight }
-          : undefined,
-      data: {
-        type: args.type,
-        node_type: args.type,
-        ...(args.imageSrc
-          ? {
-              imageSrc: args.imageSrc,
-              imageWidth: args.imageWidth,
-              imageHeight: args.imageHeight,
-              nodeWidth: args.nodeWidth,
-              nodeHeight: args.nodeHeight,
-            }
-          : {}),
-        ...(args.caption ? { caption: args.caption } : {}),
-        nonPersistent: true,
-      },
-      selected: true,
-    };
-    const next = [
-      ...(nodes ?? []).map((n: any) => ({
-        ...n,
-        selected: n?.id === imageNodeId,
-      })),
-      imageNode,
-    ];
-    setNodes(next);
-    selectNode(imageNodeId);
-  };
-
   /**
    * Right-click context menu for the canvas/pane.
    *
@@ -811,6 +762,69 @@ export default function MindMap() {
       if (!file) return;
       event.preventDefault();
 
+      // Check if a folder is selected to be the parent, OR if a draft image node is selected (update it)
+      const selectedNode = selectedNodeId
+        ? (nodes ?? []).find((n: any) => n?.id === selectedNodeId)
+        : null;
+      const isDraftImage =
+        selectedNode &&
+        ((selectedNode?.data as any)?.isDraft === true &&
+          ((selectedNode?.data as any)?.node_type === "polaroidImage" ||
+            (selectedNode?.data as any)?.type === "polaroidImage" ||
+            selectedNode?.type === "polaroidImage"));
+      
+      if (isDraftImage) {
+        // Update the selected draft image node with the pasted image
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          const { nodeWidth, nodeHeight } = getPolaroidDimensions(
+            img.naturalWidth,
+            img.naturalHeight
+          );
+          const currentNodes = nodes ?? [];
+          const updatedNodes = currentNodes.map((n: any) => {
+            if (n?.id !== selectedNodeId) return n;
+            return {
+              ...n,
+              data: {
+                ...(n.data ?? {}),
+                imageSrc: url,
+                imageWidth: img.naturalWidth,
+                imageHeight: img.naturalHeight,
+                nodeWidth,
+                nodeHeight,
+                clipboardFile: file,
+                clipboardMimeType: imageItem.type,
+              },
+              style: {
+                ...(n.style ?? {}),
+                width: nodeWidth,
+                height: nodeHeight,
+              },
+            };
+          });
+          setNodes(updatedNodes);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+        };
+        img.src = url;
+        return;
+      }
+
+      const isFolder =
+        selectedNode &&
+        ((selectedNode?.data as any)?.node_type === "folder" ||
+          (selectedNode?.data as any)?.type === "folder" ||
+          selectedNode?.type === "rootFolder");
+      const parentNodeId = isFolder ? selectedNodeId : null;
+
+      if (!parentNodeId) {
+        // No folder selected - ignore paste (or could show a toast/error)
+        return;
+      }
+
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
@@ -828,15 +842,68 @@ export default function MindMap() {
           };
           flowPos = rf.screenToFlowPosition(center);
         }
-        createImageNode({
-          flowPos,
+
+        // Create draft image node with parent edge
+        const tempNodeId = `tmp_image_${Date.now()}_${Math.random()
+          .toString(16)
+          .slice(2)}`;
+        const tempNode: Node = {
+          id: tempNodeId,
           type: "polaroidImage",
-          imageSrc: url,
-          imageWidth: img.naturalWidth,
-          imageHeight: img.naturalHeight,
-          nodeWidth,
-          nodeHeight,
-        });
+          position: flowPos,
+          style: {
+            opacity: 1,
+            transition: "opacity 180ms ease",
+            width: nodeWidth,
+            height: nodeHeight,
+          },
+          data: {
+            type: "polaroidImage",
+            node_type: "polaroidImage",
+            name: "",
+            caption: "",
+            purpose: "",
+            imageSrc: url,
+            imageWidth: img.naturalWidth,
+            imageHeight: img.naturalHeight,
+            nodeWidth,
+            nodeHeight,
+            clipboardFile: file,
+            clipboardMimeType: imageItem.type,
+            parentId: parentNodeId,
+            isDraft: true,
+            nonPersistent: true,
+          },
+          selected: true,
+        };
+        const existing = nodes ?? [];
+        const edgeId = `e_${parentNodeId}_${tempNodeId}`;
+        const nextEdges = (edges ?? []).some(
+          (edge: any) => edge?.id === edgeId
+        )
+          ? edges
+          : [
+              ...(edges ?? []),
+              {
+                id: edgeId,
+                source: parentNodeId,
+                target: tempNodeId,
+                type: "default",
+                style: { opacity: 1, transition: "opacity 180ms ease" },
+                data: { isDraft: true, nonPersistent: true },
+              },
+            ];
+        const next = [
+          ...existing.map((n: any) => ({
+            ...n,
+            selected: n?.id === tempNodeId,
+          })),
+          tempNode,
+        ];
+        setNodes(next);
+        setEdges(nextEdges);
+        setPendingChildCreation({ tempNodeId, parentNodeId });
+        selectNode(tempNodeId);
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -848,7 +915,7 @@ export default function MindMap() {
     return () => {
       document.removeEventListener("paste", onPaste);
     };
-  }, [rf, nodes, setNodes, selectNode]);
+  }, [rf, nodes, edges, setNodes, setEdges, selectNode, selectedNodeId, setPendingChildCreation]);
 
   /**
    * Effect: Create/replace root node when root folder is selected
@@ -920,13 +987,72 @@ export default function MindMap() {
       const preserved =
         storedPositions.get(node.id) ?? existingPositions.get(node.id);
       const sizeValue = sizeMap[node.id];
+      const existingNode = existing.find((n: any) => n?.id === node.id);
+      const existingData = existingNode?.data ?? {};
+      
+      // Runtime fields that should be preserved from existing node data
+      // These are not stored in RootFolderJson and should persist across recompositions
+      const runtimeFields: Record<string, unknown> = {};
+      // Preserve imageSrc only if it's a data URL or http/https URL (not blob URLs which can become invalid)
+      // Blob URLs should be regenerated from path by ImageNode's resolution logic
+      if (typeof existingData.imageSrc === "string") {
+        const imageSrc = existingData.imageSrc;
+        if (imageSrc.startsWith("data:") || imageSrc.startsWith("http://") || imageSrc.startsWith("https://")) {
+          runtimeFields.imageSrc = imageSrc;
+        }
+        // For blob URLs, don't preserve - let ImageNode resolve from path
+      }
+      if (typeof existingData.imageWidth === "number") {
+        runtimeFields.imageWidth = existingData.imageWidth;
+      }
+      if (typeof existingData.imageHeight === "number") {
+        runtimeFields.imageHeight = existingData.imageHeight;
+      }
+      if (typeof existingData.nodeWidth === "number") {
+        runtimeFields.nodeWidth = existingData.nodeWidth;
+      }
+      if (typeof existingData.nodeHeight === "number") {
+        runtimeFields.nodeHeight = existingData.nodeHeight;
+      }
+      if (typeof existingData.caption === "string") {
+        runtimeFields.caption = existingData.caption;
+      }
+      if (existingData.clipboardFile instanceof File) {
+        runtimeFields.clipboardFile = existingData.clipboardFile;
+      }
+      if (typeof existingData.clipboardMimeType === "string") {
+        runtimeFields.clipboardMimeType = existingData.clipboardMimeType;
+      }
+      if (typeof existingData.isDraft === "boolean") {
+        runtimeFields.isDraft = existingData.isDraft;
+      }
+      if (typeof existingData.nonPersistent === "boolean") {
+        runtimeFields.nonPersistent = existingData.nonPersistent;
+      }
+      if (typeof existingData.parentId === "string") {
+        runtimeFields.parentId = existingData.parentId;
+      }
+      
+      // Merge: newly composed data (from RootFolderJson) + preserved runtime fields + node_size
+      // Order matters: RootFolderJson data first (includes updated purpose, path), then runtime fields override
+      const mergedData = {
+        ...(node.data ?? {}),
+        ...runtimeFields,
+        ...(typeof sizeValue === "number" && Number.isFinite(sizeValue)
+          ? { node_size: sizeValue }
+          : {}),
+      };
+      
+      // Preserve style properties (width, height) from existing node if they exist
+      const preservedStyle = existingNode?.style
+        ? { ...(node.style ?? {}), ...existingNode.style }
+        : node.style;
+      
       return {
         ...node,
         position: preserved ?? node.position,
-        data:
-          typeof sizeValue === "number" && Number.isFinite(sizeValue)
-            ? { ...(node.data ?? {}), node_size: sizeValue }
-            : node.data,
+        style: preservedStyle,
+        data: mergedData,
         selected: node.id === selectedNodeId,
       };
     });
@@ -1859,10 +1985,62 @@ export default function MindMap() {
                 role="menuitem"
                 onClick={() => {
                   const flowPos = paneMenu.flowPos;
+                  const parentNodeId = paneMenu.parentNodeId;
                   closePaneMenu();
-                  if (!flowPos) return;
-                  createImageNode({ flowPos, type: "polaroidImage" });
+                  if (!flowPos || !parentNodeId) return;
+                  const tempNodeId = `tmp_image_${Date.now()}_${Math.random()
+                    .toString(16)
+                    .slice(2)}`;
+                  const tempNode: Node = {
+                    id: tempNodeId,
+                    type: "polaroidImage",
+                    position: flowPos,
+                    style: {
+                      opacity: 1,
+                      transition: "opacity 180ms ease",
+                    },
+                    data: {
+                      type: "polaroidImage",
+                      node_type: "polaroidImage",
+                      name: "",
+                      caption: "",
+                      purpose: "",
+                      parentId: parentNodeId,
+                      isDraft: true,
+                      nonPersistent: true,
+                    },
+                    selected: true,
+                  };
+                  const existing = nodes ?? [];
+                  const edgeId = `e_${parentNodeId}_${tempNodeId}`;
+                  const nextEdges = (edges ?? []).some(
+                    (edge: any) => edge?.id === edgeId
+                  )
+                    ? edges
+                    : [
+                        ...(edges ?? []),
+                        {
+                          id: edgeId,
+                          source: parentNodeId,
+                          target: tempNodeId,
+                          type: "default",
+                          style: { opacity: 1, transition: "opacity 180ms ease" },
+                          data: { isDraft: true, nonPersistent: true },
+                        },
+                      ];
+                  const next = [
+                    ...existing.map((n: any) => ({
+                      ...n,
+                      selected: n?.id === tempNodeId,
+                    })),
+                    tempNode,
+                  ];
+                  setNodes(next);
+                  setEdges(nextEdges);
+                  setPendingChildCreation({ tempNodeId, parentNodeId });
+                  selectNode(tempNodeId);
                 }}
+                disabled={!paneMenu.parentNodeId}
                 style={{
                   width: "100%",
                   textAlign: "left",
@@ -1871,12 +2049,14 @@ export default function MindMap() {
                   border: "none",
                   background: "transparent",
                   color: "inherit",
-                  cursor: "pointer",
+                  cursor: paneMenu.parentNodeId ? "pointer" : "not-allowed",
                   fontFamily: "var(--font-family)",
                   whiteSpace: "normal",
                   overflowWrap: "anywhere",
+                  opacity: paneMenu.parentNodeId ? 1 : 0.5,
                 }}
                 onMouseEnter={(e) => {
+                  if (!paneMenu.parentNodeId) return;
                   (e.currentTarget as HTMLButtonElement).style.background =
                     "var(--surface-1)";
                 }}

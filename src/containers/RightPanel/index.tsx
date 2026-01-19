@@ -127,12 +127,17 @@ export default function RightPanel() {
     const data = (node?.data ?? {}) as any;
     const isFile =
       data?.node_type === "file" || data?.type === "file" || node?.type === "file";
+    const isImage =
+      data?.node_type === "polaroidImage" || data?.type === "polaroidImage" || node?.type === "polaroidImage";
     const baseName = typeof data.name === "string" ? data.name : "";
     const ext = typeof data.extension === "string" ? data.extension : "";
+    const caption = typeof data.caption === "string" ? data.caption : "";
     const hydratedName = isFile && baseName
       ? ext
         ? `${baseName}.${ext}`
         : baseName
+      : isImage && caption
+      ? caption
       : baseName;
 
     // If the selection changed, re-hydrate and reset editing state.
@@ -186,6 +191,21 @@ export default function RightPanel() {
     (selectedNode?.data as any)?.node_type === "file" ||
     (selectedNode?.data as any)?.type === "file" ||
     selectedNode?.type === "file";
+  const isImageNode =
+    (selectedNode?.data as any)?.node_type === "polaroidImage" ||
+    (selectedNode?.data as any)?.type === "polaroidImage" ||
+    selectedNode?.type === "polaroidImage";
+
+  const getExtensionFromMimeType = (mimeType: string): string => {
+    const mime = (mimeType ?? "").toLowerCase();
+    if (mime.includes("png")) return "png";
+    if (mime.includes("jpeg") || mime.includes("jpg")) return "jpg";
+    if (mime.includes("gif")) return "gif";
+    if (mime.includes("webp")) return "webp";
+    if (mime.includes("bmp")) return "bmp";
+    if (mime.includes("svg")) return "svg";
+    return "png"; // default fallback
+  };
 
   const normalizeDraftFileName = (rawValue: string): string => {
     const trimmed = (rawValue ?? "").trim();
@@ -239,6 +259,7 @@ export default function RightPanel() {
     if (!trimmed) return uiText.alerts.nodeNameRequired;
 
     // For file nodes: accept "filename.ext" and default to .md when missing.
+    // For image nodes: use caption as base name, extension comes from clipboard MIME type.
     const fileParts = isFileNode ? splitDraftFileName(trimmed) : null;
     const effective = fileParts ? fileParts.fullName : trimmed;
     const reservedBase = fileParts ? fileParts.name : trimmed;
@@ -274,6 +295,12 @@ export default function RightPanel() {
           typeof sibling?.extension === "string" ? sibling.extension : "";
         const siblingFull =
           siblingExt && siblingName ? `${siblingName}.${siblingExt}` : siblingName;
+        // For image nodes, compare against the effective filename (caption + extension from clipboard)
+        if (isImageNode) {
+          // We'll check the actual filename that will be created (caption + extension)
+          // This is handled in onCreateDraft where we build the fileName
+          return siblingFull.trim().toLowerCase() === effective.toLowerCase();
+        }
         return siblingFull.trim().toLowerCase() === effective.toLowerCase();
       });
       if (conflict) return uiText.alerts.nodeNameConflictAtLevel;
@@ -523,46 +550,81 @@ export default function RightPanel() {
     }
 
     const trimmedName = draft.name.trim();
-    const nextFileName = isFileNode
-      ? splitDraftFileName(trimmedName).fullName
-      : trimmedName;
+    const trimmedCaption = trimmedName; // For images, name field is the caption
     const draftNodeId = selectedNodeId;
     const edgeId = parentIdForDraft
       ? `e_${parentIdForDraft}_${draftNodeId}`
       : null;
     setSaveStatus("saving");
     try {
-      const result = isFileNode
-        ? rootDirectoryHandle
-          ? await fileManager.createFileChildFromHandle({
+      let result: any;
+      if (isImageNode) {
+        // Image node: get clipboard file and MIME type from draft node data
+        const draftNode = (nodes ?? []).find((n: any) => n?.id === draftNodeId);
+        const clipboardFile = (draftNode?.data as any)?.clipboardFile as File | null;
+        const clipboardMimeType = (draftNode?.data as any)?.clipboardMimeType as string | null;
+        if (!clipboardFile) {
+          setCreateError("Image file not found. Please paste an image again.");
+          setSaveStatus("idle");
+          return;
+        }
+        const ext = clipboardMimeType ? getExtensionFromMimeType(clipboardMimeType) : "png";
+        const fileName = trimmedCaption ? `${trimmedCaption}.${ext}` : `image_${Date.now()}.${ext}`;
+        result = rootDirectoryHandle
+          ? await fileManager.createImageFileChildFromHandle({
               dirHandle: rootDirectoryHandle,
               existing: rootFolderJson,
               parentNodeId: parentIdForDraft,
-              fileName: nextFileName,
+              fileName,
+              imageFile: clipboardFile,
+              caption: trimmedCaption,
               purpose: draft.purpose,
             })
-          : await fileManager.createFileChildFromPath({
+          : await fileManager.createImageFileChildFromPath({
               dirPath: rootFolderJson.path,
               existing: rootFolderJson,
               parentNodeId: parentIdForDraft,
-              fileName: nextFileName,
+              fileName,
+              imageFile: clipboardFile,
+              caption: trimmedCaption,
+              purpose: draft.purpose,
+            });
+      } else {
+        const nextFileName = isFileNode
+          ? splitDraftFileName(trimmedName).fullName
+          : trimmedName;
+        result = isFileNode
+          ? rootDirectoryHandle
+            ? await fileManager.createFileChildFromHandle({
+                dirHandle: rootDirectoryHandle,
+                existing: rootFolderJson,
+                parentNodeId: parentIdForDraft,
+                fileName: nextFileName,
+                purpose: draft.purpose,
+              })
+            : await fileManager.createFileChildFromPath({
+                dirPath: rootFolderJson.path,
+                existing: rootFolderJson,
+                parentNodeId: parentIdForDraft,
+                fileName: nextFileName,
+                purpose: draft.purpose,
+              })
+          : rootDirectoryHandle
+          ? await fileManager.createFolderChildFromHandle({
+              dirHandle: rootDirectoryHandle,
+              existing: rootFolderJson,
+              parentNodeId: parentIdForDraft,
+              name: trimmedName,
               purpose: draft.purpose,
             })
-        : rootDirectoryHandle
-        ? await fileManager.createFolderChildFromHandle({
-            dirHandle: rootDirectoryHandle,
-            existing: rootFolderJson,
-            parentNodeId: parentIdForDraft,
-            name: trimmedName,
-            purpose: draft.purpose,
-          })
-        : await fileManager.createFolderChildFromPath({
-            dirPath: rootFolderJson.path,
-            existing: rootFolderJson,
-            parentNodeId: parentIdForDraft,
-            name: trimmedName,
-            purpose: draft.purpose,
-          });
+          : await fileManager.createFolderChildFromPath({
+              dirPath: rootFolderJson.path,
+              existing: rootFolderJson,
+              parentNodeId: parentIdForDraft,
+              name: trimmedName,
+              purpose: draft.purpose,
+            });
+      }
       // Fade out the draft node + edge before removing them.
       setNodes(
         (nodes ?? []).map((node: any) => {
@@ -617,7 +679,7 @@ export default function RightPanel() {
   };
 
   const canRenameItem =
-    (isFolderNode || isFileNode) && !isRootNode && !isDraftNode && !!selectedNodeId;
+    (isFolderNode || isFileNode || isImageNode) && !isRootNode && !isDraftNode && !!selectedNodeId;
 
   const onRenameItem = async () => {
     if (!canRenameItem || !selectedNodeId || !rootFolderJson) return;
@@ -640,19 +702,35 @@ export default function RightPanel() {
     }
     setSaveStatus("saving");
     try {
-      const result = isFileNode
-        ? await fileManager.renameFileChildFromPath({
-            dirPath: rootFolderJson.path,
-            existing: rootFolderJson,
-            nodeId: selectedNodeId,
-            nextFileName: splitDraftFileName(draft.name.trim()).fullName,
-          })
-        : await fileManager.renameFolderChildFromPath({
-            dirPath: rootFolderJson.path,
-            existing: rootFolderJson,
-            nodeId: selectedNodeId,
-            newName: draft.name.trim(),
-          });
+      let result: any;
+      if (isImageNode) {
+        // For images: rename the file using caption as base name, preserve extension
+        const target = (nodes ?? []).find((n: any) => n?.id === selectedNodeId);
+        const currentExt = typeof (target?.data as any)?.extension === "string"
+          ? (target.data as any).extension
+          : "png";
+        const newFileName = draft.name.trim() ? `${draft.name.trim()}.${currentExt}` : `image.${currentExt}`;
+        result = await fileManager.renameFileChildFromPath({
+          dirPath: rootFolderJson.path,
+          existing: rootFolderJson,
+          nodeId: selectedNodeId,
+          nextFileName: newFileName,
+        });
+      } else {
+        result = isFileNode
+          ? await fileManager.renameFileChildFromPath({
+              dirPath: rootFolderJson.path,
+              existing: rootFolderJson,
+              nodeId: selectedNodeId,
+              nextFileName: splitDraftFileName(draft.name.trim()).fullName,
+            })
+          : await fileManager.renameFolderChildFromPath({
+              dirPath: rootFolderJson.path,
+              existing: rootFolderJson,
+              nodeId: selectedNodeId,
+              newName: draft.name.trim(),
+            });
+      }
       setRoot(null, result.root);
       setRenameActive(false);
       setDirty(false);
@@ -665,7 +743,7 @@ export default function RightPanel() {
   };
 
   const canDeleteItem =
-    (isFolderNode || isFileNode) && !isRootNode && !isDraftNode && !!selectedNodeId;
+    (isFolderNode || isFileNode || isImageNode) && !isRootNode && !isDraftNode && !!selectedNodeId;
 
   const onDeleteItem = async () => {
     if (!canDeleteItem || !selectedNodeId || !rootFolderJson) return;
@@ -684,7 +762,8 @@ export default function RightPanel() {
     }
     setSaveStatus("saving");
     try {
-      const result = isFileNode
+      // Both file and image nodes use deleteFileChildFromPath (images are stored as IndexFileNode)
+      const result = (isFileNode || isImageNode)
         ? await fileManager.deleteFileChildFromPath({
             dirPath: rootFolderJson.path,
             existing: rootFolderJson,
@@ -970,7 +1049,7 @@ export default function RightPanel() {
                             }}
                           >
                             <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
-                              {uiText.fields.nodeDetails.name}
+                              {isImageNode ? uiText.fields.nodeDetails.caption : uiText.fields.nodeDetails.name}
                             </div>
                             <input
                               ref={nameInputRef}
@@ -979,8 +1058,8 @@ export default function RightPanel() {
                               onBlur={() => {
                                 void commitSave();
                               }}
-                              placeholder={uiText.placeholders.nodeName}
-                              aria-label={uiText.fields.nodeDetails.name}
+                              placeholder={isImageNode ? "Enter caption" : uiText.placeholders.nodeName}
+                              aria-label={isImageNode ? uiText.fields.nodeDetails.caption : uiText.fields.nodeDetails.name}
                               disabled={!isDraftNode && !renameActive}
                               style={{
                                 // Input fills 100% of its label container.
