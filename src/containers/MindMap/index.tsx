@@ -17,6 +17,7 @@ import ReactFlow, {
   applyNodeChanges,
   type Edge,
   type EdgeChange,
+  MarkerType,
   type Node,
   type NodeChange,
   type ReactFlowInstance,
@@ -210,19 +211,30 @@ export default function MindMap() {
     return (edges ?? []).map((edge: any) => {
       const highlight =
         parentPath.edgeIds.has(edge?.id) || childrenPath.edgeIds.has(edge?.id);
+      const highlightStyle = highlight
+        ? {
+            ...(edge?.style ?? {}),
+            stroke: "rgba(57, 255, 235, 0.95)",
+            strokeWidth: 3,
+            strokeDasharray: "8 6",
+            filter: "drop-shadow(0 0 6px rgba(57, 255, 235, 0.8))",
+          }
+        : null;
+      const markerColor =
+        highlightStyle && typeof highlightStyle.stroke === "string"
+          ? highlightStyle.stroke
+          : undefined;
       return {
         ...edge,
         type: edgeType,
         animated: highlight,
-        style: highlight
-          ? {
-              ...(edge?.style ?? {}),
-              stroke: "rgba(57, 255, 235, 0.95)",
-              strokeWidth: 3,
-              strokeDasharray: "8 6",
-              filter: "drop-shadow(0 0 6px rgba(57, 255, 235, 0.8))",
-            }
-          : edge?.style,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 18,
+          height: 18,
+          ...(markerColor ? { color: markerColor } : {}),
+        },
+        style: highlightStyle ?? edge?.style,
       };
     });
   }, [edges, parentPath.edgeIds, childrenPath.edgeIds, settings.appearance.edgeStyle]);
