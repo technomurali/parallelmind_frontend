@@ -1797,6 +1797,22 @@ export default function MindMap() {
                   };
 
                   const existing = nodes ?? [];
+                  const edgeId = `e_${parentNodeId}_${tempNodeId}`;
+                  const nextEdges = (edges ?? []).some(
+                    (edge: any) => edge?.id === edgeId
+                  )
+                    ? edges
+                    : [
+                        ...(edges ?? []),
+                        {
+                          id: edgeId,
+                          source: parentNodeId,
+                          target: tempNodeId,
+                          type: "default",
+                          style: { opacity: 1, transition: "opacity 180ms ease" },
+                          data: { isDraft: true, nonPersistent: true },
+                        },
+                      ];
                   const next = [
                     ...existing.map((n: any) => ({
                       ...n,
@@ -1805,6 +1821,7 @@ export default function MindMap() {
                     tempNode,
                   ];
                   setNodes(next);
+                  setEdges(nextEdges);
                   setPendingChildCreation({ tempNodeId, parentNodeId });
                   selectNode(tempNodeId);
                 }}

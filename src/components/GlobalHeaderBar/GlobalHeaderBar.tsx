@@ -16,8 +16,6 @@ export function GlobalHeaderBar({ title: _title }: GlobalHeaderBarProps) {
   const toggleSettings = useMindMapStore((s) => s.toggleSettings);
   const tabs = useMindMapStore((s) => s.tabs);
   const activeTab = useMindMapStore(selectActiveTab);
-  const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
-  const rootFolderJson = activeTab?.rootFolderJson ?? null;
   const activeNodes = activeTab?.nodes ?? [];
   const activeEdges = activeTab?.edges ?? [];
   const setRoot = useMindMapStore((s) => s.setRoot);

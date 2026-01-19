@@ -379,6 +379,85 @@ export class FileManager {
     return { nodes: nextNodes, inserted };
   }
 
+  private insertChildFile(args: {
+    nodes: IndexNode[];
+    parentId: string;
+    child: IndexFileNode;
+    now: string;
+  }): { nodes: IndexNode[]; inserted: boolean } {
+    const { nodes, parentId, child, now } = args;
+    let inserted = false;
+    const nextNodes = (nodes ?? []).map((node) => {
+      if (!node || typeof node !== "object") return node;
+      if (this.isFolderNode(node)) {
+        if (node.id === parentId) {
+          inserted = true;
+          return {
+            ...node,
+            child: [...(node.child ?? []), child],
+            updated_on: now,
+          };
+        }
+        const nextChildren = this.insertChildFile({
+          nodes: node.child ?? [],
+          parentId,
+          child,
+          now,
+        });
+        if (nextChildren.inserted) {
+          inserted = true;
+          return { ...node, child: nextChildren.nodes };
+        }
+      }
+      return node;
+    });
+    return { nodes: nextNodes, inserted };
+  }
+
+  private renameFileInTree(args: {
+    nodes: IndexNode[];
+    nodeId: string;
+    nextFileName: string;
+    now: string;
+  }): { nodes: IndexNode[]; renamed: IndexFileNode | null } {
+    const { nodes, nodeId, nextFileName, now } = args;
+    let renamed: IndexFileNode | null = null;
+    const parts = this.splitFileName(nextFileName);
+    const nextNodes = (nodes ?? []).map((node) => {
+      if (!node || typeof node !== "object") return node;
+      if (this.isFileNode(node) && node.id === nodeId) {
+        const oldPath = node.path ?? "";
+        const parentPath = this.parentPathFromPath(oldPath);
+        const nextPath = parentPath
+          ? this.joinPath(parentPath, nextFileName)
+          : this.joinRel("", nextFileName);
+        const updated: IndexFileNode = {
+          ...node,
+          name: parts.name,
+          extension: parts.extension,
+          path: nextPath,
+          updated_on: now,
+        };
+        renamed = updated;
+        return updated;
+      }
+      if (this.isFolderNode(node)) {
+        const nested = this.renameFileInTree({
+          nodes: node.child ?? [],
+          nodeId,
+          nextFileName,
+          now,
+        });
+        if (nested.renamed) {
+          renamed = nested.renamed;
+          return { ...node, child: nested.nodes };
+        }
+      }
+      return node;
+    });
+    return { nodes: nextNodes, renamed };
+  }
+
   private resolveParentInfo(args: {
     root: RootFolderJson;
     parentNodeId: string;
@@ -1804,6 +1883,237 @@ export class FileManager {
     const fileName = this.getIndexFileNameFromPath(dirPath);
     await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, fileName);
     return { root: updatedRoot, removedIds: Array.from(removedIds) };
+  }
+
+  async createFileChildFromHandle(args: {
+    dirHandle: FileSystemDirectoryHandle;
+    existing: RootFolderJson;
+    parentNodeId: string;
+    fileName: string; // includes extension if provided
+    purpose: string;
+  }): Promise<{ root: RootFolderJson; node: IndexFileNode }> {
+    const { dirHandle, existing, parentNodeId, fileName, purpose } = args;
+    const now = this.nowIso();
+    const parentInfo = this.resolveParentInfo({
+      root: existing,
+      parentNodeId,
+    });
+    if (!parentInfo) throw new Error("Parent folder not found.");
+    const nextLevel = parentInfo.level + 1;
+    if (nextLevel > FileManager.MAX_LEVEL) {
+      throw new Error("Maximum folder depth exceeded.");
+    }
+
+    const parentRelPath = parentInfo.path ?? "";
+    const childRelPath = this.joinRel(parentRelPath, fileName);
+    const parentHandle = await this.getDirectoryHandleByRelPath(
+      dirHandle,
+      parentRelPath
+    );
+
+    const fh = await parentHandle.getFileHandle(fileName, { create: true });
+    // Best-effort: ensure the file exists on disk (some implementations require a write).
+    try {
+      const writable = await (fh as any).createWritable?.();
+      if (writable) {
+        await writable.write("");
+        await writable.close();
+      }
+    } catch {
+      // Ignore; file handle creation is the primary intent.
+    }
+
+    const parts = this.splitFileName(fileName);
+    const childNode: IndexFileNode = {
+      id: this.generateUuid(),
+      name: parts.name,
+      extension: parts.extension,
+      purpose: typeof purpose === "string" ? purpose : "",
+      type: this.fileTypeForLevel(nextLevel),
+      level: nextLevel as 1 | 2 | 3 | 4,
+      path: childRelPath,
+      created_on: now,
+      updated_on: now,
+      last_viewed_on: now,
+      views: 0,
+    };
+
+    const parentIsRoot = parentNodeId === "00" || parentNodeId === existing.id;
+    const updatedRoot = parentIsRoot
+      ? {
+          ...existing,
+          updated_on: now,
+          child: [...(existing.child ?? []), childNode],
+        }
+      : (() => {
+          const updated = this.insertChildFile({
+            nodes: existing.child ?? [],
+            parentId: parentNodeId,
+            child: childNode,
+            now,
+          });
+          if (!updated.inserted) {
+            throw new Error("Parent folder not found.");
+          }
+          return { ...existing, updated_on: now, child: updated.nodes };
+        })();
+
+    await this.writeRootFolderJson(dirHandle, updatedRoot);
+    return { root: updatedRoot, node: childNode };
+  }
+
+  async createFileChildFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson;
+    parentNodeId: string;
+    fileName: string; // includes extension if provided
+    purpose: string;
+  }): Promise<{ root: RootFolderJson; node: IndexFileNode }> {
+    const { dirPath, existing, parentNodeId, fileName, purpose } = args;
+    const now = this.nowIso();
+    const parentInfo = this.resolveParentInfo({
+      root: { ...existing, path: dirPath },
+      parentNodeId,
+    });
+    if (!parentInfo) throw new Error("Parent folder not found.");
+    const nextLevel = parentInfo.level + 1;
+    if (nextLevel > FileManager.MAX_LEVEL) {
+      throw new Error("Maximum folder depth exceeded.");
+    }
+
+    const parentAbsPath =
+      parentNodeId === "00" || parentNodeId === existing.id
+        ? dirPath
+        : parentInfo.path ?? dirPath;
+    const childAbsPath = this.joinPath(parentAbsPath, fileName);
+
+    const { exists, writeTextFile } = await import("@tauri-apps/plugin-fs");
+    if (await exists(childAbsPath)) {
+      throw new Error("File already exists.");
+    }
+    await writeTextFile(childAbsPath, "", { create: true });
+
+    const parts = this.splitFileName(fileName);
+    const childNode: IndexFileNode = {
+      id: this.generateUuid(),
+      name: parts.name,
+      extension: parts.extension,
+      purpose: typeof purpose === "string" ? purpose : "",
+      type: this.fileTypeForLevel(nextLevel),
+      level: nextLevel as 1 | 2 | 3 | 4,
+      path: childAbsPath,
+      created_on: now,
+      updated_on: now,
+      last_viewed_on: now,
+      views: 0,
+    };
+
+    const baseRoot = { ...existing, path: dirPath, updated_on: now };
+    const parentIsRoot = parentNodeId === "00" || parentNodeId === existing.id;
+    const updatedRoot = parentIsRoot
+      ? { ...baseRoot, child: [...(baseRoot.child ?? []), childNode] }
+      : (() => {
+          const updated = this.insertChildFile({
+            nodes: baseRoot.child ?? [],
+            parentId: parentNodeId,
+            child: childNode,
+            now,
+          });
+          if (!updated.inserted) {
+            throw new Error("Parent folder not found.");
+          }
+          return { ...baseRoot, child: updated.nodes };
+        })();
+
+    const indexFileName = this.getIndexFileNameFromPath(dirPath);
+    await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, indexFileName);
+    return { root: updatedRoot, node: childNode };
+  }
+
+  async renameFileChildFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson;
+    nodeId: string;
+    nextFileName: string; // includes extension if provided
+  }): Promise<{ root: RootFolderJson; node: IndexFileNode }> {
+    const { dirPath, existing, nodeId, nextFileName } = args;
+    const now = this.nowIso();
+    const target = this.findNodeById(existing.child ?? [], nodeId);
+    if (!target || !this.isFileNode(target)) {
+      throw new Error("File node not found.");
+    }
+    const oldPath = target.path;
+    if (!oldPath) throw new Error("File path not found.");
+    const parentPath = this.parentPathFromPath(oldPath);
+    const nextPath = parentPath
+      ? this.joinPath(parentPath, nextFileName)
+      : this.joinRel("", nextFileName);
+
+    const { rename } = await import("@tauri-apps/plugin-fs");
+    await rename(oldPath, nextPath);
+
+    const updated = this.renameFileInTree({
+      nodes: existing.child ?? [],
+      nodeId,
+      nextFileName,
+      now,
+    });
+    if (!updated.renamed) {
+      throw new Error("File node not found.");
+    }
+
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      path: dirPath,
+      updated_on: now,
+      child: updated.nodes,
+    };
+    const indexFileName = this.getIndexFileNameFromPath(dirPath);
+    await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, indexFileName);
+    return { root: updatedRoot, node: updated.renamed };
+  }
+
+  async deleteFileChildFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson;
+    nodeId: string;
+  }): Promise<{ root: RootFolderJson; removedIds: string[] }> {
+    const { dirPath, existing, nodeId } = args;
+    const now = this.nowIso();
+    const target = this.findNodeById(existing.child ?? [], nodeId);
+    if (!target || !this.isFileNode(target)) {
+      throw new Error("File node not found.");
+    }
+    const targetPath = target.path;
+    if (!targetPath) throw new Error("File path not found.");
+
+    const { remove } = await import("@tauri-apps/plugin-fs");
+    await remove(targetPath, { recursive: false });
+
+    const updated = this.removeFolderFromTree({
+      nodes: existing.child ?? [],
+      nodeId,
+    });
+    if (!updated.removed) {
+      throw new Error("File node not found.");
+    }
+
+    const nextPositions = { ...(existing.node_positions ?? {}) };
+    const nextSizes = { ...(existing.node_size ?? {}) };
+    delete nextPositions[nodeId];
+    delete nextSizes[nodeId];
+
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      path: dirPath,
+      updated_on: now,
+      child: updated.nodes,
+      node_positions: nextPositions,
+      node_size: nextSizes,
+    };
+    const indexFileName = this.getIndexFileNameFromPath(dirPath);
+    await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, indexFileName);
+    return { root: updatedRoot, removedIds: [nodeId] };
   }
 
   async appendRootErrorMessageFromHandle(args: {

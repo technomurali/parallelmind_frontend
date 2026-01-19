@@ -125,13 +125,22 @@ export default function RightPanel() {
 
     const node = (nodes ?? []).find((n: any) => n?.id === selectedNodeId);
     const data = (node?.data ?? {}) as any;
+    const isFile =
+      data?.node_type === "file" || data?.type === "file" || node?.type === "file";
+    const baseName = typeof data.name === "string" ? data.name : "";
+    const ext = typeof data.extension === "string" ? data.extension : "";
+    const hydratedName = isFile && baseName
+      ? ext
+        ? `${baseName}.${ext}`
+        : baseName
+      : baseName;
 
     // If the selection changed, re-hydrate and reset editing state.
     // If only `nodes` changed while the user is typing (dirty=true), do not clobber
     // the draft or we will cancel the debounced save and confuse the creation flow.
     if (selectionChanged || !dirty) {
       setDraft({
-        name: typeof data.name === "string" ? data.name : "",
+        name: hydratedName,
         purpose: typeof data.purpose === "string" ? data.purpose : "",
         details: typeof data.details === "string" ? data.details : "",
       });
@@ -173,6 +182,34 @@ export default function RightPanel() {
     (selectedNode?.data as any)?.node_type === "folder" ||
     (selectedNode?.data as any)?.type === "folder" ||
     selectedNode?.type === "rootFolder";
+  const isFileNode =
+    (selectedNode?.data as any)?.node_type === "file" ||
+    (selectedNode?.data as any)?.type === "file" ||
+    selectedNode?.type === "file";
+
+  const normalizeDraftFileName = (rawValue: string): string => {
+    const trimmed = (rawValue ?? "").trim();
+    if (!trimmed) return "";
+    // If user did not provide an extension, default to .md (Q2 = A).
+    // Treat "a." as invalid later via validation (trailing dot).
+    if (!trimmed.includes(".")) return `${trimmed}.md`;
+    return trimmed;
+  };
+
+  const splitDraftFileName = (
+    rawValue: string
+  ): { name: string; extension: string; fullName: string } => {
+    const normalized = normalizeDraftFileName(rawValue);
+    const lastDot = normalized.lastIndexOf(".");
+    if (lastDot <= 0 || lastDot === normalized.length - 1) {
+      return { name: normalized, extension: "", fullName: normalized };
+    }
+    return {
+      name: normalized.slice(0, lastDot),
+      extension: normalized.slice(lastDot + 1),
+      fullName: normalized,
+    };
+  };
 
   const findFolderNodeById = (
     list: any[],
@@ -201,14 +238,19 @@ export default function RightPanel() {
     const trimmed = name.trim();
     if (!trimmed) return uiText.alerts.nodeNameRequired;
 
+    // For file nodes: accept "filename.ext" and default to .md when missing.
+    const fileParts = isFileNode ? splitDraftFileName(trimmed) : null;
+    const effective = fileParts ? fileParts.fullName : trimmed;
+    const reservedBase = fileParts ? fileParts.name : trimmed;
+
     // Windows-invalid filename characters (also a good cross-platform baseline).
-    if (/[<>:"/\\|?*\u0000-\u001F]/.test(trimmed))
+    if (/[<>:"/\\|?*\u0000-\u001F]/.test(effective))
       return uiText.alerts.nodeNameInvalidFileName;
-    if (/[. ]$/.test(trimmed)) return uiText.alerts.nodeNameInvalidFileName;
+    if (/[. ]$/.test(effective)) return uiText.alerts.nodeNameInvalidFileName;
 
     // Reserved device names on Windows (case-insensitive).
     // Keep minimal: CON, PRN, AUX, NUL, COM1-9, LPT1-9
-    const upper = trimmed.toUpperCase();
+    const upper = reservedBase.toUpperCase();
     if (
       upper === "CON" ||
       upper === "PRN" ||
@@ -227,9 +269,12 @@ export default function RightPanel() {
           : findFolderNodeById(rootFolderJson.child ?? [], parentIdForDraft)
               ?.child ?? [];
       const conflict = siblings.some((sibling: any) => {
-        const siblingName =
-          typeof sibling?.name === "string" ? sibling.name : "";
-        return siblingName.trim().toLowerCase() === trimmed.toLowerCase();
+        const siblingName = typeof sibling?.name === "string" ? sibling.name : "";
+        const siblingExt =
+          typeof sibling?.extension === "string" ? sibling.extension : "";
+        const siblingFull =
+          siblingExt && siblingName ? `${siblingName}.${siblingExt}` : siblingName;
+        return siblingFull.trim().toLowerCase() === effective.toLowerCase();
       });
       if (conflict) return uiText.alerts.nodeNameConflictAtLevel;
     }
@@ -478,13 +523,32 @@ export default function RightPanel() {
     }
 
     const trimmedName = draft.name.trim();
+    const nextFileName = isFileNode
+      ? splitDraftFileName(trimmedName).fullName
+      : trimmedName;
     const draftNodeId = selectedNodeId;
     const edgeId = parentIdForDraft
       ? `e_${parentIdForDraft}_${draftNodeId}`
       : null;
     setSaveStatus("saving");
     try {
-      const result = rootDirectoryHandle
+      const result = isFileNode
+        ? rootDirectoryHandle
+          ? await fileManager.createFileChildFromHandle({
+              dirHandle: rootDirectoryHandle,
+              existing: rootFolderJson,
+              parentNodeId: parentIdForDraft,
+              fileName: nextFileName,
+              purpose: draft.purpose,
+            })
+          : await fileManager.createFileChildFromPath({
+              dirPath: rootFolderJson.path,
+              existing: rootFolderJson,
+              parentNodeId: parentIdForDraft,
+              fileName: nextFileName,
+              purpose: draft.purpose,
+            })
+        : rootDirectoryHandle
         ? await fileManager.createFolderChildFromHandle({
             dirHandle: rootDirectoryHandle,
             existing: rootFolderJson,
@@ -546,17 +610,17 @@ export default function RightPanel() {
         }
       }, 200);
     } catch (error) {
-      console.error("[RightPanel] Create folder failed:", error);
+      console.error("[RightPanel] Create node failed:", error);
       setCreateError(uiText.alerts.errorCreateFailed);
       setSaveStatus("idle");
     }
   };
 
-  const canRenameFolder =
-    isFolderNode && !isRootNode && !isDraftNode && !!selectedNodeId;
+  const canRenameItem =
+    (isFolderNode || isFileNode) && !isRootNode && !isDraftNode && !!selectedNodeId;
 
-  const onRenameFolder = async () => {
-    if (!canRenameFolder || !selectedNodeId || !rootFolderJson) return;
+  const onRenameItem = async () => {
+    if (!canRenameItem || !selectedNodeId || !rootFolderJson) return;
     setActionError(null);
     if (!renameActive) {
       setRenameActive(true);
@@ -576,34 +640,41 @@ export default function RightPanel() {
     }
     setSaveStatus("saving");
     try {
-      const result = await fileManager.renameFolderChildFromPath({
-        dirPath: rootFolderJson.path,
-        existing: rootFolderJson,
-        nodeId: selectedNodeId,
-        newName: draft.name.trim(),
-      });
+      const result = isFileNode
+        ? await fileManager.renameFileChildFromPath({
+            dirPath: rootFolderJson.path,
+            existing: rootFolderJson,
+            nodeId: selectedNodeId,
+            nextFileName: splitDraftFileName(draft.name.trim()).fullName,
+          })
+        : await fileManager.renameFolderChildFromPath({
+            dirPath: rootFolderJson.path,
+            existing: rootFolderJson,
+            nodeId: selectedNodeId,
+            newName: draft.name.trim(),
+          });
       setRoot(null, result.root);
       setRenameActive(false);
       setDirty(false);
       setSaveStatus("saved");
     } catch (error) {
-      console.error("[RightPanel] Rename folder failed:", error);
+      console.error("[RightPanel] Rename failed:", error);
       setActionError(uiText.alerts.errorCreateFailed);
       setSaveStatus("idle");
     }
   };
 
-  const canDeleteFolder =
-    isFolderNode && !isRootNode && !isDraftNode && !!selectedNodeId;
+  const canDeleteItem =
+    (isFolderNode || isFileNode) && !isRootNode && !isDraftNode && !!selectedNodeId;
 
-  const onDeleteFolder = async () => {
-    if (!canDeleteFolder || !selectedNodeId || !rootFolderJson) return;
+  const onDeleteItem = async () => {
+    if (!canDeleteItem || !selectedNodeId || !rootFolderJson) return;
     setActionError(null);
     setDeleteConfirmOpen(true);
   };
 
-  const confirmDeleteFolder = async () => {
-    if (!canDeleteFolder || !selectedNodeId || !rootFolderJson) return;
+  const confirmDeleteItem = async () => {
+    if (!canDeleteItem || !selectedNodeId || !rootFolderJson) return;
     setDeleteInProgress(true);
     if (!rootFolderJson.path) {
       setActionError(uiText.alerts.errorDeleteFailed);
@@ -613,17 +684,23 @@ export default function RightPanel() {
     }
     setSaveStatus("saving");
     try {
-      const result = await fileManager.deleteFolderChildFromPath({
-        dirPath: rootFolderJson.path,
-        existing: rootFolderJson,
-        nodeId: selectedNodeId,
-      });
+      const result = isFileNode
+        ? await fileManager.deleteFileChildFromPath({
+            dirPath: rootFolderJson.path,
+            existing: rootFolderJson,
+            nodeId: selectedNodeId,
+          })
+        : await fileManager.deleteFolderChildFromPath({
+            dirPath: rootFolderJson.path,
+            existing: rootFolderJson,
+            nodeId: selectedNodeId,
+          });
       setRoot(null, result.root);
       setDirty(false);
       setSaveStatus("saved");
       setDeleteConfirmOpen(false);
     } catch (error) {
-      console.error("[RightPanel] Delete folder failed:", error);
+      console.error("[RightPanel] Delete failed:", error);
       setActionError(uiText.alerts.errorDeleteFailed);
       setSaveStatus("idle");
     } finally {
@@ -1134,7 +1211,7 @@ export default function RightPanel() {
                   </div>
                 )}
 
-                {canRenameFolder || canDeleteFolder ? (
+                {canRenameItem || canDeleteItem ? (
                   <div
                     style={{
                       display: "flex",
@@ -1143,10 +1220,10 @@ export default function RightPanel() {
                       flexWrap: "wrap",
                     }}
                   >
-                    {canRenameFolder && (
+                    {canRenameItem && (
                       <button
                         type="button"
-                        onClick={() => void onRenameFolder()}
+                        onClick={() => void onRenameItem()}
                         style={{
                           borderRadius: "999px",
                           border: "var(--border-width) solid var(--border)",
@@ -1163,10 +1240,10 @@ export default function RightPanel() {
                         {renameActive ? uiText.buttons.save : uiText.buttons.rename}
                       </button>
                     )}
-                    {canDeleteFolder && (
+                    {canDeleteItem && (
                       <button
                         type="button"
-                        onClick={() => void onDeleteFolder()}
+                        onClick={() => void onDeleteItem()}
                         disabled={deleteInProgress}
                         style={{
                           borderRadius: "999px",
@@ -1228,7 +1305,9 @@ export default function RightPanel() {
       {deleteConfirmOpen && (
         <div
           role="dialog"
-          aria-label={uiText.alerts.confirmDeleteFolder}
+          aria-label={
+            isFileNode ? uiText.alerts.confirmDeleteFile : uiText.alerts.confirmDeleteFolder
+          }
           style={{
             position: "absolute",
             inset: 0,
@@ -1253,7 +1332,7 @@ export default function RightPanel() {
             }}
           >
             <div style={{ fontWeight: 600, marginBottom: "8px" }}>
-              {uiText.alerts.confirmDeleteFolder}
+              {isFileNode ? uiText.alerts.confirmDeleteFile : uiText.alerts.confirmDeleteFolder}
             </div>
             <div
               style={{
@@ -1280,7 +1359,7 @@ export default function RightPanel() {
               </button>
               <button
                 type="button"
-                onClick={() => void confirmDeleteFolder()}
+                onClick={() => void confirmDeleteItem()}
                 disabled={deleteInProgress}
                 style={{
                   borderRadius: "999px",
