@@ -157,6 +157,7 @@ export interface AppSettings {
   appearance: {
     nodeSize: number;
     edgeStyle: string;
+    edgeOpacity: number;
     showMinimap: boolean;
     nodeHeaderFontSize: number;
     nodeBodyFontSize: number;
@@ -253,6 +254,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       appearance: {
         nodeSize: 200,
         edgeStyle: 'step',
+        edgeOpacity: 0.85,
         showMinimap: true,
         nodeHeaderFontSize: 4,
         nodeBodyFontSize: 7,

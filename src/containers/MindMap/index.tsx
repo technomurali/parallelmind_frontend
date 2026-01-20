@@ -208,6 +208,10 @@ export default function MindMap() {
 
   const renderedEdges = useMemo(() => {
     const edgeType = settings.appearance.edgeStyle || "default";
+    const edgeOpacity =
+      typeof settings.appearance.edgeOpacity === "number"
+        ? settings.appearance.edgeOpacity
+        : 0.85;
     return (edges ?? []).map((edge: any) => {
       const highlight =
         parentPath.edgeIds.has(edge?.id) || childrenPath.edgeIds.has(edge?.id);
@@ -218,12 +222,19 @@ export default function MindMap() {
             strokeWidth: 3,
             strokeDasharray: "8 6",
             filter: "drop-shadow(0 0 6px rgba(57, 255, 235, 0.8))",
+          opacity: 1,
           }
         : null;
       const markerColor =
         highlightStyle && typeof highlightStyle.stroke === "string"
           ? highlightStyle.stroke
           : undefined;
+      const baseStyle = highlightStyle
+        ? highlightStyle
+        : {
+            ...(edge?.style ?? {}),
+            opacity: edgeOpacity,
+          };
       return {
         ...edge,
         type: edgeType,
@@ -234,10 +245,16 @@ export default function MindMap() {
           height: 18,
           ...(markerColor ? { color: markerColor } : {}),
         },
-        style: highlightStyle ?? edge?.style,
+        style: baseStyle,
       };
     });
-  }, [edges, parentPath.edgeIds, childrenPath.edgeIds, settings.appearance.edgeStyle]);
+  }, [
+    edges,
+    parentPath.edgeIds,
+    childrenPath.edgeIds,
+    settings.appearance.edgeStyle,
+    settings.appearance.edgeOpacity,
+  ]);
 
   const FILE_NODE_BASE_WIDTH = 125;
   const DEFAULT_IMAGE_WIDTH_RATIO = 0.8;

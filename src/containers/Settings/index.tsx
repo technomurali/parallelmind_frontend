@@ -190,45 +190,96 @@ export default function Settings() {
                   title: "Connections & Layout",
                   desc: "How nodes are visually connected.",
                   content: (
-                    <div className="pm-settings__row">
-                      <div className="pm-settings__rowText">
-                        <div className="pm-settings__rowTitle">
-                          {uiText.settings.appearance.edgeTypeLabel}
+                    <>
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">
+                            {uiText.settings.appearance.edgeTypeLabel}
+                          </div>
+                          <div className="pm-settings__rowDesc">
+                            {uiText.settings.appearance.edgeTypeDesc}
+                          </div>
                         </div>
-                        <div className="pm-settings__rowDesc">
-                          {uiText.settings.appearance.edgeTypeDesc}
+                        <select
+                          className="pm-settings__control"
+                          value={settings.appearance.edgeStyle ?? "step"}
+                          onChange={(e) =>
+                            updateSettings({
+                              appearance: {
+                                ...settings.appearance,
+                                edgeStyle: e.target.value,
+                              },
+                            })
+                          }
+                          aria-label={uiText.settings.appearance.edgeTypeLabel}
+                        >
+                          <option value="default">
+                            {uiText.settings.appearance.edgeTypeOptions.bezier}
+                          </option>
+                          <option value="straight">
+                            {uiText.settings.appearance.edgeTypeOptions.straight}
+                          </option>
+                          <option value="simpleBezier">
+                            {uiText.settings.appearance.edgeTypeOptions.simpleBezier}
+                          </option>
+                          <option value="step">
+                            {uiText.settings.appearance.edgeTypeOptions.step}
+                          </option>
+                          <option value="smoothstep">
+                            {uiText.settings.appearance.edgeTypeOptions.smoothstep}
+                          </option>
+                        </select>
+                      </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">Edge opacity</div>
+                          <div className="pm-settings__rowDesc">
+                            Control the visibility of connection lines.
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "var(--space-2)",
+                          }}
+                        >
+                          <input
+                            className="pm-settings__control"
+                            type="range"
+                            min={0.2}
+                            max={1}
+                            step={0.05}
+                            value={
+                              typeof settings.appearance.edgeOpacity === "number"
+                                ? settings.appearance.edgeOpacity
+                                : 0.85
+                            }
+                            onChange={(e) => {
+                              const n = Number(e.target.value);
+                              updateSettings({
+                                appearance: {
+                                  ...settings.appearance,
+                                  edgeOpacity: Number.isFinite(n) ? n : 0.85,
+                                },
+                              });
+                            }}
+                            aria-label="Edge opacity"
+                          />
+                          <span style={{ fontSize: "0.85rem", opacity: 0.75 }}>
+                            {Math.round(
+                              (typeof settings.appearance.edgeOpacity === "number"
+                                ? settings.appearance.edgeOpacity
+                                : 0.85) * 100
+                            )}
+                            %
+                          </span>
                         </div>
                       </div>
-                      <select
-                        className="pm-settings__control"
-                        value={settings.appearance.edgeStyle ?? "step"}
-                        onChange={(e) =>
-                          updateSettings({
-                            appearance: {
-                              ...settings.appearance,
-                              edgeStyle: e.target.value,
-                            },
-                          })
-                        }
-                        aria-label={uiText.settings.appearance.edgeTypeLabel}
-                      >
-                        <option value="default">
-                          {uiText.settings.appearance.edgeTypeOptions.bezier}
-                        </option>
-                        <option value="straight">
-                          {uiText.settings.appearance.edgeTypeOptions.straight}
-                        </option>
-                        <option value="simpleBezier">
-                          {uiText.settings.appearance.edgeTypeOptions.simpleBezier}
-                        </option>
-                        <option value="step">
-                          {uiText.settings.appearance.edgeTypeOptions.step}
-                        </option>
-                        <option value="smoothstep">
-                          {uiText.settings.appearance.edgeTypeOptions.smoothstep}
-                        </option>
-                      </select>
-                    </div>
+                    </>
                   ),
                 },
                 {
