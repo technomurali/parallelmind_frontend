@@ -876,6 +876,102 @@ export class FileManager {
     return { nodes: walk(nodes ?? []), updated };
   }
 
+  private updateNodeTimestampInTree(args: {
+    nodes: IndexNode[];
+    nodeId: string | null;
+    nodePath: string | null;
+    now: string;
+  }): { nodes: IndexNode[]; updated: boolean } {
+    const { nodes, nodeId, nodePath, now } = args;
+    let updated = false;
+
+    const walk = (list: IndexNode[]): IndexNode[] => {
+      return list.map((node) => {
+        const matchesId = !!nodeId && node.id === nodeId;
+        const matchesPath =
+          !!nodePath && typeof node.path === "string" && node.path === nodePath;
+        if (matchesId || matchesPath) {
+          updated = true;
+          if (this.isFolderNode(node)) {
+            return {
+              ...node,
+              updated_on: now,
+              child: node.child ?? [],
+            };
+          }
+          return {
+            ...node,
+            updated_on: now,
+          };
+        }
+
+        if (this.isFolderNode(node)) {
+          const nextChildren = walk(node.child ?? []);
+          if (nextChildren !== node.child) {
+            return { ...node, child: nextChildren };
+          }
+        }
+        return node;
+      });
+    };
+
+    return { nodes: walk(nodes ?? []), updated };
+  }
+
+  async updateFileNodeTimestampFromHandle(args: {
+    dirHandle: FileSystemDirectoryHandle;
+    existing: RootFolderJson;
+    nodeId: string | null;
+    nodePath: string | null;
+  }): Promise<RootFolderJson> {
+    const { dirHandle, existing, nodeId, nodePath } = args;
+    const now = this.nowIso();
+    const result = this.updateNodeTimestampInTree({
+      nodes: existing.child ?? [],
+      nodeId,
+      nodePath,
+      now,
+    });
+    if (!result.updated) {
+      return existing;
+    }
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      child: result.nodes,
+      updated_on: now,
+    };
+    await this.writeRootFolderJson(dirHandle, updatedRoot);
+    return updatedRoot;
+  }
+
+  async updateFileNodeTimestampFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson;
+    nodeId: string | null;
+    nodePath: string | null;
+  }): Promise<RootFolderJson> {
+    const { dirPath, existing, nodeId, nodePath } = args;
+    const now = this.nowIso();
+    const result = this.updateNodeTimestampInTree({
+      nodes: existing.child ?? [],
+      nodeId,
+      nodePath,
+      now,
+    });
+    if (!result.updated) {
+      return existing;
+    }
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      child: result.nodes,
+      path: dirPath,
+      updated_on: now,
+    };
+    const indexFileName = this.getIndexFileNameFromPath(dirPath);
+    await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, indexFileName);
+    return updatedRoot;
+  }
+
   private buildNewRootFolderJson(args: {
     name: string;
     path: string;
@@ -1297,6 +1393,37 @@ export class FileManager {
     }
     const { readTextFile } = await import("@tauri-apps/plugin-fs");
     return await readTextFile(filePath);
+  }
+
+  async writeTextFileFromHandle(args: {
+    rootHandle: FileSystemDirectoryHandle;
+    relPath: string;
+    content: string;
+  }): Promise<void> {
+    const { rootHandle, relPath, content } = args;
+    if (!relPath || typeof relPath !== "string") {
+      throw new Error("File path is required.");
+    }
+    const fileHandle = await this.getFileHandleByRelPath(rootHandle, relPath);
+    const writable = await (fileHandle as any).createWritable?.();
+    if (!writable) {
+      throw new Error("Failed to create writable file handle.");
+    }
+    try {
+      await writable.write(content);
+      await writable.close();
+    } catch (error) {
+      await writable.close().catch(() => {});
+      throw error;
+    }
+  }
+
+  async writeTextFileFromPath(filePath: string, content: string): Promise<void> {
+    if (!filePath || typeof filePath !== "string") {
+      throw new Error("File path is required.");
+    }
+    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+    await writeTextFile(filePath, content, { create: true });
   }
 
   /**

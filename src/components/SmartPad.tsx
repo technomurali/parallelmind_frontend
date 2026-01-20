@@ -4,6 +4,8 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
 import { marked } from "marked";
 import { uiText } from "../constants/uiText";
 import { FileManager } from "../data/fileManager";
+import { useAutoSave } from "../hooks/useAutoSave";
+import { selectActiveTab, useMindMapStore } from "../store/mindMapStore";
 
 type SmartPadProps = {
   selectedNode: Node | null;
@@ -86,6 +88,9 @@ export default function SmartPad({
   rootDirectoryHandle,
 }: SmartPadProps) {
   const fileManager = useMemo(() => new FileManager(), []);
+  const activeTab = useMindMapStore(selectActiveTab);
+  const rootFolderJson = activeTab?.rootFolderJson ?? null;
+  const setRoot = useMindMapStore((s) => s.setRoot);
   const filePreviewRequestRef = useRef(0);
   const contentEditableRef = useRef<HTMLDivElement | null>(null);
   const previewEditableRef = useRef<HTMLDivElement | null>(null);
@@ -97,6 +102,13 @@ export default function SmartPad({
   const editableContentRef = useRef("");
   const [isContentEmpty, setIsContentEmpty] = useState(true);
   const [isPreview, setIsPreview] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [dirty, setDirty] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [contentVersion, setContentVersion] = useState(0);
+  const lastSavedContentRef = useRef("");
+  const wasFocusedRef = useRef(false);
+  const savedSelectionRef = useRef<{ start: number; end: number } | null>(null);
 
   useEffect(() => {
     const requestId = ++filePreviewRequestRef.current;
@@ -176,7 +188,10 @@ export default function SmartPad({
   useEffect(() => {
     if (preview.status !== "ready" && preview.status !== "empty") return;
     editableContentRef.current = preview.content;
+    lastSavedContentRef.current = preview.content;
     setIsContentEmpty(!preview.content);
+    setDirty(false);
+    setSaveStatus("idle");
     if (contentEditableRef.current) {
       contentEditableRef.current.textContent = preview.content;
     }
@@ -198,6 +213,170 @@ export default function SmartPad({
       contentEditableRef.current.textContent = editableContentRef.current;
     }
   }, [isPreview]);
+
+  const commitSave = async () => {
+    if (!selectedNode || !isFileNode(selectedNode) || !dirty) return;
+    if (preview.status !== "ready" && preview.status !== "empty") return;
+
+    const nodePath =
+      typeof (selectedNode?.data as any)?.path === "string"
+        ? ((selectedNode?.data as any)?.path as string).trim()
+        : "";
+    if (!nodePath) return;
+
+    const currentContent = editableContentRef.current;
+    if (currentContent === lastSavedContentRef.current) {
+      setDirty(false);
+      setSaveStatus("idle");
+      return;
+    }
+
+    // Save selection state and focus state before save
+    const editorElement = contentEditableRef.current;
+    const selection = window.getSelection();
+    wasFocusedRef.current = document.activeElement === editorElement;
+    
+    if (wasFocusedRef.current && editorElement && selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const preCaretRange = range.cloneRange();
+      preCaretRange.selectNodeContents(editorElement);
+      preCaretRange.setEnd(range.startContainer, range.startOffset);
+      const start = preCaretRange.toString().length;
+      const end = start + range.toString().length;
+      savedSelectionRef.current = { start, end };
+    } else {
+      savedSelectionRef.current = null;
+    }
+
+    const nodeId = selectedNode?.id ?? null;
+    const hasDirectoryHandle = !!rootDirectoryHandle;
+    const hasPath = !!(rootFolderJson?.path && rootFolderJson.path.trim() !== "");
+
+    if (!hasDirectoryHandle && !hasPath) {
+      setSaveStatus("error");
+      return;
+    }
+
+    try {
+      setSaveStatus("saving");
+
+      // Write file content
+      if (hasDirectoryHandle) {
+        await fileManager.writeTextFileFromHandle({
+          rootHandle: rootDirectoryHandle!,
+          relPath: nodePath,
+          content: currentContent,
+        });
+      } else {
+        await fileManager.writeTextFileFromPath(nodePath, currentContent);
+      }
+
+      // Update file node's updated_on timestamp in index
+      if (rootFolderJson) {
+        const updatedRoot = hasDirectoryHandle
+          ? await fileManager.updateFileNodeTimestampFromHandle({
+              dirHandle: rootDirectoryHandle!,
+              existing: rootFolderJson,
+              nodeId,
+              nodePath,
+            })
+          : await fileManager.updateFileNodeTimestampFromPath({
+              dirPath: rootFolderJson.path,
+              existing: rootFolderJson,
+              nodeId,
+              nodePath,
+            });
+        setRoot(hasDirectoryHandle ? rootDirectoryHandle : null, updatedRoot);
+      }
+
+      lastSavedContentRef.current = currentContent;
+      setDirty(false);
+      setSaveStatus("saved");
+
+      // Restore focus and selection after save completes
+      // Use requestAnimationFrame to ensure DOM is ready after state updates
+      if (wasFocusedRef.current && savedSelectionRef.current && !isPreview) {
+        requestAnimationFrame(() => {
+          const editorElement = contentEditableRef.current;
+          if (!editorElement || isPreview) return;
+
+          // Restore focus
+          editorElement.focus();
+
+          // Restore selection
+          const { start, end } = savedSelectionRef.current!;
+          try {
+            const range = document.createRange();
+            const selection = window.getSelection();
+            if (!selection) return;
+
+            let charCount = 0;
+            let startNode: globalThis.Node | null = null;
+            let startOffset = 0;
+            let endNode: globalThis.Node | null = null;
+            let endOffset = 0;
+
+            const walker = document.createTreeWalker(
+              editorElement,
+              NodeFilter.SHOW_TEXT,
+              null
+            );
+
+            let textNode: globalThis.Node | null;
+            while ((textNode = walker.nextNode() as globalThis.Node | null)) {
+              const nodeLength = (textNode as Text).textContent?.length ?? 0;
+              
+              if (!startNode && charCount + nodeLength >= start) {
+                startNode = textNode;
+                startOffset = start - charCount;
+              }
+              
+              if (charCount + nodeLength >= end) {
+                endNode = textNode;
+                endOffset = end - charCount;
+                break;
+              }
+              
+              charCount += nodeLength;
+            }
+
+            // Fallback: if we couldn't find nodes, use the editor element
+            if (!startNode) {
+              startNode = editorElement as globalThis.Node;
+              startOffset = Math.min(start, editorElement.textContent?.length ?? 0);
+            }
+            if (!endNode) {
+              endNode = editorElement as globalThis.Node;
+              endOffset = Math.min(end, editorElement.textContent?.length ?? 0);
+            }
+
+            if (startNode && endNode) {
+              range.setStart(startNode as globalThis.Node, startOffset);
+              range.setEnd(endNode as globalThis.Node, endOffset);
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+          } catch (err) {
+            // If selection restoration fails, just ensure focus is restored
+            console.warn("[SmartPad] Failed to restore selection:", err);
+          }
+        });
+      }
+    } catch (error) {
+      console.error("[SmartPad] Failed to save file content:", error);
+      setSaveStatus("error");
+    }
+  };
+
+  // Debounced auto-save: 5 seconds after user stops typing
+  useAutoSave(
+    () => {
+      void commitSave();
+    },
+    5000,
+    [contentVersion, selectedNode?.id, dirty],
+    dirty && (preview.status === "ready" || preview.status === "empty")
+  );
 
   if (preview.status === "idle" || preview.status === "ineligible") {
     return null;
@@ -335,6 +514,12 @@ export default function SmartPad({
                   const nextValue = target.innerText;
                   editableContentRef.current = nextValue;
                   setIsContentEmpty(!nextValue);
+                  const isDirty = nextValue !== lastSavedContentRef.current;
+                  setDirty(isDirty);
+                  if (isDirty) {
+                    setSaveStatus("saving");
+                    setContentVersion((prev) => prev + 1);
+                  }
                 }}
                 style={{
                   minHeight: 120,
@@ -355,10 +540,46 @@ export default function SmartPad({
           padding: "8px 10px",
           borderTop: "var(--border-width) solid var(--border)",
           background: "var(--surface-1)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
           minHeight: "15px",
         }}
-        aria-hidden="true"
-      />
+      >
+        {saveStatus === "saving" && (
+          <div
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--text-secondary)",
+              opacity: 0.7,
+            }}
+          >
+            Saving...
+          </div>
+        )}
+        {saveStatus === "saved" && (
+          <div
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--success-color, #22c55e)",
+              opacity: 0.8,
+            }}
+          >
+            Saved
+          </div>
+        )}
+        {saveStatus === "error" && (
+          <div
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--error-color, #ef4444)",
+              opacity: 0.8,
+            }}
+          >
+            Save failed
+          </div>
+        )}
+      </div>
     </div>
   );
 }
