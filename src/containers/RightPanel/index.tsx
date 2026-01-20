@@ -93,7 +93,7 @@ export default function RightPanel() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
-  const [fileDetailsExpanded, setFileDetailsExpanded] = useState(true);
+  const [fileDetailsExpanded, setFileDetailsExpanded] = useState(false);
   const [imageSrc, setImageSrc] = useState<string>("");
   const [imageLoadError, setImageLoadError] = useState(false);
 

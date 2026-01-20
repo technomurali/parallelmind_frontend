@@ -334,8 +334,8 @@ export default function MindMap() {
   }>({ open: false, x: 40, y: 120 });
   const [isSpacingDragging, setIsSpacingDragging] = useState(false);
 
-  const [zoomViewActive, setZoomViewActive] = useState(true);
-  const [zoomPreview, setZoomPreview] = useState<{
+  const [showDetailsActive, setShowDetailsActive] = useState(true);
+  const [detailsPreview, setDetailsPreview] = useState<{
     node: Node;
     x: number;
     y: number;
@@ -537,7 +537,7 @@ export default function MindMap() {
     selectNode(null);
   };
 
-  const isZoomPreviewNode = (node: Node | null): boolean =>
+  const isDetailsPreviewNode = (node: Node | null): boolean =>
     !!node && (node.type === "rootFolder" || node.type === "file");
 
   const getPreviewPosition = (clientX: number, clientY: number) => {
@@ -547,25 +547,25 @@ export default function MindMap() {
   };
 
   const onNodeMouseEnter = (event: any, node: Node) => {
-    if (!zoomViewActive || !isZoomPreviewNode(node)) return;
+    if (!showDetailsActive || !isDetailsPreviewNode(node)) return;
     const pos = getPreviewPosition(event.clientX, event.clientY);
-    setZoomPreview({ node, ...pos });
+    setDetailsPreview({ node, ...pos });
   };
 
   const onNodeMouseMove = (event: any, node: Node) => {
-    if (!zoomViewActive || !isZoomPreviewNode(node)) return;
+    if (!showDetailsActive || !isDetailsPreviewNode(node)) return;
     const pos = getPreviewPosition(event.clientX, event.clientY);
-    setZoomPreview({ node, ...pos });
+    setDetailsPreview({ node, ...pos });
   };
 
   const onNodeMouseLeave = () => {
-    if (!zoomViewActive) return;
-    setZoomPreview(null);
+    if (!showDetailsActive) return;
+    setDetailsPreview(null);
   };
 
   const onCanvasMouseDown = (event: any) => {
     canvasBodyRef.current?.focus();
-    if (!zoomViewActive) return;
+    if (!showDetailsActive) return;
     const target = event.target as HTMLElement | null;
     if (target?.closest(".react-flow__pane")) {
       setIsPanning(true);
@@ -573,7 +573,7 @@ export default function MindMap() {
   };
 
   const onCanvasMouseUp = () => {
-    if (!zoomViewActive) return;
+    if (!showDetailsActive) return;
     setIsPanning(false);
   };
 
@@ -731,8 +731,8 @@ export default function MindMap() {
   }, [spacingPanel.open]);
 
   useEffect(() => {
-    if (!zoomViewActive) {
-      setZoomPreview(null);
+    if (!showDetailsActive) {
+      setDetailsPreview(null);
       setIsPanning(false);
       return;
     }
@@ -742,7 +742,7 @@ export default function MindMap() {
     return () => {
       window.removeEventListener("mouseup", onWindowMouseUp);
     };
-  }, [zoomViewActive]);
+  }, [showDetailsActive]);
 
   useEffect(() => {
     if (!rf) return;
@@ -1229,9 +1229,9 @@ export default function MindMap() {
             </button>
             <button
               type="button"
-              onClick={() => setZoomViewActive((prev) => !prev)}
+              onClick={() => setShowDetailsActive((prev) => !prev)}
               aria-label="Show Details"
-              aria-pressed={zoomViewActive}
+              aria-pressed={showDetailsActive}
               title="Show Details"
               style={{
                 display: "inline-flex",
@@ -1241,7 +1241,7 @@ export default function MindMap() {
                 width: "var(--control-size-sm)",
                 borderRadius: "var(--radius-md)",
                 border: "none",
-                background: zoomViewActive ? "var(--surface-1)" : "transparent",
+                background: showDetailsActive ? "var(--surface-1)" : "transparent",
                 color: "var(--text)",
                 cursor: "pointer",
               }}
@@ -1251,7 +1251,7 @@ export default function MindMap() {
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background =
-                  zoomViewActive ? "var(--surface-1)" : "transparent";
+                  showDetailsActive ? "var(--surface-1)" : "transparent";
               }}
             >
               <svg
@@ -1543,7 +1543,7 @@ export default function MindMap() {
           className="pm-canvas__body"
           ref={canvasBodyRef}
           style={{
-            cursor: zoomViewActive
+            cursor: showDetailsActive
               ? isPanning
                 ? "grabbing"
                 : "zoom-in"
@@ -1784,14 +1784,14 @@ export default function MindMap() {
             onNodeMouseLeave={onNodeMouseLeave}
           />
 
-          {zoomViewActive && zoomPreview && (
+          {showDetailsActive && detailsPreview && (
             <div
               role="presentation"
               aria-hidden="true"
               style={{
                 position: "absolute",
-                left: zoomPreview.x + 18,
-                top: zoomPreview.y + 18,
+                left: detailsPreview.x + 18,
+                top: detailsPreview.y + 18,
                 zIndex: 55,
                 minWidth: 220,
                 maxWidth: 280,
@@ -1800,8 +1800,8 @@ export default function MindMap() {
                 border: "var(--border-width) solid var(--border)",
                 background: getNodeFillColor(
                   settings,
-                  typeof (zoomPreview.node.data as any)?.level === "number"
-                    ? (zoomPreview.node.data as any).level
+                  typeof (detailsPreview.node.data as any)?.level === "number"
+                    ? (detailsPreview.node.data as any).level
                     : 0,
                   "var(--surface-2)"
                 ),
@@ -1813,7 +1813,7 @@ export default function MindMap() {
               }}
             >
               <div style={{ fontSize: "0.9rem", fontWeight: 700 }}>
-                {zoomPreview.node.type === "rootFolder" ? "Folder" : "File"}
+                {detailsPreview.node.type === "rootFolder" ? "Folder" : "File"}
               </div>
               <div
                 style={{
@@ -1823,9 +1823,9 @@ export default function MindMap() {
                   wordBreak: "break-word",
                 }}
               >
-                {(zoomPreview.node.data as any)?.name ?? ""}
+                {(detailsPreview.node.data as any)?.name ?? ""}
               </div>
-              {(zoomPreview.node.data as any)?.purpose && (
+              {(detailsPreview.node.data as any)?.purpose && (
                 <div
                   style={{
                     marginTop: 6,
@@ -1835,7 +1835,7 @@ export default function MindMap() {
                     whiteSpace: "pre-wrap",
                   }}
                 >
-                  {(zoomPreview.node.data as any)?.purpose}
+                  {(detailsPreview.node.data as any)?.purpose}
                 </div>
               )}
             </div>

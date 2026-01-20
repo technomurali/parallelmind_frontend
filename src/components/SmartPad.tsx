@@ -108,7 +108,7 @@ export default function SmartPad({
   });
   const editableContentRef = useRef("");
   const [isContentEmpty, setIsContentEmpty] = useState(true);
-  const [isPreview, setIsPreview] = useState(false);
+  const [isPreview, setIsPreview] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [dirty, setDirty] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
