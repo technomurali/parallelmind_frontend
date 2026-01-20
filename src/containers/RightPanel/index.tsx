@@ -58,7 +58,7 @@ export default function RightPanel() {
 
   // Right Panel width constraints
   const MIN_WIDTH = 56;
-  const MAX_WIDTH = 600;
+  const MAX_WIDTH = 1000;
   const isReduced = rightPanelWidth <= MIN_WIDTH;
   const lastExpandedWidthRef = useRef<number>(360);
 

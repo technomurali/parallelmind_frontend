@@ -6,7 +6,7 @@ import { uiText } from "../constants/uiText";
 import { FileManager } from "../data/fileManager";
 import { useAutoSave } from "../hooks/useAutoSave";
 import { selectActiveTab, useMindMapStore } from "../store/mindMapStore";
-import { htmlToMarkdown } from "../utils/clipboardToMarkdown";
+import { htmlToMarkdownPreserveSpacing } from "../utils/clipboardToMarkdown";
 import {
   getEditorPlainText,
   insertTextAtSelection,
@@ -542,7 +542,7 @@ export default function SmartPad({
                   if (!html && !text) return;
 
                   event.preventDefault();
-                  const markdown = html ? htmlToMarkdown(html) : text;
+                  const markdown = html ? htmlToMarkdownPreserveSpacing(html) : text;
                   insertTextAtSelection(editor, markdown);
                   const updated = getEditorPlainText(editor);
                   applyEditorChange(updated);

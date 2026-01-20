@@ -41,6 +41,11 @@ export const sanitizeHtml = (html: string): string => {
   return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
 };
 
+export const htmlToMarkdownPreserveSpacing = (html: string): string => {
+  const clean = sanitizeHtml(html);
+  return turndownService.turndown(clean);
+};
+
 export const htmlToMarkdown = (html: string): string => {
   const clean = sanitizeHtml(html);
   const markdown = turndownService.turndown(clean);
