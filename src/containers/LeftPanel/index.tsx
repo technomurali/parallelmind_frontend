@@ -14,10 +14,11 @@
  */
 
 import { TreeView } from "../../components/TreeView";
-import { useMindMapStore } from "../../store/mindMapStore";
-import { useEffect, useRef } from "react";
+import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
+import type { IndexNode, RootFolderJson } from "../../data/fileManager";
 
 /**
  * LeftPanel component
@@ -28,6 +29,18 @@ import { uiText } from "../../constants/uiText";
 export default function LeftPanel() {
   const leftPanelWidth = useMindMapStore((s) => s.leftPanelWidth);
   const setLeftPanelWidth = useMindMapStore((s) => s.setLeftPanelWidth);
+  const activeTab = useMindMapStore(selectActiveTab);
+  const nodes = activeTab?.nodes ?? [];
+  const rootFolderJson = activeTab?.rootFolderJson ?? null;
+  const selectNode = useMindMapStore((s) => s.selectNode);
+  const setShouldFitView = useMindMapStore((s) => s.setShouldFitView);
+  const [query, setQuery] = useState("");
+  const [matches, setMatches] = useState<
+    { id: string; label: string; name: string }[]
+  >([]);
+  const [recentSearches, setRecentSearches] = useState<
+    { id: string; label: string }[]
+  >([]);
 
   const dragRef = useRef<{
     startX: number;
@@ -56,6 +69,62 @@ export default function LeftPanel() {
     }
     lastExpandedWidthRef.current = leftPanelWidth;
     setLeftPanelWidth(MIN_WIDTH);
+  };
+
+  const fileIndexEntries = useMemo(() => {
+    if (!rootFolderJson) return [];
+    const entries: { id: string; name: string; label: string }[] = [];
+    const walk = (list: IndexNode[]) => {
+      list.forEach((node) => {
+        const hasChildren = Array.isArray((node as any).child);
+        const name =
+          typeof (node as any).name === "string" ? (node as any).name.trim() : "";
+        if (name) {
+          const extension =
+            typeof (node as any).extension === "string"
+              ? (node as any).extension.trim()
+              : "";
+          const label = extension ? `${name}.${extension}` : name;
+          entries.push({ id: (node as any).id as string, name, label });
+        }
+        if (hasChildren) {
+          walk((node as any).child as IndexNode[]);
+        }
+      });
+    };
+    walk((rootFolderJson as RootFolderJson).child ?? []);
+    return entries;
+  }, [rootFolderJson]);
+
+  const runSearch = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setMatches([]);
+      return;
+    }
+    const q = trimmed.toLowerCase();
+    const result = fileIndexEntries
+      .filter((entry) => entry.name.toLowerCase().includes(q))
+      .map((entry) => ({
+        id: entry.id,
+        label: entry.label,
+        name: entry.name,
+      }));
+    setMatches(result);
+  };
+
+  const selectMatchedNode = (entry: { id: string; label: string }) => {
+    const node = nodes.find((n: any) => n?.id === entry.id);
+    if (!node) return;
+    selectNode(node.id);
+    setShouldFitView(true);
+    setRecentSearches((prev) => {
+      const next = [{ id: entry.id, label: entry.label }].concat(
+        prev.filter((item) => item.id !== entry.id)
+      );
+      return next;
+    });
+    setMatches([]);
   };
 
   /**
@@ -186,6 +255,120 @@ export default function LeftPanel() {
 
       {!isReduced ? (
         <div className="pm-panel__content">
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--space-2)",
+              padding: "var(--space-2)",
+              borderBottom: "var(--border-width) solid var(--border)",
+            }}
+          >
+            <label style={{ display: "grid", gap: "var(--space-1)" }}>
+              <span style={{ fontSize: "0.8rem", opacity: 0.75 }}>File search</span>
+              <input
+                value={query}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setQuery(next);
+                  runSearch(next);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (matches[0]) {
+                      selectMatchedNode(matches[0]);
+                    }
+                  }
+                }}
+                placeholder="Search file name"
+                style={{
+                  width: "100%",
+                  borderRadius: "var(--radius-md)",
+                  border: "var(--border-width) solid var(--border)",
+                  padding: "6px 8px",
+                  background: "var(--surface-2)",
+                  color: "var(--text)",
+                  fontFamily: "var(--font-family)",
+                }}
+                aria-label="Search files"
+              />
+            </label>
+
+            {matches.length > 0 && (
+              <div
+                role="listbox"
+                aria-label="Search results"
+                style={{
+                  display: "grid",
+                  gap: "var(--space-1)",
+                  background: "var(--surface-2)",
+                  border: "var(--border-width) solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "4px",
+                  maxHeight: 180,
+                  overflow: "auto",
+                }}
+              >
+                {matches.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="option"
+                    onClick={() => selectMatchedNode(item)}
+                    style={{
+                      textAlign: "left",
+                      padding: "6px 8px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "none",
+                      background: "transparent",
+                      color: "inherit",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-family)",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "transparent";
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {recentSearches.length > 0 && (
+              <div style={{ display: "grid", gap: "var(--space-1)" }}>
+                <div style={{ fontSize: "0.75rem", opacity: 0.6 }}>
+                  Recent searches
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {recentSearches.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => selectMatchedNode(item)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: "999px",
+                        border: "var(--border-width) solid var(--border)",
+                        background: "var(--surface-1)",
+                        color: "inherit",
+                        cursor: "pointer",
+                        fontSize: "0.75rem",
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <TreeView />
         </div>
       ) : (
