@@ -94,6 +94,8 @@ export default function RightPanel() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
   const [fileDetailsExpanded, setFileDetailsExpanded] = useState(true);
+  const [imageSrc, setImageSrc] = useState<string>("");
+  const [imageLoadError, setImageLoadError] = useState(false);
 
   // Used to auto-focus and visually guide the user when name is mandatory.
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -329,6 +331,114 @@ export default function RightPanel() {
     resizeTextarea(purposeTextareaRef.current);
     resizeTextarea(detailsTextareaRef.current);
   }, [draft.purpose, draft.details, selectedNodeId]);
+
+  // Load image for image nodes
+  useEffect(() => {
+    if (!isImageNode || !selectedNode) {
+      setImageSrc("");
+      setImageLoadError(false);
+      return;
+    }
+
+    const rawImageSource =
+      typeof (selectedNode?.data as any)?.imageSrc === "string"
+        ? (selectedNode.data as any).imageSrc
+        : typeof (selectedNode?.data as any)?.path === "string"
+        ? (selectedNode.data as any).path
+        : "";
+
+    const source = (rawImageSource ?? "").trim();
+    if (!source) {
+      setImageSrc("");
+      setImageLoadError(false);
+      return;
+    }
+
+    const isDirectImageSource = (value: string) =>
+      value.startsWith("data:") ||
+      value.startsWith("blob:") ||
+      value.startsWith("http://") ||
+      value.startsWith("https://");
+
+    if (isDirectImageSource(source)) {
+      setImageSrc(source);
+      setImageLoadError(false);
+      return;
+    }
+
+    let isActive = true;
+    let objectUrl: string | null = null;
+    setImageLoadError(false);
+
+    const getImageMimeType = (pathValue: string) => {
+      const extension = (pathValue.split(".").pop() ?? "").toLowerCase();
+      if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+      if (extension === "png") return "image/png";
+      if (extension === "gif") return "image/gif";
+      if (extension === "webp") return "image/webp";
+      if (extension === "bmp") return "image/bmp";
+      if (extension === "svg") return "image/svg+xml";
+      return "application/octet-stream";
+    };
+
+    const resolveFromHandle = async () => {
+      if (!rootDirectoryHandle) return false;
+      try {
+        const file = await fileManager.getFileFromHandle({
+          rootHandle: rootDirectoryHandle,
+          relPath: source,
+        });
+        objectUrl = URL.createObjectURL(file);
+        if (isActive) {
+          setImageSrc(objectUrl);
+          setImageLoadError(false);
+        }
+        return true;
+      } catch (err) {
+        console.warn("[RightPanel] Failed to load image from handle:", err);
+        if (isActive) {
+          setImageLoadError(true);
+        }
+        return false;
+      }
+    };
+
+    const resolveFromPath = async () => {
+      const isTauri = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+      if (!isTauri) return false;
+      try {
+        const { readFile } = await import("@tauri-apps/plugin-fs");
+        const bytes = await readFile(source);
+        const blob = new Blob([bytes], { type: getImageMimeType(source) });
+        objectUrl = URL.createObjectURL(blob);
+        if (isActive) {
+          setImageSrc(objectUrl);
+          setImageLoadError(false);
+        }
+        return true;
+      } catch (err) {
+        console.warn("[RightPanel] Failed to load image from path:", err);
+        if (isActive) {
+          setImageLoadError(true);
+        }
+        return false;
+      }
+    };
+
+    void (async () => {
+      const resolved = await resolveFromHandle();
+      if (!resolved) {
+        await resolveFromPath();
+      }
+    })();
+
+    return () => {
+      isActive = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [isImageNode, selectedNode, rootDirectoryHandle, fileManager]);
 
   useEffect(() => {
     setFileDetailsExpanded(true);
@@ -1173,6 +1283,77 @@ export default function RightPanel() {
                           )}
                         </label>
                       </>
+                    )}
+
+                    {/* Image preview for image nodes */}
+                    {isImageNode && (
+                      <div
+                        style={{
+                          marginTop: "var(--space-4)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "var(--space-2)",
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                          Image
+                        </div>
+                        <div
+                          style={{
+                            width: "100%",
+                            maxHeight: "400px",
+                            borderRadius: "var(--radius-md)",
+                            border: "var(--border-width) solid var(--border)",
+                            background: "var(--surface-2)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            overflow: "hidden",
+                            minHeight: "120px",
+                          }}
+                        >
+                          {imageLoadError ? (
+                            <div
+                              style={{
+                                padding: "var(--space-4)",
+                                textAlign: "center",
+                                color: "var(--text-secondary)",
+                                fontSize: "0.85rem",
+                                opacity: 0.7,
+                              }}
+                            >
+                              Image could not be loaded
+                            </div>
+                          ) : imageSrc ? (
+                            <img
+                              src={imageSrc}
+                              alt=""
+                              style={{
+                                width: "100%",
+                                height: "auto",
+                                maxHeight: "400px",
+                                objectFit: "contain",
+                                display: "block",
+                              }}
+                              onError={() => {
+                                setImageLoadError(true);
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                padding: "var(--space-4)",
+                                textAlign: "center",
+                                color: "var(--text-secondary)",
+                                fontSize: "0.85rem",
+                                opacity: 0.7,
+                              }}
+                            >
+                              Loading image...
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                   <div
