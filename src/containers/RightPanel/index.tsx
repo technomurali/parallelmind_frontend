@@ -332,6 +332,15 @@ export default function RightPanel() {
     resizeTextarea(detailsTextareaRef.current);
   }, [draft.purpose, draft.details, selectedNodeId]);
 
+  useEffect(() => {
+    if (!fileDetailsExpanded) return;
+    // Re-measure after expand so all content is visible.
+    requestAnimationFrame(() => {
+      resizeTextarea(purposeTextareaRef.current);
+      resizeTextarea(detailsTextareaRef.current);
+    });
+  }, [fileDetailsExpanded]);
+
   // Load image for image nodes
   useEffect(() => {
     if (!isImageNode || !selectedNode) {
