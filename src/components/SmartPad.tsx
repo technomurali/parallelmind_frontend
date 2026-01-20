@@ -6,6 +6,13 @@ import { uiText } from "../constants/uiText";
 import { FileManager } from "../data/fileManager";
 import { useAutoSave } from "../hooks/useAutoSave";
 import { selectActiveTab, useMindMapStore } from "../store/mindMapStore";
+import { htmlToMarkdown } from "../utils/clipboardToMarkdown";
+import {
+  getEditorPlainText,
+  insertTextAtSelection,
+} from "../utils/insertTextAtSelection";
+
+marked.setOptions({ gfm: true });
 
 type SmartPadProps = {
   selectedNode: Node | null;
@@ -109,6 +116,17 @@ export default function SmartPad({
   const lastSavedContentRef = useRef("");
   const wasFocusedRef = useRef(false);
   const savedSelectionRef = useRef<{ start: number; end: number } | null>(null);
+
+  const applyEditorChange = (nextValue: string) => {
+    editableContentRef.current = nextValue;
+    setIsContentEmpty(!nextValue);
+    const isDirty = nextValue !== lastSavedContentRef.current;
+    setDirty(isDirty);
+    if (isDirty) {
+      setSaveStatus("saving");
+      setContentVersion((prev) => prev + 1);
+    }
+  };
 
   useEffect(() => {
     const requestId = ++filePreviewRequestRef.current;
@@ -512,14 +530,22 @@ export default function SmartPad({
                 onInput={(event) => {
                   const target = event.currentTarget;
                   const nextValue = target.innerText;
-                  editableContentRef.current = nextValue;
-                  setIsContentEmpty(!nextValue);
-                  const isDirty = nextValue !== lastSavedContentRef.current;
-                  setDirty(isDirty);
-                  if (isDirty) {
-                    setSaveStatus("saving");
-                    setContentVersion((prev) => prev + 1);
-                  }
+                  applyEditorChange(nextValue);
+                }}
+                onPaste={(event) => {
+                  if (isPreview) return;
+                  const editor = contentEditableRef.current;
+                  if (!editor) return;
+
+                  const html = event.clipboardData?.getData("text/html") ?? "";
+                  const text = event.clipboardData?.getData("text/plain") ?? "";
+                  if (!html && !text) return;
+
+                  event.preventDefault();
+                  const markdown = html ? htmlToMarkdown(html) : text;
+                  insertTextAtSelection(editor, markdown);
+                  const updated = getEditorPlainText(editor);
+                  applyEditorChange(updated);
                 }}
                 style={{
                   minHeight: 120,
