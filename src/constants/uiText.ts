@@ -129,6 +129,7 @@ export const uiText = {
     },
     viewMenu: {
       showAllNodes: 'Show all nodes',
+      gridView: 'Grid view',
       resetLayout: 'Reset layout',
       resetNodeSizes: 'Reset node sizes',
       collapseAllNodes: 'Collapse all nodes',

@@ -414,6 +414,132 @@ export default function MindMap() {
     rf.setViewport(fitViewport);
   };
 
+  const applyGridViewLayout = () => {
+    if (!rf || !nodes.length || !rootFolderJson) return;
+    const rect = canvasBodyRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const rootNode =
+      nodes.find((node) => node.type === "rootFolder") ??
+      nodes.find((node) => node.id === rootFolderJson.id) ??
+      nodes.find((node) => node.id === "00") ??
+      null;
+    if (!rootNode) return;
+
+    const otherNodes = nodes.filter((node) => node.id !== rootNode.id);
+    const getNodeDimensions = (node: Node) => {
+      const sizeFromData =
+        typeof (node.data as any)?.node_size === "number" &&
+        Number.isFinite((node.data as any).node_size)
+          ? (node.data as any).node_size
+          : settings.appearance.nodeSize;
+      const width =
+        typeof node.width === "number" && Number.isFinite(node.width)
+          ? node.width
+          : sizeFromData;
+      const height =
+        typeof node.height === "number" && Number.isFinite(node.height)
+          ? node.height
+          : sizeFromData;
+      return {
+        width: Math.max(40, Math.round(width)),
+        height: Math.max(40, Math.round(height)),
+      };
+    };
+
+    const rootSize = getNodeDimensions(rootNode);
+    const columnGap =
+      typeof settings.appearance.gridColumnGap === "number" &&
+      Number.isFinite(settings.appearance.gridColumnGap)
+        ? Math.max(0, Math.round(settings.appearance.gridColumnGap))
+        : 20;
+    const rowGap =
+      typeof settings.appearance.gridRowGap === "number" &&
+      Number.isFinite(settings.appearance.gridRowGap)
+        ? Math.max(0, Math.round(settings.appearance.gridRowGap))
+        : 30;
+    const centerFlow = rf.screenToFlowPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top + 24,
+    });
+
+    const rootPosition = {
+      x: centerFlow.x - rootSize.width / 2,
+      y: centerFlow.y,
+    };
+
+    const maxTileWidth =
+      otherNodes.length > 0
+        ? Math.max(...otherNodes.map((node) => getNodeDimensions(node).width))
+        : settings.appearance.nodeSize;
+    const columnWidth = maxTileWidth + columnGap;
+    const providedColumns =
+      typeof settings.appearance.gridColumns === "number" &&
+      Number.isFinite(settings.appearance.gridColumns)
+        ? Math.max(1, Math.round(settings.appearance.gridColumns))
+        : null;
+    const providedRows =
+      typeof settings.appearance.gridRows === "number" &&
+      Number.isFinite(settings.appearance.gridRows)
+        ? Math.max(1, Math.round(settings.appearance.gridRows))
+        : null;
+    const columns =
+      providedColumns ??
+      (providedRows ? Math.max(1, Math.ceil(otherNodes.length / providedRows)) : 5);
+    const rows =
+      providedRows ??
+      (providedColumns ? Math.max(1, Math.ceil(otherNodes.length / providedColumns)) : 5);
+    const gridWidth = columns * columnWidth - columnGap;
+    const startX = centerFlow.x - gridWidth / 2;
+    const startY = rootPosition.y + rootSize.height + rowGap * 2;
+
+    const nextPositions: Record<string, { x: number; y: number }> = {};
+    nextPositions[rootNode.id] = rootPosition;
+
+    const maxGridItems = columns * rows;
+    const rowHeights = new Array(rows).fill(0);
+    otherNodes.forEach((node, index) => {
+      if (index >= maxGridItems) return;
+      const size = getNodeDimensions(node);
+      const row = Math.floor(index / columns);
+      rowHeights[row] = Math.max(rowHeights[row], size.height);
+    });
+    const rowOffsets = rowHeights.reduce<number[]>((acc, _height, idx) => {
+      if (idx === 0) return [0];
+      const prev = acc[idx - 1] + rowHeights[idx - 1] + rowGap;
+      return [...acc, prev];
+    }, []);
+
+    otherNodes.forEach((node, index) => {
+      if (index >= maxGridItems) return;
+      const size = getNodeDimensions(node);
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      const x = startX + col * columnWidth + (maxTileWidth - size.width) / 2;
+      const y = startY + (rowOffsets[row] ?? 0);
+      nextPositions[node.id] = { x, y };
+    });
+
+    const nextNodes = nodes.map((node) =>
+      nextPositions[node.id]
+        ? { ...node, position: nextPositions[node.id] }
+        : node
+    );
+
+    setNodes(nextNodes);
+    setHasCustomLayout(true);
+    setPendingNodePositions(nextPositions);
+    setLayoutSaveStatus("saving");
+    updateRootFolderJson({
+      ...rootFolderJson,
+      node_positions: nextPositions,
+    });
+
+    requestAnimationFrame(() => {
+      showAllNodesInCanvas();
+    });
+  };
+
   useEffect(() => {
     if (!rootFolderJson || !rf) {
       lastFitRootIdRef.current = null;
@@ -1385,6 +1511,37 @@ export default function MindMap() {
               }}
             >
               {uiText.canvas.viewMenu.showAllNodes}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeCanvasMenu();
+                applyGridViewLayout();
+              }}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                cursor: "pointer",
+                fontFamily: "var(--font-family)",
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "transparent";
+              }}
+            >
+              {uiText.canvas.viewMenu.gridView}
             </button>
             <button
               type="button"

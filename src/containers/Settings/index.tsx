@@ -279,6 +279,146 @@ export default function Settings() {
                           </span>
                         </div>
                       </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">Grid columns</div>
+                          <div className="pm-settings__rowDesc">
+                            Number of columns for Grid view layout.
+                          </div>
+                        </div>
+                        <input
+                          className="pm-settings__control"
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={settings.appearance.gridColumns ?? ""}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === "") {
+                              updateSettings({
+                                appearance: {
+                                  ...settings.appearance,
+                                  gridColumns: undefined,
+                                },
+                              });
+                              return;
+                            }
+                            const n = Number(raw);
+                            updateSettings({
+                              appearance: {
+                                ...settings.appearance,
+                                gridColumns: Number.isFinite(n) ? n : undefined,
+                                gridRows: undefined,
+                              },
+                            });
+                          }}
+                          placeholder="-"
+                          aria-label="Grid columns"
+                        />
+                      </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">Grid rows</div>
+                          <div className="pm-settings__rowDesc">
+                            Number of rows for Grid view layout.
+                          </div>
+                        </div>
+                        <input
+                          className="pm-settings__control"
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={settings.appearance.gridRows ?? ""}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === "") {
+                              updateSettings({
+                                appearance: {
+                                  ...settings.appearance,
+                                  gridRows: undefined,
+                                },
+                              });
+                              return;
+                            }
+                            const n = Number(raw);
+                            updateSettings({
+                              appearance: {
+                                ...settings.appearance,
+                                gridRows: Number.isFinite(n) ? n : undefined,
+                                gridColumns: undefined,
+                              },
+                            });
+                          }}
+                          placeholder="-"
+                          aria-label="Grid rows"
+                        />
+                      </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">
+                            Grid horizontal gap
+                          </div>
+                          <div className="pm-settings__rowDesc">
+                            Horizontal spacing between nodes in Grid view (px).
+                          </div>
+                        </div>
+                        <input
+                          className="pm-settings__control"
+                          type="number"
+                          min={0}
+                          max={200}
+                          value={settings.appearance.gridColumnGap ?? 20}
+                          onChange={(e) => {
+                            const n = Number(e.target.value);
+                            updateSettings({
+                              appearance: {
+                                ...settings.appearance,
+                                gridColumnGap: Number.isFinite(n) ? n : 20,
+                              },
+                            });
+                          }}
+                          aria-label="Grid horizontal gap"
+                        />
+                      </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">
+                            Grid vertical gap
+                          </div>
+                          <div className="pm-settings__rowDesc">
+                            Vertical spacing between nodes in Grid view (px).
+                          </div>
+                        </div>
+                        <input
+                          className="pm-settings__control"
+                          type="number"
+                          min={0}
+                          max={200}
+                          value={settings.appearance.gridRowGap ?? 30}
+                          onChange={(e) => {
+                            const n = Number(e.target.value);
+                            updateSettings({
+                              appearance: {
+                                ...settings.appearance,
+                                gridRowGap: Number.isFinite(n) ? n : 30,
+                              },
+                            });
+                          }}
+                          aria-label="Grid vertical gap"
+                        />
+                      </div>
                     </>
                   ),
                 },

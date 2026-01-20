@@ -158,6 +158,10 @@ export interface AppSettings {
     nodeSize: number;
     edgeStyle: string;
     edgeOpacity: number;
+    gridColumns?: number;
+    gridRows?: number;
+    gridColumnGap: number;
+    gridRowGap: number;
     showMinimap: boolean;
     nodeHeaderFontSize: number;
     nodeBodyFontSize: number;
@@ -255,6 +259,10 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         nodeSize: 200,
         edgeStyle: 'step',
         edgeOpacity: 0.85,
+        gridColumns: 5,
+        gridRows: undefined,
+        gridColumnGap: 20,
+        gridRowGap: 30,
         showMinimap: true,
         nodeHeaderFontSize: 4,
         nodeBodyFontSize: 7,
