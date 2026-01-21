@@ -208,6 +208,27 @@ export default function MindMap() {
     return { nodeIds, edgeIds };
   }, [edges, selectedNodeId, showChildrenPath]);
 
+  const collapsedNodeIds = useMemo(() => {
+    if (!rootFolderJson) return new Set<string>();
+    const hidden = new Set<string>();
+    const walk = (node: RootFolderJson | IndexNode, hideChildren: boolean) => {
+      const children = Array.isArray((node as any).child)
+        ? ((node as any).child as IndexNode[])
+        : [];
+      const isCollapsed = !!(node as any).isTreeCollapsed;
+      const shouldHideChildren = hideChildren || isCollapsed;
+      children.forEach((child) => {
+        const childId = (child as any).id;
+        if (shouldHideChildren && typeof childId === "string") {
+          hidden.add(childId);
+        }
+        walk(child, shouldHideChildren);
+      });
+    };
+    walk(rootFolderJson, false);
+    return hidden;
+  }, [rootFolderJson]);
+
   const renderedEdges = useMemo(() => {
     const edgeType = settings.appearance.edgeStyle || "default";
     const edgeOpacity =
@@ -241,6 +262,9 @@ export default function MindMap() {
         ...edge,
         type: edgeType,
         animated: highlight,
+        hidden:
+          collapsedNodeIds.has(edge?.source) ||
+          collapsedNodeIds.has(edge?.target),
         markerEnd: {
           type: MarkerType.ArrowClosed,
           width: 18,
@@ -254,6 +278,7 @@ export default function MindMap() {
     edges,
     parentPath.edgeIds,
     childrenPath.edgeIds,
+    collapsedNodeIds,
     settings.appearance.edgeStyle,
     settings.appearance.edgeOpacity,
   ]);
@@ -282,6 +307,7 @@ export default function MindMap() {
   const renderedNodes = useMemo(() => {
     if (!nodes?.length) return nodes;
     return nodes.map((node: any) => {
+      const isHidden = collapsedNodeIds.has(node?.id);
       const highlight =
         parentPath.nodeIds.has(node?.id) || childrenPath.nodeIds.has(node?.id);
       const highlightStyle = highlight
@@ -294,6 +320,7 @@ export default function MindMap() {
       if (node?.type !== "polaroidImage") {
         return {
           ...node,
+          hidden: isHidden,
           style: highlightStyle
             ? { ...(node.style ?? {}), ...highlightStyle }
             : node.style,
@@ -319,10 +346,11 @@ export default function MindMap() {
           type: "polaroidImage",
           node_type: "polaroidImage",
         },
+        hidden: isHidden,
         style: highlightStyle ? { ...(sizeStyle ?? {}), ...highlightStyle } : sizeStyle,
       };
     });
-  }, [nodes, parentPath.nodeIds, childrenPath.nodeIds]);
+  }, [nodes, parentPath.nodeIds, childrenPath.nodeIds, collapsedNodeIds]);
 
   const isTauri = () =>
     typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
@@ -436,6 +464,51 @@ export default function MindMap() {
     };
     walk(target);
     return descendants;
+  };
+
+  const updateFolderNodeInRoot = (
+    root: RootFolderJson,
+    nodeId: string,
+    updater: (node: IndexNode) => IndexNode
+  ): RootFolderJson => {
+    let updated = false;
+    const updateList = (list: IndexNode[]): IndexNode[] =>
+      list.map((item) => {
+        if (!item || typeof item !== "object") return item;
+        const id = (item as any).id;
+        if (id === nodeId) {
+          updated = true;
+          return updater(item);
+        }
+        const children = Array.isArray((item as any).child)
+          ? ((item as any).child as IndexNode[])
+          : null;
+        if (!children) return item;
+        const nextChildren = updateList(children);
+        if (nextChildren === children) return item;
+        updated = true;
+        return { ...(item as any), child: nextChildren } as IndexNode;
+      });
+
+    const nextChildren = updateList((root.child ?? []) as IndexNode[]);
+    if (!updated) return root;
+    return { ...root, child: nextChildren };
+  };
+
+  const persistRootFolderJson = async (nextRoot: RootFolderJson) => {
+    updateRootFolderJson(nextRoot);
+    try {
+      if (rootDirectoryHandle) {
+        await fileManager.writeRootFolderJson(rootDirectoryHandle, nextRoot);
+      } else if (rootFolderJson?.path) {
+        await fileManager.writeRootFolderJsonFromPath(
+          rootFolderJson.path,
+          nextRoot
+        );
+      }
+    } catch (err) {
+      console.error("[MindMap] Persist folder tree state failed:", err);
+    }
   };
 
   const showAllNodesInCanvas = () => {
@@ -2674,6 +2747,58 @@ export default function MindMap() {
                       false
                         ? uiText.contextMenus.folder.moveFolderTree
                         : uiText.contextMenus.folder.moveOnlyFolder}
+                    </button>
+                  )}
+                  {contextMenu.node.id !== "00" && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        const node = contextMenu.node;
+                        closeContextMenu();
+                        if (!node || !rootFolderJson) return;
+                        if (!isFolderNode(node) || node.id === "00") return;
+                        const isCollapsed =
+                          (node.data as any)?.isTreeCollapsed === true;
+                        const nextRoot = updateFolderNodeInRoot(
+                          rootFolderJson,
+                          node.id,
+                          (item) => {
+                            const nextNode = { ...(item as any) };
+                            if (!isCollapsed) {
+                              nextNode.isTreeCollapsed = true;
+                            } else {
+                              delete nextNode.isTreeCollapsed;
+                            }
+                            return nextNode as IndexNode;
+                          }
+                        );
+                        if (nextRoot === rootFolderJson) return;
+                        void persistRootFolderJson(nextRoot);
+                      }}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "8px 10px",
+                        borderRadius: "var(--radius-sm)",
+                        border: "none",
+                        background: "transparent",
+                        color: "inherit",
+                        cursor: "pointer",
+                        fontFamily: "var(--font-family)",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "var(--surface-1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "transparent";
+                      }}
+                    >
+                      {(contextMenu.node.data as any)?.isTreeCollapsed === true
+                        ? uiText.contextMenus.folder.openTree
+                        : uiText.contextMenus.folder.closeTree}
                     </button>
                   )}
                   {isTauri() && (
