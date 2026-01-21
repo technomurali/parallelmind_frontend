@@ -275,6 +275,8 @@ export const uiText = {
     folder: {
       openFolder: 'Open Folder',
       openInNewTab: 'Open in New Tab',
+      moveFolderTree: 'Move this folder tree',
+      moveOnlyFolder: 'Move only this folder',
       newFile: 'New File',
       newFolder: 'New Folder',
       rename: 'Rename',

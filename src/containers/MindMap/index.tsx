@@ -55,6 +55,7 @@ export default function MindMap() {
   const edges = activeTab?.edges ?? [];
   const setNodes = useMindMapStore((s) => s.setNodes);
   const setEdges = useMindMapStore((s) => s.setEdges);
+  const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
   const settings = useMindMapStore((s) => s.settings);
   const updateSettings = useMindMapStore((s) => s.updateSettings);
@@ -401,6 +402,42 @@ export default function MindMap() {
     return false;
   };
 
+  const getDescendantIds = (
+    root: RootFolderJson | null,
+    folderId: string
+  ): string[] => {
+    if (!root) return [];
+    const stack: IndexNode[] = [root as unknown as IndexNode];
+    let target: IndexNode | null = null;
+    while (stack.length) {
+      const current = stack.pop();
+      if (!current) continue;
+      if ((current as any).id === folderId) {
+        target = current;
+        break;
+      }
+      const children = Array.isArray((current as any).child)
+        ? ((current as any).child as IndexNode[])
+        : [];
+      stack.push(...children);
+    }
+    if (!target) return [];
+
+    const descendants: string[] = [];
+    const walk = (node: IndexNode) => {
+      const children = Array.isArray((node as any).child)
+        ? ((node as any).child as IndexNode[])
+        : [];
+      children.forEach((child) => {
+        const id = (child as any).id;
+        if (typeof id === "string") descendants.push(id);
+        walk(child);
+      });
+    };
+    walk(target);
+    return descendants;
+  };
+
   const showAllNodesInCanvas = () => {
     if (!rf) return;
     const rect = canvasBodyRef.current?.getBoundingClientRect();
@@ -636,20 +673,79 @@ export default function MindMap() {
       return;
     }
     const nextNodes = applyNodeChanges(changes, nodes);
+    let adjustedNodes = nextNodes;
+
     if (hasPositionChange && rootFolderJson) {
-      const nextPositions = {
-        ...(rootFolderJson.node_positions ?? {}),
-      } as Record<string, { x: number; y: number }>;
+      const movedIds = new Set(
+        changes
+          .filter((change) => change.type === "position")
+          .map((change) => change.id)
+      );
+      const descendantDeltaMap = new Map<string, { x: number; y: number }>();
+
       changes
         .filter((change) => change.type === "position")
         .forEach((change) => {
-          const moved = nextNodes.find((node) => node.id === change.id);
+          const moved = nodes.find((node) => node.id === change.id);
+          if (!moved || !moved.position || !change.position) return;
+          if (!isFolderNode(moved) || moved.id === "00") return;
+          const moveChildrenOnDrag =
+            (moved.data as any)?.moveChildrenOnDrag !== false;
+          if (!moveChildrenOnDrag) return;
+
+          const delta = {
+            x: change.position.x - moved.position.x,
+            y: change.position.y - moved.position.y,
+          };
+          if (delta.x === 0 && delta.y === 0) return;
+
+          const descendants = getDescendantIds(rootFolderJson, moved.id);
+          descendants.forEach((descendantId) => {
+            if (movedIds.has(descendantId)) return;
+            if (!descendantDeltaMap.has(descendantId)) {
+              descendantDeltaMap.set(descendantId, delta);
+            }
+          });
+        });
+
+      if (descendantDeltaMap.size > 0) {
+        adjustedNodes = nextNodes.map((node) => {
+          const delta = descendantDeltaMap.get(node.id);
+          if (!delta || !node.position) return node;
+          return {
+            ...node,
+            position: {
+              x: node.position.x + delta.x,
+              y: node.position.y + delta.y,
+            },
+          };
+        });
+      }
+
+      const nextPositions = {
+        ...(rootFolderJson.node_positions ?? {}),
+      } as Record<string, { x: number; y: number }>;
+
+      changes
+        .filter((change) => change.type === "position")
+        .forEach((change) => {
+          const moved = adjustedNodes.find((node) => node.id === change.id);
           if (!moved || !moved.position) return;
           nextPositions[moved.id] = {
             x: moved.position.x,
             y: moved.position.y,
           };
         });
+
+      descendantDeltaMap.forEach((_delta, descendantId) => {
+        const moved = adjustedNodes.find((node) => node.id === descendantId);
+        if (!moved || !moved.position) return;
+        nextPositions[moved.id] = {
+          x: moved.position.x,
+          y: moved.position.y,
+        };
+      });
+
       setPendingNodePositions(nextPositions);
       setLayoutSaveStatus("saving");
       updateRootFolderJson({
@@ -657,7 +753,7 @@ export default function MindMap() {
         node_positions: nextPositions,
       });
     }
-    setNodes(nextNodes);
+    setNodes(adjustedNodes);
   };
 
   const onEdgesChange = (changes: EdgeChange[]) => {
@@ -1175,6 +1271,9 @@ export default function MindMap() {
       }
       if (typeof existingData.parentId === "string") {
         runtimeFields.parentId = existingData.parentId;
+      }
+      if (typeof existingData.moveChildrenOnDrag === "boolean") {
+        runtimeFields.moveChildrenOnDrag = existingData.moveChildrenOnDrag;
       }
       
       // Merge: newly composed data (from RootFolderJson) + preserved runtime fields + node_size
@@ -2536,6 +2635,47 @@ export default function MindMap() {
               </button>
               {contextMenu.node && isFolderNode(contextMenu.node) && (
                 <>
+                  {contextMenu.node.id !== "00" && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        const node = contextMenu.node;
+                        closeContextMenu();
+                        if (!node) return;
+                        if (!isFolderNode(node) || node.id === "00") return;
+                        const current =
+                          (node.data as any)?.moveChildrenOnDrag !== false;
+                        updateNodeData(node.id, {
+                          moveChildrenOnDrag: !current,
+                        });
+                      }}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "8px 10px",
+                        borderRadius: "var(--radius-sm)",
+                        border: "none",
+                        background: "transparent",
+                        color: "inherit",
+                        cursor: "pointer",
+                        fontFamily: "var(--font-family)",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "var(--surface-1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "transparent";
+                      }}
+                    >
+                      {(contextMenu.node.data as any)?.moveChildrenOnDrag ===
+                      false
+                        ? uiText.contextMenus.folder.moveFolderTree
+                        : uiText.contextMenus.folder.moveOnlyFolder}
+                    </button>
+                  )}
                   {isTauri() && (
                     <button
                       type="button"
