@@ -10,7 +10,7 @@
 
 import { type ReactNode, useMemo } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { FileManager, type RootFolderJson } from "../../data/fileManager";
+import { FileManager, type RootFolderJson, type IndexNode } from "../../data/fileManager";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { getNodeFillColor } from "../../utils/nodeFillColors";
 
@@ -163,6 +163,48 @@ export default function RootFolderNode({
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const isExpanded = !areNodesCollapsed;
   const fileManager = useMemo(() => new FileManager(), []);
+
+  // Check if this specific folder tree is collapsed
+  const isTreeCollapsed = (data as any)?.isTreeCollapsed === true;
+
+  // Count children for this folder node
+  const childrenCount = useMemo(() => {
+    if (!rootFolderJson) return 0;
+    const findNodeAndCount = (
+      node: RootFolderJson | IndexNode,
+      targetId: string
+    ): number => {
+      if ((node as any).id === targetId) {
+        const children = Array.isArray((node as any).child)
+          ? ((node as any).child as IndexNode[])
+          : [];
+        const countRecursive = (n: IndexNode): number => {
+          const directChildren = Array.isArray((n as any).child)
+            ? ((n as any).child as IndexNode[])
+            : [];
+          return (
+            directChildren.length +
+            directChildren.reduce((sum, child) => sum + countRecursive(child), 0)
+          );
+        };
+        return children.reduce((sum, child) => sum + 1 + countRecursive(child), 0);
+      }
+      const children = Array.isArray((node as any).child)
+        ? ((node as any).child as IndexNode[])
+        : [];
+      for (const child of children) {
+        const count = findNodeAndCount(child, targetId);
+        if (count >= 0) return count;
+      }
+      return -1;
+    };
+    return findNodeAndCount(rootFolderJson, id);
+  }, [rootFolderJson, id]);
+
+  const hasChildren = childrenCount > 0;
+  // Only show icon when tree is explicitly collapsed (true) and has children
+  const showCollapsedIcon = isTreeCollapsed === true && hasChildren;
+
   const levelValue =
     typeof (data as any)?.level === "number" ? (data as any).level : 0;
   const fillColor = getNodeFillColor(
@@ -451,6 +493,54 @@ export default function RootFolderNode({
             >
               {displayPurpose ?? ""}
             </div>
+          </div>
+        )}
+        {/* Collapsed tree icon overlay */}
+        {showCollapsedIcon && (
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: `${toSvgPx(4)}px`,
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+            aria-hidden="true"
+          >
+            <svg
+              width={toSvgPx(35)}
+              height={toSvgPx(20)}
+              viewBox="0 0 24 16"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{
+                opacity: 0.25,
+              }}
+            >
+              {/* Top chevron */}
+              <path
+                d="M 2 4 L 12 12 L 22 4"
+                stroke="#000000"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+              {/* Bottom chevron */}
+              <path
+                d="M 2 8 L 12 16 L 22 8"
+                stroke="#000000"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </svg>
           </div>
         )}
       </SvgFolderNode>
