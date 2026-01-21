@@ -165,6 +165,7 @@ export interface AppSettings {
     showMinimap: boolean;
     nodeHeaderFontSize: number;
     nodeBodyFontSize: number;
+    nodeFontColor: "black" | "white";
     enableNodeFillColors: boolean;
     levelHorizontalGaps?: number[];
     nodeFillColors: {
@@ -266,6 +267,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         showMinimap: true,
         nodeHeaderFontSize: 4,
         nodeBodyFontSize: 7,
+        nodeFontColor: "white",
         enableNodeFillColors: false,
         levelHorizontalGaps: Array.from({ length: 5 }, () => Math.round(200 * 1.4)),
         nodeFillColors: {

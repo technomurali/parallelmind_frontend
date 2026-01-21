@@ -19,6 +19,7 @@ type SvgFolderNodeProps = {
   height: number;
   selected: boolean;
   fillColor: string;
+  textColor: string;
   contentFontSize: number;
   contentPadding: number;
   contentGap: number;
@@ -31,6 +32,7 @@ const SvgFolderNode = ({
   height,
   selected,
   fillColor,
+  textColor,
   contentFontSize,
   contentPadding,
   contentGap,
@@ -97,7 +99,7 @@ const SvgFolderNode = ({
       style={{
         display: "block",
         overflow: "visible",
-        color: "var(--text)",
+        color: textColor,
       }}
     >
       {/* Node Shape */}
@@ -125,7 +127,7 @@ const SvgFolderNode = ({
             position: "relative",
             fontFamily: "var(--font-family)",
             fontSize: `${contentFontSize}px`,
-            color: "var(--text)",
+            color: textColor,
             overflow: "visible",
           }}
         >
@@ -163,6 +165,8 @@ export default function RootFolderNode({
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const isExpanded = !areNodesCollapsed;
   const fileManager = useMemo(() => new FileManager(), []);
+  const nodeTextColor =
+    settings.appearance.nodeFontColor === "black" ? "#000000" : "#ffffff";
 
   // Check if this specific folder tree is collapsed
   const isTreeCollapsed = (data as any)?.isTreeCollapsed === true;
@@ -340,7 +344,7 @@ export default function RootFolderNode({
         background: "transparent",
         border: "none",
         borderRadius: "var(--radius-md)",
-        color: "var(--text)",
+        color: nodeTextColor,
         padding: 0,
         display: "grid",
         justifyItems: "center",
@@ -379,6 +383,7 @@ export default function RootFolderNode({
         height={svgHeight}
         selected={selected}
         fillColor={fillColor}
+        textColor={nodeTextColor}
         contentFontSize={toSvgPx(bodyFontSize)}
         contentPadding={toSvgPx(0.5)}
         contentGap={toSvgPx(4)}
@@ -407,7 +412,7 @@ export default function RootFolderNode({
               borderRadius: 0,
               border: "none",
               background: "transparent",
-              color: "var(--text)",
+            color: nodeTextColor,
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
@@ -433,7 +438,7 @@ export default function RootFolderNode({
               borderRadius: 0,
               border: "none",
               background: "transparent",
-              color: "var(--text)",
+            color: nodeTextColor,
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",

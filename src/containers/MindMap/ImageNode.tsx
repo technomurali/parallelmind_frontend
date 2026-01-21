@@ -54,11 +54,14 @@ export default function ImageNode({
   selected,
   dragging,
 }: NodeProps<any>) {
+  const settings = useMindMapStore((s) => s.settings);
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const rootDirectoryHandle =
     useMindMapStore(selectActiveTab)?.rootDirectoryHandle ?? null;
   const fileManager = useMemo(() => new FileManager(), []);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const nodeTextColor =
+    settings.appearance.nodeFontColor === "black" ? "#000000" : "#ffffff";
 
   const rawImageSource =
     typeof (data as any)?.imageSrc === "string"
@@ -330,7 +333,8 @@ export default function ImageNode({
         ) : (
           <div
             style={{
-              color: "#666666",
+              color: nodeTextColor,
+              opacity: 0.7,
               fontSize: 12,
               textAlign: "center",
               padding: 8,
@@ -346,7 +350,8 @@ export default function ImageNode({
           width: "100%",
           textAlign: "center",
           fontSize: 12,
-          color: "#444444",
+          color: nodeTextColor,
+          opacity: 0.85,
           letterSpacing: "0.2px",
         }}
       >

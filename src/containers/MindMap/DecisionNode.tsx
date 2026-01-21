@@ -19,6 +19,8 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
   const activeTab = useMindMapStore(selectActiveTab);
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
   const isExpanded = !areNodesCollapsed;
+  const nodeTextColor =
+    settings.appearance.nodeFontColor === "black" ? "#000000" : "#ffffff";
 
   const nodeName =
     typeof (data as any)?.name === "string" && (data as any).name.trim()
@@ -112,7 +114,7 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
         background: "transparent",
         border: "none",
         borderRadius: "var(--radius-md)",
-        color: "var(--text)",
+        color: nodeTextColor,
         padding: 0,
         display: "grid",
         justifyItems: "center",

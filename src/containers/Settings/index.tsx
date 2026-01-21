@@ -182,6 +182,34 @@ export default function Settings() {
                           aria-label="Node body size"
                         />
                       </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">Node font color</div>
+                          <div className="pm-settings__rowDesc">
+                            Choose black or white for node text.
+                          </div>
+                        </div>
+                        <select
+                          className="pm-settings__control"
+                          value={settings.appearance.nodeFontColor ?? "white"}
+                          onChange={(e) =>
+                            updateSettings({
+                              appearance: {
+                                ...settings.appearance,
+                                nodeFontColor:
+                                  e.target.value === "black" ? "black" : "white",
+                              },
+                            })
+                          }
+                          aria-label="Node font color"
+                        >
+                          <option value="white">White</option>
+                          <option value="black">Black</option>
+                        </select>
+                      </div>
                     </>
                   ),
                 },

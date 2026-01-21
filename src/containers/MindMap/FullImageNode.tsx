@@ -52,11 +52,14 @@ export default function FullImageNode({
   selected,
   dragging,
 }: NodeProps<any>) {
+  const settings = useMindMapStore((s) => s.settings);
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const rootDirectoryHandle =
     useMindMapStore(selectActiveTab)?.rootDirectoryHandle ?? null;
   const fileManager = useMemo(() => new FileManager(), []);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const nodeTextColor =
+    settings.appearance.nodeFontColor === "black" ? "#000000" : "#ffffff";
 
   const rawImageSource =
     typeof (data as any)?.imageSrc === "string"
@@ -320,7 +323,8 @@ export default function FullImageNode({
         ) : (
           <div
             style={{
-              color: "#666666",
+              color: nodeTextColor,
+              opacity: 0.7,
               fontSize: 12,
               textAlign: "center",
               padding: 8,

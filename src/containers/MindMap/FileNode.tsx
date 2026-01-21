@@ -29,6 +29,8 @@ export default function FileNode({
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const isExpanded = !areNodesCollapsed;
   const fileManager = useMemo(() => new FileManager(), []);
+  const nodeTextColor =
+    settings.appearance.nodeFontColor === "black" ? "#000000" : "#ffffff";
 
   const nodeName =
     typeof (data as any)?.name === "string" && (data as any).name.trim()
@@ -154,7 +156,7 @@ export default function FileNode({
         background: "transparent",
         border: "none",
         borderRadius: "var(--radius-md)",
-        color: "var(--text)",
+        color: nodeTextColor,
         padding: 0,
         display: "grid",
         justifyItems: "center",
@@ -266,7 +268,7 @@ export default function FileNode({
                   borderRadius: 0,
                   border: "none",
                   background: "transparent",
-                  color: "var(--text)",
+                color: nodeTextColor,
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
@@ -292,7 +294,7 @@ export default function FileNode({
                   borderRadius: 0,
                   border: "none",
                   background: "transparent",
-                  color: "var(--text)",
+                color: nodeTextColor,
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
