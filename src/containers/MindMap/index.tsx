@@ -84,6 +84,7 @@ export default function MindMap() {
   const canvasBodyRef = useRef<HTMLDivElement | null>(null);
   const spacingPanelRef = useRef<HTMLDivElement | null>(null);
   const lastMousePositionRef = useRef({ x: 0, y: 0 });
+  const lastFocusedNodeIdRef = useRef<string | null>(null);
   const spacingDragRef = useRef<{
     active: boolean;
     offsetX: number;
@@ -1080,7 +1081,7 @@ export default function MindMap() {
 
     // If root node already exists, preserve its position; otherwise center it.
     let rootPosition: { x: number; y: number };
-    if (hasCustomLayout && existingRoot?.position) {
+    if (existingRoot?.position) {
       rootPosition = existingRoot.position;
     } else {
       const el = wrapperRef.current;
@@ -1237,6 +1238,51 @@ export default function MindMap() {
     setEdges,
     hasCustomLayout,
   ]);
+
+  useEffect(() => {
+    if (!rf) return;
+    if (!selectedNodeId) {
+      lastFocusedNodeIdRef.current = null;
+      return;
+    }
+    if (lastFocusedNodeIdRef.current === selectedNodeId) return;
+
+    const selectedNode = (nodes ?? []).find((node) => node?.id === selectedNodeId);
+    if (!selectedNode?.position) return;
+
+    const fallbackSize = settings.appearance.nodeSize;
+    const styleWidth = (selectedNode.style as any)?.width;
+    const styleHeight = (selectedNode.style as any)?.height;
+    const nodeWidth =
+      typeof selectedNode.width === "number"
+        ? selectedNode.width
+        : typeof styleWidth === "number"
+        ? styleWidth
+        : fallbackSize;
+    const nodeHeight =
+      typeof selectedNode.height === "number"
+        ? selectedNode.height
+        : typeof styleHeight === "number"
+        ? styleHeight
+        : fallbackSize;
+    const centerX = selectedNode.position.x + Math.max(1, nodeWidth) / 2;
+    const centerY = selectedNode.position.y + Math.max(1, nodeHeight) / 2;
+    const zoom = rf.getZoom();
+
+    if (typeof (rf as any).setCenter === "function") {
+      (rf as any).setCenter(centerX, centerY, { zoom, duration: 250 });
+    } else {
+      const rect = wrapperRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      rf.setViewport({
+        x: rect.width / 2 - centerX * zoom,
+        y: rect.height / 2 - centerY * zoom,
+        zoom,
+      });
+    }
+
+    lastFocusedNodeIdRef.current = selectedNodeId;
+  }, [nodes, rf, selectedNodeId, settings.appearance.nodeSize]);
 
   return (
     <main className="pm-center" aria-label={uiText.ariaLabels.mindMapCanvas}>
