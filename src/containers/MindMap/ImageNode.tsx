@@ -216,13 +216,16 @@ export default function ImageNode({
   }, [data, id, imageSrc, updateNodeData]);
 
   const imageAreaHeight = Math.max(0, size.imageHeight);
-  const handleWidth = 18;
-  const handleHeight = 9;
+  const handleWidth = 12;
+  const handleHeight = 6;
+  const handleOffset = Math.round(-handleHeight / 2);
   const handleBaseStyle: React.CSSProperties = {
     width: handleWidth,
     height: handleHeight,
-    background: "#d3d3d3",
-    border: "1px solid #bfbfbf",
+    background: "var(--border)",
+    border: "none",
+    opacity: 1,
+    zIndex: 3,
   };
 
   return (
@@ -280,11 +283,10 @@ export default function ImageNode({
         id="target-top"
         style={{
           ...handleBaseStyle,
-          top: -10,
+          top: handleOffset,
           left: "50%",
           transform: "translate(-50%, 0)",
           borderRadius: "9px 9px 0 0",
-          opacity: 0.3,
         }}
       />
       <Handle
@@ -293,11 +295,10 @@ export default function ImageNode({
         id="source-bottom"
         style={{
           ...handleBaseStyle,
-          bottom: -10,
+          bottom: handleOffset,
           left: "50%",
           transform: "translate(-50%, 0)",
           borderRadius: "0 0 9px 9px",
-          opacity: 0.3,
         }}
       />
       <div

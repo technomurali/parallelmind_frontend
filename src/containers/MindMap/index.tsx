@@ -308,7 +308,7 @@ export default function MindMap() {
 
   const getFullImageDimensions = (width: number, height: number) => {
     const maxWidth = Math.round(FILE_NODE_BASE_WIDTH * DEFAULT_IMAGE_WIDTH_RATIO);
-    const padding = 3;
+    const padding = 1;
     const safeWidth = Math.max(1, width);
     const safeHeight = Math.max(1, height);
     const scale = Math.min(1, maxWidth / safeWidth);
