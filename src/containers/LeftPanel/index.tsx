@@ -264,8 +264,8 @@ export default function LeftPanel() {
               borderBottom: "var(--border-width) solid var(--border)",
             }}
           >
-            <label style={{ display: "grid", gap: "var(--space-1)" }}>
-              <span style={{ fontSize: "0.8rem", opacity: 0.75 }}>File search</span>
+            <label style={{ display: "grid", gap: "5px" }}>
+              <span style={{ fontSize: "0.8rem", opacity: 0.75 }}>Folder & File Search</span>
               <input
                 value={query}
                 onChange={(e) => {

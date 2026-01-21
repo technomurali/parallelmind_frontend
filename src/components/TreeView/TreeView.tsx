@@ -30,10 +30,6 @@ export type TreeViewProps = {
 export function TreeView({ className }: TreeViewProps) {
   return (
     <div className={`pm-treeview ${className ?? ''}`} aria-label={uiText.ariaLabels.folderTree}>
-      <div className="pm-treeview__title">{uiText.panels.folderTree}</div>
-      <div className="pm-treeview__hint">
-        {uiText.placeholders.folderTreePlaceholder}
-      </div>
     </div>
   );
 }

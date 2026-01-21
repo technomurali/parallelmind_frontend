@@ -1069,11 +1069,7 @@ export default function RightPanel() {
 
       {!isReduced ? (
         <div className="pm-panel__content">
-          {!selectedNodeId ? (
-            <div className="pm-placeholder">
-              {uiText.placeholders.nodeDetails}
-            </div>
-          ) : (
+          {!selectedNodeId ? null : (
             <div
               aria-label={uiText.ariaLabels.nodeEditor}
               style={{

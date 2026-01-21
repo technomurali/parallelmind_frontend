@@ -304,8 +304,6 @@ export const uiText = {
    * Placeholder text
    */
   placeholders: {
-    nodeDetails: 'Select a node to see details / editor here (placeholder).',
-    folderTreePlaceholder: '(placeholder) Hook this up to fileManager + parallelmind_index.json later.',
     search: 'Search files and folders...',
     fileName: 'Enter file name',
     folderName: 'Enter folder name',
