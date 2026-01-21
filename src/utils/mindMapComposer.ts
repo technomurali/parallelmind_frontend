@@ -46,7 +46,7 @@ type NodeInfo = {
   id: string;
   depth: number;
   kind: NormalizedKind;
-  renderType: "rootFolder" | "file" | "polaroidImage";
+  renderType: "rootFolder" | "file" | "polaroidImage" | "fullImageNode";
   data: Record<string, unknown>;
   children: string[];
   parentId: string | null;
@@ -189,11 +189,15 @@ export const composeMindMapGraphFromRoot = (
     }
 
     const data = normalizeNodeData(node, kind);
+    if (isImageFile) {
+      data.type = "fullImageNode";
+      data.node_type = "fullImageNode";
+    }
     const info: NodeInfo = {
       id,
       depth,
       kind,
-      renderType: kind === "folder" ? "rootFolder" : isImageFile ? "polaroidImage" : "file",
+      renderType: kind === "folder" ? "rootFolder" : isImageFile ? "fullImageNode" : "file",
       data,
       children: [],
       parentId,

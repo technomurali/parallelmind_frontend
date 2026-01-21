@@ -41,6 +41,7 @@ import RootFolderNode from "./RootFolderNode";
 import FileNode from "./FileNode";
 import DecisionNode from "./DecisionNode";
 import ImageNode from "./ImageNode";
+import FullImageNode from "./FullImageNode";
 
 /**
  * MindMap component
@@ -167,6 +168,7 @@ export default function MindMap() {
       file: FileNode,
       decision: DecisionNode,
       polaroidImage: ImageNode,
+      fullImageNode: FullImageNode,
     }),
     []
   );
@@ -304,6 +306,22 @@ export default function MindMap() {
     };
   };
 
+  const getFullImageDimensions = (width: number, height: number) => {
+    const maxWidth = Math.round(FILE_NODE_BASE_WIDTH * DEFAULT_IMAGE_WIDTH_RATIO);
+    const padding = 3;
+    const safeWidth = Math.max(1, width);
+    const safeHeight = Math.max(1, height);
+    const scale = Math.min(1, maxWidth / safeWidth);
+    const imageWidth = Math.round(safeWidth * scale);
+    const imageHeight = Math.round(safeHeight * scale);
+    return {
+      nodeWidth: imageWidth + padding * 2,
+      nodeHeight: imageHeight + padding * 2,
+      imageWidth,
+      imageHeight,
+    };
+  };
+
   const renderedNodes = useMemo(() => {
     if (!nodes?.length) return nodes;
     return nodes.map((node: any) => {
@@ -317,7 +335,15 @@ export default function MindMap() {
           }
         : null;
 
-      if (node?.type !== "polaroidImage") {
+      const isPolaroid =
+        node?.type === "polaroidImage" ||
+        (node?.data as any)?.type === "polaroidImage" ||
+        (node?.data as any)?.node_type === "polaroidImage";
+      const isFullImage =
+        node?.type === "fullImageNode" ||
+        (node?.data as any)?.type === "fullImageNode" ||
+        (node?.data as any)?.node_type === "fullImageNode";
+      if (!isPolaroid && !isFullImage) {
         return {
           ...node,
           hidden: isHidden,
@@ -330,21 +356,29 @@ export default function MindMap() {
         typeof node?.data?.imageWidth === "number" ? node.data.imageWidth : 0;
       const imageHeight =
         typeof node?.data?.imageHeight === "number" ? node.data.imageHeight : 0;
-      const { nodeWidth, nodeHeight } =
+      const sizeResult =
         imageWidth > 0 && imageHeight > 0
-          ? getPolaroidDimensions(imageWidth, imageHeight)
+          ? isFullImage
+            ? getFullImageDimensions(imageWidth, imageHeight)
+            : getPolaroidDimensions(imageWidth, imageHeight)
           : { nodeWidth: undefined, nodeHeight: undefined };
       const sizeStyle =
-        typeof nodeWidth === "number" && typeof nodeHeight === "number"
-          ? { ...(node.style ?? {}), width: nodeWidth, height: nodeHeight }
+        typeof sizeResult.nodeWidth === "number" &&
+        typeof sizeResult.nodeHeight === "number"
+          ? {
+              ...(node.style ?? {}),
+              width: sizeResult.nodeWidth,
+              height: sizeResult.nodeHeight,
+            }
           : node.style;
+      const nodeType = isFullImage ? "fullImageNode" : "polaroidImage";
       return {
         ...node,
-        type: "polaroidImage",
+        type: nodeType,
         data: {
           ...(node.data ?? {}),
-          type: "polaroidImage",
-          node_type: "polaroidImage",
+          type: nodeType,
+          node_type: nodeType,
         },
         hidden: isHidden,
         style: highlightStyle ? { ...(sizeStyle ?? {}), ...highlightStyle } : sizeStyle,
@@ -1084,17 +1118,23 @@ export default function MindMap() {
         ((selectedNode?.data as any)?.isDraft === true &&
           ((selectedNode?.data as any)?.node_type === "polaroidImage" ||
             (selectedNode?.data as any)?.type === "polaroidImage" ||
-            selectedNode?.type === "polaroidImage"));
+            selectedNode?.type === "polaroidImage" ||
+            (selectedNode?.data as any)?.node_type === "fullImageNode" ||
+            (selectedNode?.data as any)?.type === "fullImageNode" ||
+            selectedNode?.type === "fullImageNode"));
       
       if (isDraftImage) {
         // Update the selected draft image node with the pasted image
         const url = URL.createObjectURL(file);
         const img = new Image();
         img.onload = () => {
-          const { nodeWidth, nodeHeight } = getPolaroidDimensions(
-            img.naturalWidth,
-            img.naturalHeight
-          );
+          const isFullImage =
+            (selectedNode?.data as any)?.node_type === "fullImageNode" ||
+            (selectedNode?.data as any)?.type === "fullImageNode" ||
+            selectedNode?.type === "fullImageNode";
+          const { nodeWidth, nodeHeight } = isFullImage
+            ? getFullImageDimensions(img.naturalWidth, img.naturalHeight)
+            : getPolaroidDimensions(img.naturalWidth, img.naturalHeight);
           const currentNodes = nodes ?? [];
           const updatedNodes = currentNodes.map((n: any) => {
             if (n?.id !== selectedNodeId) return n;
@@ -1141,7 +1181,7 @@ export default function MindMap() {
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        const { nodeWidth, nodeHeight } = getPolaroidDimensions(
+        const { nodeWidth, nodeHeight } = getFullImageDimensions(
           img.naturalWidth,
           img.naturalHeight
         );
@@ -1162,7 +1202,7 @@ export default function MindMap() {
           .slice(2)}`;
         const tempNode: Node = {
           id: tempNodeId,
-          type: "polaroidImage",
+          type: "fullImageNode",
           position: flowPos,
           style: {
             opacity: 1,
@@ -1171,8 +1211,8 @@ export default function MindMap() {
             height: nodeHeight,
           },
           data: {
-            type: "polaroidImage",
-            node_type: "polaroidImage",
+            type: "fullImageNode",
+            node_type: "fullImageNode",
             name: "",
             caption: "",
             purpose: "",
@@ -2371,7 +2411,7 @@ export default function MindMap() {
                 {uiText.contextMenus.canvas.newFile}
               </button>
 
-              {/* New Polaroid Image */}
+              {/* New Image */}
               <button
                 type="button"
                 role="menuitem"
@@ -2385,15 +2425,15 @@ export default function MindMap() {
                     .slice(2)}`;
                   const tempNode: Node = {
                     id: tempNodeId,
-                    type: "polaroidImage",
+                    type: "fullImageNode",
                     position: flowPos,
                     style: {
                       opacity: 1,
                       transition: "opacity 180ms ease",
                     },
                     data: {
-                      type: "polaroidImage",
-                      node_type: "polaroidImage",
+                      type: "fullImageNode",
+                      node_type: "fullImageNode",
                       name: "",
                       caption: "",
                       purpose: "",

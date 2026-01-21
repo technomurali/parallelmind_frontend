@@ -130,7 +130,12 @@ export default function RightPanel() {
     const isFile =
       data?.node_type === "file" || data?.type === "file" || node?.type === "file";
     const isImage =
-      data?.node_type === "polaroidImage" || data?.type === "polaroidImage" || node?.type === "polaroidImage";
+      data?.node_type === "polaroidImage" ||
+      data?.type === "polaroidImage" ||
+      node?.type === "polaroidImage" ||
+      data?.node_type === "fullImageNode" ||
+      data?.type === "fullImageNode" ||
+      node?.type === "fullImageNode";
     const baseName = typeof data.name === "string" ? data.name : "";
     const ext = typeof data.extension === "string" ? data.extension : "";
     const caption = typeof data.caption === "string" ? data.caption : "";
@@ -196,7 +201,10 @@ export default function RightPanel() {
   const isImageNode =
     (selectedNode?.data as any)?.node_type === "polaroidImage" ||
     (selectedNode?.data as any)?.type === "polaroidImage" ||
-    selectedNode?.type === "polaroidImage";
+    selectedNode?.type === "polaroidImage" ||
+    (selectedNode?.data as any)?.node_type === "fullImageNode" ||
+    (selectedNode?.data as any)?.type === "fullImageNode" ||
+    selectedNode?.type === "fullImageNode";
 
   const getExtensionFromMimeType = (mimeType: string): string => {
     const mime = (mimeType ?? "").toLowerCase();
