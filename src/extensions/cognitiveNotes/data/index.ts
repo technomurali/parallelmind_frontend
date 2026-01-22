@@ -1,2 +1,5 @@
-// Placeholder exports for Cognitive Notes data helpers.
-export {};
+export {
+  CognitiveNotesManager,
+  type CognitiveNotesJson,
+  type CognitiveNotesFileNode,
+} from "./cognitiveNotesManager";
