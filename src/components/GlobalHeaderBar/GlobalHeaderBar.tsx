@@ -2,6 +2,8 @@ import { uiText } from "../../constants/uiText";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { FiSettings } from "react-icons/fi";
 import { FileManager } from "../../data/fileManager";
+import { runExtensionAction } from "../../extensions";
+import { isModuleEnabled } from "../../utils/moduleConfig";
 import { useMemo, useState, useRef, useEffect } from "react";
 
 type GlobalHeaderBarProps = {
@@ -24,6 +26,7 @@ export function GlobalHeaderBar({ title: _title }: GlobalHeaderBarProps) {
   const createTab = useMindMapStore((s) => s.createTab);
   const setActiveTab = useMindMapStore((s) => s.setActiveTab);
   const fileManager = useMemo(() => new FileManager(), []);
+  const cognitiveNotesEnabled = isModuleEnabled("cognitiveNotes");
   
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
@@ -153,6 +156,11 @@ export function GlobalHeaderBar({ title: _title }: GlobalHeaderBarProps) {
     }
   };
 
+  const onOpenCognitiveNotes = async () => {
+    setFileMenuOpen(false);
+    await runExtensionAction("cognitiveNotes", "open");
+  };
+
   return (
     <header className="pm-global-header" aria-label={uiText.ariaLabels.workspace}>
       <div className="pm-global-header__left">
@@ -229,6 +237,34 @@ export function GlobalHeaderBar({ title: _title }: GlobalHeaderBarProps) {
               >
                 {uiText.menus.configRootFolder}
               </button>
+              {cognitiveNotesEnabled && (
+                <button
+                  type="button"
+                  onClick={onOpenCognitiveNotes}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "var(--space-2) var(--space-3)",
+                    borderRadius: "var(--radius-sm)",
+                    border: "none",
+                    background: "transparent",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontFamily: "var(--font-family)",
+                    fontSize: "var(--font-size-sm)",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "var(--surface-1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "transparent";
+                  }}
+                >
+                  {uiText.menus.openCognitiveNotes}
+                </button>
+              )}
             </div>
           )}
         </div>

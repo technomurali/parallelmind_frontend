@@ -49,6 +49,7 @@ export const uiText = {
   menus: {
     file: 'File',
     configRootFolder: 'Congnitive File Explorer',
+    openCognitiveNotes: 'Open Cognitive Notes',
   },
 
   /**
