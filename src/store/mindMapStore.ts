@@ -713,11 +713,23 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       if (!tab || !tab.selectedEdgeId) return state;
       const edgeId = tab.selectedEdgeId;
       const nextEdges = (tab.edges ?? []).filter((edge: any) => edge?.id !== edgeId);
+      const nextCognitiveRoot = tab.cognitiveNotesRoot
+        ? {
+            ...tab.cognitiveNotesRoot,
+            child: (tab.cognitiveNotesRoot.child ?? []).map((node: any) => ({
+              ...node,
+              related_nodes: Array.isArray(node.related_nodes)
+                ? node.related_nodes.filter((rel: any) => rel?.edge_id !== edgeId)
+                : [],
+            })),
+          }
+        : tab.cognitiveNotesRoot;
       return {
         ...state,
         tabs: updateTabById(state.tabs, tab.id, (current) => ({
           ...pushHistory(current),
           edges: nextEdges,
+          cognitiveNotesRoot: nextCognitiveRoot,
           selectedEdgeId: null,
         })),
       };

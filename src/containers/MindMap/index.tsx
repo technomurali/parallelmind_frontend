@@ -972,6 +972,18 @@ export default function MindMap() {
     const deletedIds = new Set(deleted.map((edge) => edge.id));
     setEdges((edges ?? []).filter((edge: any) => !deletedIds.has(edge?.id)));
     selectEdge(null);
+    if (isCognitiveNotes && cognitiveNotesRoot) {
+      const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) => ({
+        ...node,
+        related_nodes: Array.isArray(node.related_nodes)
+          ? node.related_nodes.filter((rel: any) => !deletedIds.has(rel?.edge_id))
+          : [],
+      }));
+      useMindMapStore.getState().updateCognitiveNotesRoot({
+        ...cognitiveNotesRoot,
+        child: nextChild,
+      });
+    }
   };
 
   const isDetailsPreviewNode = (node: Node | null): boolean =>

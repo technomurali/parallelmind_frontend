@@ -338,68 +338,42 @@ export default function FullImageNode({
       <div
         style={{
           width: size.imageWidth,
-          height: controlStripHeight,
+          height: imageAreaHeight,
+          borderRadius: 4,
+          background: imageSrc
+            ? "#000000"
+            : "linear-gradient(135deg, #f0f0f0, #e6e6e6)",
           display: "flex",
           alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 4,
-          paddingRight: 4,
-          boxSizing: "border-box",
-          pointerEvents: "auto",
+          justifyContent: "center",
+          overflow: "hidden",
         }}
       >
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            applySizeDelta(stepSize);
-          }}
-          onMouseDown={(event) => event.stopPropagation()}
-          style={{
-            width: 18,
-            height: 18,
-            borderRadius: 4,
-            border: "none",
-            background: "transparent",
-            color: nodeTextColor,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 12,
-            fontWeight: 700,
-            lineHeight: 1,
-          }}
-        >
-          +
-        </button>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            applySizeDelta(-stepSize);
-          }}
-          onMouseDown={(event) => event.stopPropagation()}
-          style={{
-            width: 18,
-            height: 18,
-            borderRadius: 4,
-            border: "none",
-            background: "transparent",
-            color: nodeTextColor,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 12,
-            fontWeight: 700,
-            lineHeight: 1,
-          }}
-        >
-          −
-        </button>
+        {imageSrc ? (
+          <img
+            ref={imgRef}
+            src={imageSrc}
+            alt=""
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              display: "block",
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              color: nodeTextColor,
+              opacity: 0.7,
+              fontSize: 12,
+              textAlign: "center",
+              padding: 8,
+            }}
+          >
+            Paste an image
+          </div>
+        )}
       </div>
       <Handle
         type="target"
@@ -496,42 +470,68 @@ export default function FullImageNode({
       <div
         style={{
           width: size.imageWidth,
-          height: imageAreaHeight,
-          borderRadius: 4,
-          background: imageSrc
-            ? "#000000"
-            : "linear-gradient(135deg, #f0f0f0, #e6e6e6)",
+          height: controlStripHeight,
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
-          overflow: "hidden",
+          justifyContent: "flex-end",
+          gap: 4,
+          paddingRight: 4,
+          boxSizing: "border-box",
+          pointerEvents: "auto",
         }}
       >
-        {imageSrc ? (
-          <img
-            ref={imgRef}
-            src={imageSrc}
-            alt=""
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              display: "block",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              color: nodeTextColor,
-              opacity: 0.7,
-              fontSize: 12,
-              textAlign: "center",
-              padding: 8,
-            }}
-          >
-            Paste an image
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            applySizeDelta(stepSize);
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 4,
+            border: "none",
+            background: "transparent",
+            color: nodeTextColor,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            fontSize: 12,
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            applySizeDelta(-stepSize);
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 4,
+            border: "none",
+            background: "transparent",
+            color: nodeTextColor,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            fontSize: 12,
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          −
+        </button>
       </div>
     </div>
   );

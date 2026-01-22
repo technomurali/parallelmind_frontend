@@ -877,7 +877,7 @@ export default function RightPanel() {
             )
           : [],
       }));
-      useMindMapStore.getState().setCognitiveNotesRoot({
+      void persistCognitiveNotesRoot({
         ...cognitiveNotesRoot,
         child: nextChild,
       });
