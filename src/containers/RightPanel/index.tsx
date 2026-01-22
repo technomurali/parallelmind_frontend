@@ -34,6 +34,7 @@ export default function RightPanel() {
   const selectedEdgeId = activeTab?.selectedEdgeId ?? null;
   const nodes = activeTab?.nodes ?? [];
   const edges = activeTab?.edges ?? [];
+  const cognitiveNotesRoot = activeTab?.cognitiveNotesRoot ?? null;
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const setNodes = useMindMapStore((s) => s.setNodes);
   const setEdges = useMindMapStore((s) => s.setEdges);
@@ -701,6 +702,22 @@ export default function RightPanel() {
             : edge
         )
       );
+      if (cognitiveNotesRoot) {
+        const updatedChild = (cognitiveNotesRoot.child ?? []).map((node: any) => ({
+          ...node,
+          related_nodes: Array.isArray(node.related_nodes)
+            ? node.related_nodes.map((rel: any) =>
+                rel?.edge_id === selectedEdgeId
+                  ? { ...rel, purpose: nextPurpose }
+                  : rel
+              )
+            : [],
+        }));
+        useMindMapStore.getState().setCognitiveNotesRoot({
+          ...cognitiveNotesRoot,
+          child: updatedChild,
+        });
+      }
       setEdgeDirty(false);
       setEdgeSaveStatus("saved");
     },
@@ -729,6 +746,20 @@ export default function RightPanel() {
     setEdgeDeleteConfirmOpen(false);
     selectNode(null);
     selectEdge(null);
+    if (cognitiveNotesRoot) {
+      const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) => ({
+        ...node,
+        related_nodes: Array.isArray(node.related_nodes)
+          ? node.related_nodes.filter(
+              (rel: any) => rel?.edge_id !== selectedEdgeId
+            )
+          : [],
+      }));
+      useMindMapStore.getState().setCognitiveNotesRoot({
+        ...cognitiveNotesRoot,
+        child: nextChild,
+      });
+    }
   };
 
   const canCreateDraft =

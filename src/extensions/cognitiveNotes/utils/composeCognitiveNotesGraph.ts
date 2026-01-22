@@ -1,5 +1,9 @@
 import type { Edge, Node } from "reactflow";
-import type { CognitiveNotesJson, CognitiveNotesFileNode } from "../data/cognitiveNotesManager";
+import type {
+  CognitiveNotesJson,
+  CognitiveNotesFileNode,
+  CognitiveNotesRelation,
+} from "../data/cognitiveNotesManager";
 
 export type CognitiveNotesComposeOptions = {
   rootPosition?: { x: number; y: number };
@@ -67,6 +71,32 @@ const buildNoteNode = (
   };
 };
 
+const collectEdgesFromRelations = (
+  nodes: CognitiveNotesFileNode[]
+): Edge[] => {
+  const edges: Edge[] = [];
+  const seen = new Set<string>();
+  nodes.forEach((node) => {
+    const relations = Array.isArray(node.related_nodes)
+      ? (node.related_nodes as CognitiveNotesRelation[])
+      : [];
+    relations.forEach((rel) => {
+      if (!rel || typeof rel !== "object") return;
+      if (!rel.edge_id || !rel.target_id) return;
+      if (seen.has(rel.edge_id)) return;
+      seen.add(rel.edge_id);
+      edges.push({
+        id: rel.edge_id,
+        source: node.id,
+        target: rel.target_id,
+        type: "default",
+        data: { purpose: rel.purpose ?? "" },
+      });
+    });
+  });
+  return edges;
+};
+
 export const composeCognitiveNotesGraph = (
   root: CognitiveNotesJson,
   options: CognitiveNotesComposeOptions = {}
@@ -92,7 +122,7 @@ export const composeCognitiveNotesGraph = (
   const nodes: Node[] = [buildRootNode(root, rootNodeId, rootPositionTopLeft)];
   const edges: Edge[] = [];
 
-  const related = Array.isArray(root.related_nodes) ? root.related_nodes : [];
+  const related = Array.isArray(root.child) ? root.child : [];
   const spacingX = nodeSize + columnGap;
   const spacingY = nodeSize + rowGap;
   const baseX = rootPositionTopLeft.x;
@@ -121,5 +151,7 @@ export const composeCognitiveNotesGraph = (
     nodes.push(buildNoteNode(note, { x, y }, renderType));
   });
 
+  const relationEdges = collectEdgesFromRelations(related);
+  edges.push(...relationEdges);
   return { nodes, edges, rootNodeId };
 };

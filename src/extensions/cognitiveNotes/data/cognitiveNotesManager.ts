@@ -10,6 +10,13 @@ export type CognitiveNotesFileNode = {
   updated_on: string;
   last_viewed_on: string;
   views: number;
+  related_nodes: CognitiveNotesRelation[];
+};
+
+export type CognitiveNotesRelation = {
+  edge_id: string;
+  target_id: string;
+  purpose: string;
 };
 
 export type CognitiveNotesJson = {
@@ -29,7 +36,7 @@ export type CognitiveNotesJson = {
   error_messages: string[];
   node_positions: Record<string, { x: number; y: number }>;
   node_size: Record<string, number>;
-  related_nodes: CognitiveNotesFileNode[];
+  child: CognitiveNotesFileNode[];
 };
 
 export class CognitiveNotesManager {
@@ -163,7 +170,9 @@ export class CognitiveNotesManager {
       node_size[key] = value;
     });
 
-    const related_nodes = Array.isArray(obj.related_nodes)
+    const child = Array.isArray(obj.child)
+      ? (obj.child as CognitiveNotesFileNode[])
+      : Array.isArray(obj.related_nodes)
       ? (obj.related_nodes as CognitiveNotesFileNode[])
       : [];
 
@@ -184,7 +193,7 @@ export class CognitiveNotesManager {
       error_messages,
       node_positions,
       node_size,
-      related_nodes,
+      child,
     };
   }
 
@@ -207,7 +216,7 @@ export class CognitiveNotesManager {
       error_messages: [],
       node_positions: {},
       node_size: {},
-      related_nodes: [],
+      child: [],
     };
   }
 
@@ -263,6 +272,11 @@ export class CognitiveNotesManager {
         typeof existing?.views === "number" && Number.isFinite(existing.views)
           ? existing.views
           : 0,
+      related_nodes: Array.isArray(existing?.related_nodes)
+        ? existing!.related_nodes
+        : Array.isArray(scanned.related_nodes)
+        ? scanned.related_nodes
+        : [],
     };
   }
 
@@ -315,7 +329,7 @@ export class CognitiveNotesManager {
     const updatedOn = nameChanged ? now : existing.updated_on || now;
     const lastViewedOn = existing.last_viewed_on || createdOn;
     const mergedNodes = this.mergeNodes(
-      existing.related_nodes ?? [],
+      existing.child ?? [],
       scannedNodes,
       rootPath,
       now
@@ -349,7 +363,7 @@ export class CognitiveNotesManager {
         existing && typeof existing.node_size === "object"
           ? (existing.node_size as Record<string, number>)
           : {},
-      related_nodes: mergedNodes,
+      child: mergedNodes,
     };
   }
 
@@ -387,6 +401,7 @@ export class CognitiveNotesManager {
         updated_on: now,
         last_viewed_on: now,
         views: 0,
+        related_nodes: [],
       };
       nodes.push(fileNode);
     }
@@ -426,6 +441,7 @@ export class CognitiveNotesManager {
         updated_on: now,
         last_viewed_on: now,
         views: 0,
+        related_nodes: [],
       };
     });
   }
@@ -692,9 +708,9 @@ export class CognitiveNotesManager {
         root && typeof root.node_size === "object"
           ? (root.node_size as Record<string, number>)
           : existing?.node_size ?? {},
-      related_nodes: Array.isArray(root.related_nodes)
-        ? (root.related_nodes as CognitiveNotesFileNode[])
-        : existing?.related_nodes ?? [],
+      child: Array.isArray(root.child)
+        ? (root.child as CognitiveNotesFileNode[])
+        : existing?.child ?? [],
     };
 
     const fileName = this.getIndexFileNameFromHandle(dirHandle);
@@ -765,9 +781,9 @@ export class CognitiveNotesManager {
         root && typeof root.node_size === "object"
           ? (root.node_size as Record<string, number>)
           : existing?.node_size ?? {},
-      related_nodes: Array.isArray(root.related_nodes)
-        ? (root.related_nodes as CognitiveNotesFileNode[])
-        : existing?.related_nodes ?? [],
+      child: Array.isArray(root.child)
+        ? (root.child as CognitiveNotesFileNode[])
+        : existing?.child ?? [],
     };
 
     const fileName = this.getIndexFileNameFromPath(dirPath);
@@ -779,7 +795,7 @@ export class CognitiveNotesManager {
   ): Promise<CognitiveNotesJson> {
     const now = this.nowIso();
     const root = this.buildNewRootJson({ name: dirHandle.name, path: "", now });
-    root.related_nodes = await this.scanDirectoryHandleFiles(
+    root.child = await this.scanDirectoryHandleFiles(
       dirHandle,
       root.notifications,
       now
@@ -793,14 +809,14 @@ export class CognitiveNotesManager {
     const rootName = this.baseNameFromPath(rootPath);
     const root = this.buildNewRootJson({ name: rootName, path: rootPath, now });
     try {
-      root.related_nodes = await this.scanDirPathFiles(
+      root.child = await this.scanDirPathFiles(
         rootPath,
         root.notifications,
         now
       );
     } catch (err) {
       root.error_messages.push(`Failed to scan root folder: ${String(err)}`);
-      root.related_nodes = [];
+      root.child = [];
     }
     await this.writeCognitiveNotesJsonFromPathAtomic(
       rootPath,

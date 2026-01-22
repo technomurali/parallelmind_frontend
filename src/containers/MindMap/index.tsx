@@ -60,6 +60,7 @@ export default function MindMap() {
   const setEdges = useMindMapStore((s) => s.setEdges);
   const selectEdge = useMindMapStore((s) => s.selectEdge);
   const moduleType = activeTab?.moduleType ?? null;
+  const cognitiveNotesRoot = activeTab?.cognitiveNotesRoot ?? null;
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
   const settings = useMindMapStore((s) => s.settings);
@@ -881,16 +882,65 @@ export default function MindMap() {
     if (moduleType !== "cognitiveNotes") return;
     if (!connection.source || !connection.target) return;
     if (connection.source === connection.target) return;
+    const edgeId = `e_${connection.source}_${connection.target}_${Date.now()}`;
     setEdges(
       addEdge(
         {
           ...connection,
+          id: edgeId,
           type: "default",
           data: { purpose: "" },
         },
         edges
       )
     );
+    if (cognitiveNotesRoot) {
+      const updatedChild = (cognitiveNotesRoot.child ?? []).map((node: any) => {
+        if (node?.id === connection.source) {
+          const nextRelations = Array.isArray(node.related_nodes)
+            ? [
+                ...node.related_nodes,
+                {
+                  edge_id: edgeId,
+                  target_id: connection.target,
+                  purpose: "",
+                },
+              ]
+            : [
+                {
+                  edge_id: edgeId,
+                  target_id: connection.target,
+                  purpose: "",
+                },
+              ];
+          return { ...node, related_nodes: nextRelations };
+        }
+        if (node?.id === connection.target) {
+          const nextRelations = Array.isArray(node.related_nodes)
+            ? [
+                ...node.related_nodes,
+                {
+                  edge_id: edgeId,
+                  target_id: connection.source,
+                  purpose: "",
+                },
+              ]
+            : [
+                {
+                  edge_id: edgeId,
+                  target_id: connection.source,
+                  purpose: "",
+                },
+              ];
+          return { ...node, related_nodes: nextRelations };
+        }
+        return node;
+      });
+      useMindMapStore.getState().setCognitiveNotesRoot({
+        ...cognitiveNotesRoot,
+        child: updatedChild,
+      });
+    }
   };
 
   const onEdgeClick = (_: unknown, edge: Edge) => {

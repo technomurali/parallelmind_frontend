@@ -13,6 +13,7 @@
 
 import { create } from 'zustand';
 import type { RootFolderJson } from '../data/fileManager';
+import type { CognitiveNotesJson } from '../extensions/cognitiveNotes/data/cognitiveNotesManager';
 // import { MindMapNode, Edge } from '../types/nodeTypes';
 
 const SETTINGS_STORAGE_KEY = 'parallelmind.settings.v1';
@@ -100,6 +101,7 @@ export type CanvasTab = {
   // Root state
   rootDirectoryHandle: FileSystemDirectoryHandle | null;
   rootFolderJson: RootFolderJson | null;
+  cognitiveNotesRoot: CognitiveNotesJson | null;
   inlineEditNodeId: string | null;
   areNodesCollapsed: boolean;
   hasCustomLayout: boolean;
@@ -132,6 +134,7 @@ function createEmptyTab(): CanvasTab {
     pendingChildCreation: null,
     rootDirectoryHandle: null,
     rootFolderJson: null,
+    cognitiveNotesRoot: null,
     inlineEditNodeId: null,
     areNodesCollapsed: false,
     hasCustomLayout: false,
@@ -155,6 +158,7 @@ function resetTabCanvas(tab: CanvasTab): CanvasTab {
     pendingChildCreation: null,
     rootDirectoryHandle: null,
     rootFolderJson: null,
+    cognitiveNotesRoot: null,
     inlineEditNodeId: null,
     areNodesCollapsed: false,
     hasCustomLayout: false,
@@ -276,6 +280,7 @@ export interface MindMapActions {
   // When using a desktop path, handle will be null and root.path will contain the absolute folder path.
   setRoot: (handle: FileSystemDirectoryHandle | null, root: RootFolderJson) => void;
   clearRoot: () => void;
+  setCognitiveNotesRoot: (root: CognitiveNotesJson) => void;
   setInlineEditNodeId: (nodeId: string | null) => void;
   updateRootFolderJson: (root: RootFolderJson) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
@@ -539,6 +544,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         ...tab,
         rootDirectoryHandle: handle,
         rootFolderJson: root,
+        cognitiveNotesRoot: null,
         title: typeof root?.name === "string" ? root.name : tab.title,
         moduleType: "parallelmind",
         history: { past: [], future: [] },
@@ -546,6 +552,18 @@ export const useMindMapStore = create<MindMapStore>((set) => {
           !!root?.node_positions &&
           Object.keys(root.node_positions ?? {}).length > 0,
         shouldFitView: true,
+      })),
+    })),
+  setCognitiveNotesRoot: (root) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        rootDirectoryHandle: null,
+        rootFolderJson: null,
+        cognitiveNotesRoot: root,
+        title: typeof root?.name === "string" ? root.name : tab.title,
+        moduleType: "cognitiveNotes",
+        history: { past: [], future: [] },
       })),
     })),
   clearRoot: () =>
