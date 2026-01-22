@@ -84,6 +84,7 @@ export type CanvasTab = {
   id: string;
   title: string;
   moduleType: "parallelmind" | "cognitiveNotes" | null;
+  canvasSaveStatus: "idle" | "saving" | "saved" | "error";
   history: {
     past: TabSnapshot[];
     future: TabSnapshot[];
@@ -126,6 +127,7 @@ function createEmptyTab(): CanvasTab {
     id: generateTabId(),
     title: "",
     moduleType: null,
+    canvasSaveStatus: "idle",
     history: {
       past: [],
       future: [],
@@ -152,6 +154,7 @@ function resetTabCanvas(tab: CanvasTab): CanvasTab {
     ...tab,
     title: "",
     moduleType: null,
+    canvasSaveStatus: "idle",
     history: {
       past: [],
       future: [],
@@ -276,6 +279,7 @@ export interface MindMapActions {
   setEdges: (edges: any[]) => void;
   selectNode: (nodeId: string | null) => void;
   selectEdge: (edgeId: string | null) => void;
+  setCanvasSaveStatus: (status: CanvasTab["canvasSaveStatus"]) => void;
   setPendingChildCreation: (
     pending: { tempNodeId: string; parentNodeId: string } | null
   ) => void;
@@ -404,6 +408,13 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
         ...pushHistory(tab),
         edges,
+      })),
+    })),
+  setCanvasSaveStatus: (status) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        canvasSaveStatus: status,
       })),
     })),
   selectNode: (nodeId) =>
@@ -562,6 +573,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         cognitiveNotesFolderPath: null,
         title: typeof root?.name === "string" ? root.name : tab.title,
         moduleType: "parallelmind",
+        canvasSaveStatus: "idle",
         history: { past: [], future: [] },
         hasCustomLayout:
           !!root?.node_positions &&
@@ -578,6 +590,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         cognitiveNotesRoot: root,
         title: typeof root?.name === "string" ? root.name : tab.title,
         moduleType: "cognitiveNotes",
+        canvasSaveStatus: "idle",
         history: { past: [], future: [] },
       })),
     })),

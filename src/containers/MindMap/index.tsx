@@ -67,6 +67,7 @@ export default function MindMap() {
   const setNodes = useMindMapStore((s) => s.setNodes);
   const setEdges = useMindMapStore((s) => s.setEdges);
   const selectEdge = useMindMapStore((s) => s.selectEdge);
+  const setCanvasSaveStatus = useMindMapStore((s) => s.setCanvasSaveStatus);
   const moduleTypeValue = String(activeTab?.moduleType ?? "");
   const isCognitiveNotes = moduleTypeValue === "cognitiveNotes";
   const cognitiveNotesRoot = activeTab?.cognitiveNotesRoot ?? null;
@@ -112,6 +113,7 @@ export default function MindMap() {
   const [layoutSaveStatus, setLayoutSaveStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const canvasSaveStatus = activeTab?.canvasSaveStatus ?? "idle";
   const [showParentPath, setShowParentPath] = useState(false);
   const [showChildrenPath, setShowChildrenPath] = useState(false);
   const [pendingNodePositions, setPendingNodePositions] = useState<
@@ -124,6 +126,14 @@ export default function MindMap() {
       ? uiText.statusMessages.layoutSaved
       : layoutSaveStatus === "error"
       ? uiText.statusMessages.layoutSaveFailed
+      : "";
+  const canvasStatusMessage =
+    canvasSaveStatus === "saving"
+      ? uiText.statusMessages.saving
+      : canvasSaveStatus === "saved"
+      ? uiText.statusMessages.saved
+      : canvasSaveStatus === "error"
+      ? uiText.statusMessages.saveFailed
       : "";
 
 
@@ -176,6 +186,13 @@ export default function MindMap() {
     }, 2000);
     return () => window.clearTimeout(timeout);
   }, [layoutSaveStatus]);
+  useEffect(() => {
+    if (canvasSaveStatus !== "saved" && canvasSaveStatus !== "error") return;
+    const timeout = window.setTimeout(() => {
+      setCanvasSaveStatus("idle");
+    }, 2000);
+    return () => window.clearTimeout(timeout);
+  }, [canvasSaveStatus, setCanvasSaveStatus]);
   const nodeTypes = NODE_TYPES;
   const parentPath = useMemo(() => {
     if (!showParentPath || !selectedNodeId) {
@@ -292,6 +309,8 @@ export default function MindMap() {
 
   const FILE_NODE_BASE_WIDTH = 125;
   const DEFAULT_IMAGE_WIDTH_RATIO = 0.8;
+  const FULL_IMAGE_FRAME_PADDING = 3;
+  const FULL_IMAGE_CONTROL_STRIP_HEIGHT = 16;
 
   const getPolaroidDimensions = (width: number, height: number) => {
     const maxWidth = Math.round(FILE_NODE_BASE_WIDTH * DEFAULT_IMAGE_WIDTH_RATIO);
@@ -313,7 +332,7 @@ export default function MindMap() {
 
   const getFullImageDimensions = (width: number, height: number) => {
     const maxWidth = Math.round(FILE_NODE_BASE_WIDTH * DEFAULT_IMAGE_WIDTH_RATIO);
-    const padding = 1;
+    const padding = FULL_IMAGE_FRAME_PADDING;
     const safeWidth = Math.max(1, width);
     const safeHeight = Math.max(1, height);
     const scale = Math.min(1, maxWidth / safeWidth);
@@ -321,7 +340,7 @@ export default function MindMap() {
     const imageHeight = Math.round(safeHeight * scale);
     return {
       nodeWidth: imageWidth + padding * 2,
-      nodeHeight: imageHeight + padding * 2,
+      nodeHeight: imageHeight + padding * 2 + FULL_IMAGE_CONTROL_STRIP_HEIGHT,
       imageWidth,
       imageHeight,
     };
@@ -1222,22 +1241,21 @@ export default function MindMap() {
       if (!file) return;
       event.preventDefault();
 
-      // Check if a folder is selected to be the parent, OR if a draft image node is selected (update it)
+      // Check if a folder is selected to be the parent, OR if an image node is selected (update it)
       const selectedNode = selectedNodeId
         ? (nodes ?? []).find((n: any) => n?.id === selectedNodeId)
         : null;
-      const isDraftImage =
+      const isSelectedImageNode =
         selectedNode &&
-        ((selectedNode?.data as any)?.isDraft === true &&
-          ((selectedNode?.data as any)?.node_type === "polaroidImage" ||
-            (selectedNode?.data as any)?.type === "polaroidImage" ||
-            selectedNode?.type === "polaroidImage" ||
-            (selectedNode?.data as any)?.node_type === "fullImageNode" ||
-            (selectedNode?.data as any)?.type === "fullImageNode" ||
-            selectedNode?.type === "fullImageNode"));
+        ((selectedNode?.data as any)?.node_type === "polaroidImage" ||
+          (selectedNode?.data as any)?.type === "polaroidImage" ||
+          selectedNode?.type === "polaroidImage" ||
+          (selectedNode?.data as any)?.node_type === "fullImageNode" ||
+          (selectedNode?.data as any)?.type === "fullImageNode" ||
+          selectedNode?.type === "fullImageNode");
       
-      if (isDraftImage) {
-        // Update the selected draft image node with the pasted image
+      if (isSelectedImageNode) {
+        // Update the selected image node with the pasted image
         const url = URL.createObjectURL(file);
         const img = new Image();
         img.onload = () => {
@@ -1245,7 +1263,7 @@ export default function MindMap() {
             (selectedNode?.data as any)?.node_type === "fullImageNode" ||
             (selectedNode?.data as any)?.type === "fullImageNode" ||
             selectedNode?.type === "fullImageNode";
-          const { nodeWidth, nodeHeight } = isFullImage
+          const { nodeWidth, nodeHeight, imageWidth, imageHeight } = isFullImage
             ? getFullImageDimensions(img.naturalWidth, img.naturalHeight)
             : getPolaroidDimensions(img.naturalWidth, img.naturalHeight);
           const currentNodes = nodes ?? [];
@@ -1256,8 +1274,8 @@ export default function MindMap() {
               data: {
                 ...(n.data ?? {}),
                 imageSrc: url,
-                imageWidth: img.naturalWidth,
-                imageHeight: img.naturalHeight,
+                imageWidth,
+                imageHeight,
                 nodeWidth,
                 nodeHeight,
                 clipboardFile: file,
@@ -1294,10 +1312,8 @@ export default function MindMap() {
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        const { nodeWidth, nodeHeight } = getFullImageDimensions(
-          img.naturalWidth,
-          img.naturalHeight
-        );
+        const { nodeWidth, nodeHeight, imageWidth, imageHeight } =
+          getFullImageDimensions(img.naturalWidth, img.naturalHeight);
         const lastPos = lastMousePositionRef.current;
         let flowPos = rf.screenToFlowPosition(lastPos);
         if (!lastPos.x && !lastPos.y) {
@@ -1330,8 +1346,8 @@ export default function MindMap() {
             caption: "",
             purpose: "",
             imageSrc: url,
-            imageWidth: img.naturalWidth,
-            imageHeight: img.naturalHeight,
+            imageWidth,
+            imageHeight,
             nodeWidth,
             nodeHeight,
             clipboardFile: file,
@@ -2388,7 +2404,8 @@ export default function MindMap() {
               )}
             </div>
           )}
-          {layoutSaveStatus !== "idle" && layoutStatusMessage && (
+          {(layoutSaveStatus !== "idle" && layoutStatusMessage) ||
+          (canvasSaveStatus !== "idle" && canvasStatusMessage) ? (
             <div
               aria-live="polite"
               style={{
@@ -2406,9 +2423,9 @@ export default function MindMap() {
                 pointerEvents: "none",
               }}
             >
-              {layoutStatusMessage}
+              {layoutStatusMessage || canvasStatusMessage}
             </div>
-          )}
+          ) : null}
 
           {paneMenu.open && (
             <div

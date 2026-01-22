@@ -46,6 +46,7 @@ export default function RightPanel() {
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const setNodes = useMindMapStore((s) => s.setNodes);
   const setEdges = useMindMapStore((s) => s.setEdges);
+  const setCanvasSaveStatus = useMindMapStore((s) => s.setCanvasSaveStatus);
   const pendingChildCreation = activeTab?.pendingChildCreation ?? null;
   const finalizePendingChildCreation = useMindMapStore(
     (s) => s.finalizePendingChildCreation
@@ -632,6 +633,7 @@ export default function RightPanel() {
         child: rootFolderJson?.child ?? [],
       };
 
+      setCanvasSaveStatus("saving");
       try {
         // Browser mode: write via directory handle.
         if (hasDirectoryHandle) {
@@ -658,10 +660,12 @@ export default function RightPanel() {
         updateNodeData(selectedNodeId, { updated_on: nowIso });
         setDirty(false);
         setSaveStatus("saved");
+        setCanvasSaveStatus("saved");
       } catch (error) {
         console.error("[RightPanel] Failed to save rootIndex json:", error);
         setDirty(true); // Keep dirty state so user knows save failed
         setSaveStatus("idle");
+        setCanvasSaveStatus("error");
       }
     } else {
       const hasDirectoryHandle = !!rootDirectoryHandle;
@@ -672,6 +676,7 @@ export default function RightPanel() {
         return;
       }
 
+      setCanvasSaveStatus("saving");
       try {
         const updatedRoot = hasDirectoryHandle
           ? await fileManager.updateNodePurposeFromHandle({
@@ -692,6 +697,7 @@ export default function RightPanel() {
         setRoot(hasDirectoryHandle ? rootDirectoryHandle : null, updatedRoot);
         setDirty(false);
         setSaveStatus("saved");
+        setCanvasSaveStatus("saved");
       } catch (error) {
         const msg = `Failed to save node purpose: ${String(error)}`;
         if (hasDirectoryHandle) {
@@ -709,6 +715,7 @@ export default function RightPanel() {
         }
         setDirty(true);
         setSaveStatus("idle");
+        setCanvasSaveStatus("error");
       }
     }
 
@@ -729,6 +736,7 @@ export default function RightPanel() {
 
   const persistCognitiveNotesRoot = async (nextRoot: CognitiveNotesJson) => {
     updateCognitiveNotesRoot(nextRoot);
+    setCanvasSaveStatus("saving");
     try {
       if (cognitiveNotesDirectoryHandle) {
         await cognitiveNotesManager.writeCognitiveNotesJson(
@@ -744,8 +752,10 @@ export default function RightPanel() {
           );
         }
       }
+      setCanvasSaveStatus("saved");
     } catch (err) {
       console.error("[RightPanel] Failed to save cognitive notes:", err);
+      setCanvasSaveStatus("error");
     }
   };
 
@@ -1267,17 +1277,90 @@ export default function RightPanel() {
   };
 
   const canDeleteItem =
-    (isFolderNode || isFileNode || isImageNode) && !isRootNode && !isDraftNode && !!selectedNodeId;
+    (isFolderNode || isFileNode || isImageNode) &&
+    !isRootNode &&
+    !isDraftNode &&
+    !!selectedNodeId &&
+    (moduleType === "cognitiveNotes" ? !!cognitiveNotesRoot : !!rootFolderJson);
 
   const onDeleteItem = async () => {
-    if (!canDeleteItem || !selectedNodeId || !rootFolderJson) return;
+    if (!canDeleteItem || !selectedNodeId) return;
     setActionError(null);
     setDeleteConfirmOpen(true);
   };
 
+  const deleteCognitiveNotesNode = async () => {
+    if (!cognitiveNotesRoot || !selectedNodeId) return;
+    const target = (cognitiveNotesRoot.child ?? []).find(
+      (node: any) => node?.id === selectedNodeId
+    );
+    if (!target) throw new Error("Cognitive Notes node not found.");
+    const targetPath = typeof target.path === "string" ? target.path : "";
+    if (!targetPath) throw new Error("Cognitive Notes file path not found.");
+
+    if (cognitiveNotesDirectoryHandle) {
+      const fileName = targetPath.split(/[\\/]/).pop() ?? targetPath;
+      await cognitiveNotesDirectoryHandle.removeEntry(fileName);
+    } else {
+      const { remove } = await import("@tauri-apps/plugin-fs");
+      await remove(targetPath, { recursive: false });
+    }
+
+    const removedIds = new Set([selectedNodeId]);
+    const removedEdgeIds = new Set<string>();
+    if (Array.isArray(target.related_nodes)) {
+      target.related_nodes.forEach((rel: any) => {
+        if (rel?.edge_id) removedEdgeIds.add(rel.edge_id);
+      });
+    }
+
+    setNodes((nodes ?? []).filter((node: any) => !removedIds.has(node?.id)));
+    setEdges(
+      (edges ?? []).filter(
+        (edge: any) =>
+          !removedEdgeIds.has(edge?.id) &&
+          !removedIds.has(edge?.source) &&
+          !removedIds.has(edge?.target)
+      )
+    );
+    selectNode(null);
+    selectEdge(null);
+
+    const nextChild = (cognitiveNotesRoot.child ?? [])
+      .filter((node: any) => node?.id !== selectedNodeId)
+      .map((node: any) => ({
+        ...node,
+        related_nodes: Array.isArray(node.related_nodes)
+          ? node.related_nodes.filter(
+              (rel: any) =>
+                !removedIds.has(rel?.target_id) &&
+                !removedEdgeIds.has(rel?.edge_id)
+            )
+          : [],
+      }));
+    await persistCognitiveNotesRoot({ ...cognitiveNotesRoot, child: nextChild });
+  };
+
   const confirmDeleteItem = async () => {
-    if (!canDeleteItem || !selectedNodeId || !rootFolderJson) return;
+    if (!canDeleteItem || !selectedNodeId) return;
     setDeleteInProgress(true);
+    if (moduleType === "cognitiveNotes") {
+      setSaveStatus("saving");
+      try {
+        await deleteCognitiveNotesNode();
+        setDirty(false);
+        setSaveStatus("saved");
+        setDeleteConfirmOpen(false);
+      } catch (error) {
+        console.error("[RightPanel] Delete failed:", error);
+        setActionError(uiText.alerts.errorDeleteFailed);
+        setSaveStatus("idle");
+      } finally {
+        setDeleteInProgress(false);
+      }
+      return;
+    }
+    if (!rootFolderJson) return;
     if (!rootFolderJson.path) {
       setActionError(uiText.alerts.errorDeleteFailed);
       setDeleteInProgress(false);

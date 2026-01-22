@@ -227,6 +227,7 @@ export const uiText = {
     layoutSaving: 'Saving layout...',
     layoutSaved: 'Layout saved',
     layoutSaveFailed: 'Layout save failed',
+    saveFailed: 'Save failed',
     idle: 'Ready',
   },
 
