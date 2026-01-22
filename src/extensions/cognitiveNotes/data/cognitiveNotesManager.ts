@@ -34,6 +34,7 @@ export type CognitiveNotesJson = {
 
 export class CognitiveNotesManager {
   private static FILE_SUFFIX = "_cognitiveNotes.json" as const;
+  private static ROOT_INDEX_SUFFIX = "_rootIndex.json" as const;
 
   private nowIso(): string {
     return new Date().toISOString();
@@ -84,6 +85,20 @@ export class CognitiveNotesManager {
 
   private getIndexFileNameFromPath(rootPath: string): string {
     return this.getIndexFileName(this.baseNameFromPath(rootPath));
+  }
+
+  private buildMarkerFileName(prefix: "start" | "end", rootName: string): string {
+    const trimmed = (rootName ?? "").trim();
+    const safeRoot = trimmed || "root";
+    return `${prefix}_${safeRoot}.md`;
+  }
+
+  private shouldSkipFileName(fileName: string): boolean {
+    if (!fileName || typeof fileName !== "string") return true;
+    return (
+      fileName.endsWith(CognitiveNotesManager.FILE_SUFFIX) ||
+      fileName.endsWith(CognitiveNotesManager.ROOT_INDEX_SUFFIX)
+    );
   }
 
   private getNodeKey(node: CognitiveNotesFileNode, parentPath: string): string {
@@ -351,7 +366,9 @@ export class CognitiveNotesManager {
         rootNotifications.push(`Subfolder ignored at ${entry.name}`);
         continue;
       }
-      if (entry.kind === "file") files.push(entry);
+      if (entry.kind === "file" && !this.shouldSkipFileName(entry.name)) {
+        files.push(entry);
+      }
     }
 
     files.sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -384,7 +401,10 @@ export class CognitiveNotesManager {
   ): Promise<CognitiveNotesFileNode[]> {
     const { readDir } = await import("@tauri-apps/plugin-fs");
     const entries = await readDir(dirPath);
-    const files = entries.filter((e: any) => e?.isFile && !e?.isSymlink);
+    const files = entries.filter(
+      (e: any) =>
+        e?.isFile && !e?.isSymlink && !this.shouldSkipFileName(String(e?.name ?? ""))
+    );
     const dirs = entries.filter((e: any) => e?.isDirectory && !e?.isSymlink);
 
     for (const d of dirs) {
@@ -527,6 +547,41 @@ export class CognitiveNotesManager {
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return null;
       return null;
+    }
+  }
+
+  private async ensureMarkerFilesFromHandle(
+    dirHandle: FileSystemDirectoryHandle,
+    rootName: string
+  ): Promise<void> {
+    const startFile = this.buildMarkerFileName("start", rootName);
+    const endFile = this.buildMarkerFileName("end", rootName);
+    for (const fileName of [startFile, endFile]) {
+      try {
+        await dirHandle.getFileHandle(fileName, { create: false });
+        continue;
+      } catch (err) {
+        if (err instanceof DOMException && err.name !== "NotFoundError") {
+          throw err;
+        }
+      }
+      const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+      const writable = await (fileHandle as any).createWritable?.();
+      if (writable) {
+        await writable.write("");
+        await writable.close();
+      }
+    }
+  }
+
+  private async ensureMarkerFilesFromPath(dirPath: string, rootName: string): Promise<void> {
+    const startFile = this.buildMarkerFileName("start", rootName);
+    const endFile = this.buildMarkerFileName("end", rootName);
+    const { exists, writeTextFile } = await import("@tauri-apps/plugin-fs");
+    for (const fileName of [startFile, endFile]) {
+      const filePath = this.joinPath(dirPath, fileName);
+      if (await exists(filePath)) continue;
+      await writeTextFile(filePath, "", { create: true });
     }
   }
 
@@ -764,6 +819,7 @@ export class CognitiveNotesManager {
       return { root: updated, created: false };
     }
     const createdRoot = await this.initializeIndexFromHandle(dirHandle);
+    await this.ensureMarkerFilesFromHandle(dirHandle, createdRoot.name);
     return { root: createdRoot, created: true };
   }
 
@@ -779,6 +835,7 @@ export class CognitiveNotesManager {
       return { root: updated, created: false };
     }
     const createdRoot = await this.initializeIndexFromPath(dirPath);
+    await this.ensureMarkerFilesFromPath(dirPath, createdRoot.name);
     return { root: createdRoot, created: true };
   }
 

@@ -17,6 +17,15 @@ export type CognitiveNotesComposeResult = {
 
 const DEFAULT_NODE_SIZE = 200;
 const DEFAULT_COLUMNS = 4;
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "bmp",
+  "svg",
+]);
 
 const normalizeRootId = (root: CognitiveNotesJson): string => {
   if (typeof root?.id === "string" && root.id.trim()) return root.id.trim();
@@ -42,11 +51,12 @@ const buildRootNode = (
 
 const buildNoteNode = (
   note: CognitiveNotesFileNode,
-  position: { x: number; y: number }
+  position: { x: number; y: number },
+  renderType: "file" | "fullImageNode"
 ): Node => {
   return {
     id: note.id,
-    type: "file",
+    type: renderType,
     position,
     data: {
       ...note,
@@ -91,17 +101,24 @@ export const composeCognitiveNotesGraph = (
   related.forEach((note, index) => {
     if (!note || typeof note !== "object") return;
     if (typeof note.id !== "string" || !note.id.trim()) return;
+    const fileName = note.extension
+      ? `${note.name}.${note.extension}`
+      : note.name;
+    if (
+      typeof fileName === "string" &&
+      (fileName.endsWith("_rootIndex.json") ||
+        fileName.endsWith("_cognitiveNotes.json"))
+    ) {
+      return;
+    }
+    const extension =
+      typeof note.extension === "string" ? note.extension.toLowerCase() : "";
+    const renderType = IMAGE_EXTENSIONS.has(extension) ? "fullImageNode" : "file";
     const col = index % columns;
     const row = Math.floor(index / columns);
     const x = baseX + col * spacingX;
     const y = baseY + row * spacingY;
-    nodes.push(buildNoteNode(note, { x, y }));
-    edges.push({
-      id: `e_${rootNodeId}_${note.id}`,
-      source: rootNodeId,
-      target: note.id,
-      type: "default",
-    });
+    nodes.push(buildNoteNode(note, { x, y }, renderType));
   });
 
   return { nodes, edges, rootNodeId };

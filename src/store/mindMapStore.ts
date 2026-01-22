@@ -83,6 +83,10 @@ export type CanvasTab = {
   id: string;
   title: string;
   moduleType: "parallelmind" | "cognitiveNotes" | null;
+  history: {
+    past: TabSnapshot[];
+    future: TabSnapshot[];
+  };
   // ReactFlow data
   nodes: any[];
   edges: any[];
@@ -102,11 +106,25 @@ export type CanvasTab = {
   shouldFitView: boolean;
 };
 
+type TabSnapshot = {
+  nodes: any[];
+  edges: any[];
+  rootFolderJson: RootFolderJson | null;
+  selectedNodeId: string | null;
+  selectedEdgeId: string | null;
+  title: string;
+  moduleType: CanvasTab["moduleType"];
+};
+
 function createEmptyTab(): CanvasTab {
   return {
     id: generateTabId(),
     title: "",
     moduleType: null,
+    history: {
+      past: [],
+      future: [],
+    },
     nodes: [],
     edges: [],
     selectedNodeId: null,
@@ -126,6 +144,10 @@ function resetTabCanvas(tab: CanvasTab): CanvasTab {
     ...tab,
     title: "",
     moduleType: null,
+    history: {
+      past: [],
+      future: [],
+    },
     nodes: [],
     edges: [],
     selectedNodeId: null,
@@ -147,6 +169,41 @@ function updateTabById(
 ): CanvasTab[] {
   return tabs.map((tab) => (tab.id === tabId ? updater(tab) : tab));
 }
+
+const HISTORY_LIMIT = 100;
+
+const cloneValue = <T,>(value: T): T => {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+};
+
+const getSnapshot = (tab: CanvasTab): TabSnapshot => {
+  return {
+    nodes: cloneValue(tab.nodes ?? []),
+    edges: cloneValue(tab.edges ?? []),
+    rootFolderJson: cloneValue(tab.rootFolderJson),
+    selectedNodeId: tab.selectedNodeId ?? null,
+    selectedEdgeId: tab.selectedEdgeId ?? null,
+    title: tab.title ?? "",
+    moduleType: tab.moduleType ?? null,
+  };
+};
+
+const pushHistory = (tab: CanvasTab): CanvasTab => {
+  const nextPast = [...(tab.history?.past ?? []), getSnapshot(tab)];
+  const trimmed = nextPast.length > HISTORY_LIMIT
+    ? nextPast.slice(nextPast.length - HISTORY_LIMIT)
+    : nextPast;
+  return {
+    ...tab,
+    history: {
+      past: trimmed,
+      future: [],
+    },
+  };
+};
 
 /**
  * Application settings state
@@ -231,6 +288,9 @@ export interface MindMapActions {
   setTabModule: (tabId: string, moduleType: CanvasTab["moduleType"]) => void;
   setHasCustomLayout: (enabled: boolean) => void;
   setShouldFitView: (enabled: boolean) => void;
+  undo: () => void;
+  redo: () => void;
+  deleteSelectedEdge: () => void;
 }
 
 /**
@@ -317,14 +377,14 @@ export const useMindMapStore = create<MindMapStore>((set) => {
   setNodes: (nodes) =>
     set((state) => ({
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
-        ...tab,
+        ...pushHistory(tab),
         nodes,
       })),
     })),
   setEdges: (edges) =>
     set((state) => ({
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
-        ...tab,
+        ...pushHistory(tab),
         edges,
       })),
     })),
@@ -481,6 +541,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         rootFolderJson: root,
         title: typeof root?.name === "string" ? root.name : tab.title,
         moduleType: "parallelmind",
+        history: { past: [], future: [] },
         hasCustomLayout:
           !!root?.node_positions &&
           Object.keys(root.node_positions ?? {}).length > 0,
@@ -503,7 +564,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
   updateRootFolderJson: (root) =>
     set((state) => ({
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
-        ...tab,
+        ...pushHistory(tab),
         rootFolderJson: root,
         title: typeof root?.name === "string" ? root.name : tab.title,
         moduleType: "parallelmind",
@@ -512,7 +573,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
   updateNodeData: (nodeId, data) =>
     set((state) => ({
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
-        ...tab,
+        ...pushHistory(tab),
         rootFolderJson:
           nodeId === "00" && tab.rootFolderJson
             ? ({ ...tab.rootFolderJson, ...(data as any) } as any)
@@ -596,5 +657,74 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         shouldFitView: enabled,
       })),
     })),
+  deleteSelectedEdge: () =>
+    set((state) => {
+      const tab = selectActiveTab(state);
+      if (!tab || !tab.selectedEdgeId) return state;
+      const edgeId = tab.selectedEdgeId;
+      const nextEdges = (tab.edges ?? []).filter((edge: any) => edge?.id !== edgeId);
+      return {
+        ...state,
+        tabs: updateTabById(state.tabs, tab.id, (current) => ({
+          ...pushHistory(current),
+          edges: nextEdges,
+          selectedEdgeId: null,
+        })),
+      };
+    }),
+  undo: () =>
+    set((state) => {
+      const tab = selectActiveTab(state);
+      if (!tab) return state;
+      const past = tab.history?.past ?? [];
+      if (past.length === 0) return state;
+      const prev = past[past.length - 1];
+      const currentSnapshot = getSnapshot(tab);
+      const nextPast = past.slice(0, -1);
+      return {
+        ...state,
+        tabs: updateTabById(state.tabs, tab.id, (current) => ({
+          ...current,
+          nodes: cloneValue(prev.nodes),
+          edges: cloneValue(prev.edges),
+          rootFolderJson: cloneValue(prev.rootFolderJson),
+          selectedNodeId: prev.selectedNodeId,
+          selectedEdgeId: prev.selectedEdgeId,
+          title: prev.title,
+          moduleType: prev.moduleType,
+          history: {
+            past: nextPast,
+            future: [currentSnapshot, ...(current.history?.future ?? [])],
+          },
+        })),
+      };
+    }),
+  redo: () =>
+    set((state) => {
+      const tab = selectActiveTab(state);
+      if (!tab) return state;
+      const future = tab.history?.future ?? [];
+      if (future.length === 0) return state;
+      const next = future[0];
+      const currentSnapshot = getSnapshot(tab);
+      const nextFuture = future.slice(1);
+      return {
+        ...state,
+        tabs: updateTabById(state.tabs, tab.id, (current) => ({
+          ...current,
+          nodes: cloneValue(next.nodes),
+          edges: cloneValue(next.edges),
+          rootFolderJson: cloneValue(next.rootFolderJson),
+          selectedNodeId: next.selectedNodeId,
+          selectedEdgeId: next.selectedEdgeId,
+          title: next.title,
+          moduleType: next.moduleType,
+          history: {
+            past: [...(current.history?.past ?? []), currentSnapshot],
+            future: nextFuture,
+          },
+        })),
+      };
+    }),
   });
 });

@@ -25,6 +25,7 @@ export const uiText = {
   panels: {
     files: 'Files',
     node: 'Node',
+    edge: 'Edge',
     settings: 'Settings',
     mindMap: 'Mind Map',
     folderTree: 'Folder Tree',
@@ -73,6 +74,10 @@ export const uiText = {
       decisionDetailsLabel: 'Details',
       createdTime: 'Created',
       updatedTime: 'Updated',
+    },
+    edgeDetails: {
+      purpose: 'Purpose',
+      sectionTitle: 'Edge details',
     },
   },
   smartPad: {

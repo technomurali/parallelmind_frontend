@@ -13,8 +13,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
+  addEdge,
   applyEdgeChanges,
   applyNodeChanges,
+  type Connection,
   type Edge,
   type EdgeChange,
   MarkerType,
@@ -56,6 +58,8 @@ export default function MindMap() {
   const edges = activeTab?.edges ?? [];
   const setNodes = useMindMapStore((s) => s.setNodes);
   const setEdges = useMindMapStore((s) => s.setEdges);
+  const selectEdge = useMindMapStore((s) => s.selectEdge);
+  const moduleType = activeTab?.moduleType ?? null;
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
   const settings = useMindMapStore((s) => s.settings);
@@ -686,11 +690,17 @@ export default function MindMap() {
   };
 
   useEffect(() => {
-    if (!rootFolderJson || !rf) {
+    if (!rf || !nodes.length) return;
+    if (!rootFolderJson) {
       lastFitRootIdRef.current = null;
+      if (shouldFitView) {
+        window.requestAnimationFrame(() => {
+          showAllNodesInCanvas();
+        });
+        setShouldFitView(false);
+      }
       return;
     }
-    if (!nodes.length) return;
 
     const rootId = rootFolderJson.id;
     const alreadyFit = lastFitRootIdRef.current === rootId;
@@ -867,10 +877,32 @@ export default function MindMap() {
     setEdges(applyEdgeChanges(changes, edges));
   };
 
+  const onConnect = (connection: Connection) => {
+    if (moduleType !== "cognitiveNotes") return;
+    if (!connection.source || !connection.target) return;
+    if (connection.source === connection.target) return;
+    setEdges(
+      addEdge(
+        {
+          ...connection,
+          type: "default",
+          data: { purpose: "" },
+        },
+        edges
+      )
+    );
+  };
+
+  const onEdgeClick = (_: unknown, edge: Edge) => {
+    selectNode(null);
+    selectEdge(edge.id);
+  };
+
   /**
    * Keep selected node id in the global store so the right panel can show details.
    */
   const onNodeClick = (_: unknown, node: Node) => {
+    selectEdge(null);
     selectNode(node.id);
   };
 
@@ -881,7 +913,15 @@ export default function MindMap() {
     // If the user was in the middle of creating a child and clicks away before
     // naming/saving, discard the temporary node (reversible-before-save behavior).
     discardPendingChildCreationIfSelected();
+    selectEdge(null);
     selectNode(null);
+  };
+
+  const onEdgesDelete = (deleted: Edge[]) => {
+    if (!deleted.length) return;
+    const deletedIds = new Set(deleted.map((edge) => edge.id));
+    setEdges((edges ?? []).filter((edge: any) => !deletedIds.has(edge?.id)));
+    selectEdge(null);
   };
 
   const isDetailsPreviewNode = (node: Node | null): boolean =>
@@ -2151,6 +2191,9 @@ export default function MindMap() {
             nodeTypes={nodeTypes}
             maxZoom={6}
             zoomOnScroll={true}
+            onConnect={onConnect}
+            onEdgeClick={onEdgeClick}
+            onEdgesDelete={onEdgesDelete}
             nodesDraggable={!settings.interaction.lockNodePositions}
             onWheel={(event) => {
               if (!rf) return;

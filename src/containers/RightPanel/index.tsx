@@ -31,6 +31,7 @@ export default function RightPanel() {
   const setRightPanelWidth = useMindMapStore((s) => s.setRightPanelWidth);
   const activeTab = useMindMapStore(selectActiveTab);
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
+  const selectedEdgeId = activeTab?.selectedEdgeId ?? null;
   const nodes = activeTab?.nodes ?? [];
   const edges = activeTab?.edges ?? [];
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
@@ -47,6 +48,7 @@ export default function RightPanel() {
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
   const setRoot = useMindMapStore((s) => s.setRoot);
   const selectNode = useMindMapStore((s) => s.selectNode);
+  const selectEdge = useMindMapStore((s) => s.selectEdge);
 
   const dragRef = useRef<{
     startX: number;
@@ -96,12 +98,19 @@ export default function RightPanel() {
   const [fileDetailsExpanded, setFileDetailsExpanded] = useState(false);
   const [imageSrc, setImageSrc] = useState<string>("");
   const [imageLoadError, setImageLoadError] = useState(false);
+  const [edgeDraft, setEdgeDraft] = useState({ purpose: "" });
+  const [edgeDirty, setEdgeDirty] = useState(false);
+  const [edgeSaveStatus, setEdgeSaveStatus] = useState<
+    "idle" | "saving" | "saved"
+  >("idle");
+  const [edgeDeleteConfirmOpen, setEdgeDeleteConfirmOpen] = useState(false);
 
   // Used to auto-focus and visually guide the user when name is mandatory.
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const purposeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const detailsTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastHydratedSelectedIdRef = useRef<string | null>(null);
+  const lastHydratedEdgeIdRef = useRef<string | null>(null);
 
   // Pull selected node data from the centralized store and hydrate the editor when selection changes.
   useEffect(() => {
@@ -168,6 +177,38 @@ export default function RightPanel() {
     }
     lastHydratedSelectedIdRef.current = selectedNodeId;
   }, [nodes, selectedNodeId]);
+
+  const selectedEdge = selectedEdgeId
+    ? (edges ?? []).find((edge: any) => edge?.id === selectedEdgeId) ?? null
+    : null;
+
+  useEffect(() => {
+    const selectionChanged = lastHydratedEdgeIdRef.current !== selectedEdgeId;
+
+    if (!selectedEdgeId || !selectedEdge) {
+      setEdgeDraft({ purpose: "" });
+      setEdgeDirty(false);
+      setEdgeSaveStatus("idle");
+      setEdgeDeleteConfirmOpen(false);
+      lastHydratedEdgeIdRef.current = null;
+      return;
+    }
+
+    if (selectionChanged || !edgeDirty) {
+      const purpose =
+        typeof (selectedEdge.data as any)?.purpose === "string"
+          ? (selectedEdge.data as any).purpose
+          : "";
+      setEdgeDraft({ purpose });
+    }
+
+    if (selectionChanged) {
+      setEdgeSaveStatus("idle");
+      setEdgeDirty(false);
+      setEdgeDeleteConfirmOpen(false);
+    }
+    lastHydratedEdgeIdRef.current = selectedEdgeId;
+  }, [selectedEdgeId, selectedEdge, edgeDirty]);
 
   const resizeTextarea = (el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -646,6 +687,28 @@ export default function RightPanel() {
     dirty
   );
 
+  useAutoSave(
+    () => {
+      if (!selectedEdgeId) return;
+      const nextPurpose = edgeDraft.purpose;
+      setEdges(
+        (edges ?? []).map((edge: any) =>
+          edge?.id === selectedEdgeId
+            ? {
+                ...edge,
+                data: { ...(edge.data ?? {}), purpose: nextPurpose },
+              }
+            : edge
+        )
+      );
+      setEdgeDirty(false);
+      setEdgeSaveStatus("saved");
+    },
+    3000,
+    [edgeDraft.purpose, selectedEdgeId, edgeDirty, edges],
+    edgeDirty
+  );
+
   const onFieldChange =
     (field: "name" | "purpose" | "details") => (value: string) => {
       setDraft((d) => ({ ...d, [field]: value }));
@@ -653,6 +716,20 @@ export default function RightPanel() {
       setDirty(true);
       setSaveStatus("saving");
     };
+
+  const onEdgePurposeChange = (value: string) => {
+    setEdgeDraft((d) => ({ ...d, purpose: value }));
+    setEdgeDirty(true);
+    setEdgeSaveStatus("saving");
+  };
+
+  const onDeleteSelectedEdge = () => {
+    if (!selectedEdgeId) return;
+    setEdges((edges ?? []).filter((edge: any) => edge?.id !== selectedEdgeId));
+    setEdgeDeleteConfirmOpen(false);
+    selectNode(null);
+    selectEdge(null);
+  };
 
   const canCreateDraft =
     isDraftNode &&
@@ -1008,6 +1085,9 @@ export default function RightPanel() {
     };
   }, [setRightPanelWidth]);
 
+  const panelTitle =
+    selectedEdgeId && !selectedNodeId ? uiText.panels.edge : uiText.panels.node;
+
   return (
     <aside
       className="pm-panel pm-panel--right"
@@ -1038,7 +1118,7 @@ export default function RightPanel() {
           }}
         >
           {!isReduced && (
-            <div className="pm-panel__title">{uiText.panels.node}</div>
+            <div className="pm-panel__title">{panelTitle}</div>
           )}
           <button
             type="button"
@@ -1077,7 +1157,137 @@ export default function RightPanel() {
 
       {!isReduced ? (
         <div className="pm-panel__content">
-          {!selectedNodeId ? null : (
+          {selectedEdgeId && !selectedNodeId ? (
+            <div
+              aria-label={uiText.fields.edgeDetails.sectionTitle}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-3)",
+                height: "100%",
+                width: "100%",
+                minWidth: 0,
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gap: "var(--space-2)",
+                  width: "100%",
+                  minWidth: 0,
+                  gridTemplateColumns: "1fr",
+                }}
+              >
+                <div
+                  style={{
+                    borderRadius: "var(--radius-md)",
+                    border: "var(--border-width) solid var(--border)",
+                    background: "var(--surface-2)",
+                    padding: "var(--space-2)",
+                  }}
+                >
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      marginBottom: "var(--space-1)",
+                    }}
+                  >
+                    {uiText.fields.edgeDetails.purpose}
+                  </label>
+                  <textarea
+                    value={edgeDraft.purpose}
+                    onChange={(event) => onEdgePurposeChange(event.target.value)}
+                    placeholder={uiText.fields.edgeDetails.purpose}
+                    style={{
+                      width: "100%",
+                      minHeight: 120,
+                      resize: "vertical",
+                      borderRadius: "var(--radius-sm)",
+                      border: "var(--border-width) solid var(--border)",
+                      padding: "var(--space-2)",
+                      background: "var(--surface-1)",
+                      color: "inherit",
+                      fontFamily: "inherit",
+                      fontSize: "0.85rem",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                  <div
+                    style={{
+                      marginTop: "var(--space-2)",
+                      fontSize: "0.75rem",
+                      opacity: 0.7,
+                    }}
+                  >
+                    {edgeSaveStatus === "saving"
+                      ? uiText.statusMessages.saving
+                      : edgeSaveStatus === "saved"
+                      ? uiText.statusMessages.saved
+                      : ""}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: "var(--space-3)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "var(--space-2)",
+                    }}
+                  >
+                    {edgeDeleteConfirmOpen ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={onDeleteSelectedEdge}
+                          style={{
+                            padding: "var(--space-2) var(--space-3)",
+                            borderRadius: "var(--radius-sm)",
+                            border: "none",
+                            background: "var(--danger)",
+                            color: "white",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {uiText.buttons.delete}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEdgeDeleteConfirmOpen(false)}
+                          style={{
+                            padding: "var(--space-2) var(--space-3)",
+                            borderRadius: "var(--radius-sm)",
+                            border: "var(--border-width) solid var(--border)",
+                            background: "transparent",
+                            color: "inherit",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {uiText.buttons.cancel}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setEdgeDeleteConfirmOpen(true)}
+                        style={{
+                          padding: "var(--space-2) var(--space-3)",
+                          borderRadius: "var(--radius-sm)",
+                          border: "var(--border-width) solid var(--border)",
+                          background: "transparent",
+                          color: "inherit",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {uiText.buttons.delete}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : !selectedNodeId ? null : (
             <div
               aria-label={uiText.ariaLabels.nodeEditor}
               style={{

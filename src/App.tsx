@@ -29,6 +29,9 @@ import { useMindMapStore } from './store/mindMapStore'
 function App() {
   const settingsOpen = useMindMapStore((s) => s.settingsOpen)
   const theme = useMindMapStore((s) => s.settings.theme)
+  const undo = useMindMapStore((s) => s.undo)
+  const redo = useMindMapStore((s) => s.redo)
+  const deleteSelectedEdge = useMindMapStore((s) => s.deleteSelectedEdge)
   const appWrapperRef = useRef<HTMLDivElement | null>(null)
   const isDesktopMode =
     typeof (window as any).__TAURI_INTERNALS__ !== 'undefined'
@@ -64,6 +67,44 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [])
+
+  useEffect(() => {
+    const isTextInput = (el: Element | null): boolean => {
+      if (!el) return false
+      if (el instanceof HTMLInputElement) return true
+      if (el instanceof HTMLTextAreaElement) return true
+      if ((el as HTMLElement).isContentEditable) return true
+      return false
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey) return
+      if (isTextInput(document.activeElement)) return
+      if (event.key.toLowerCase() === 'z') {
+        event.preventDefault()
+        undo()
+        return
+      }
+      if (event.key.toLowerCase() === 'y') {
+        event.preventDefault()
+        redo()
+      }
+    }
+
+    const onDeleteKey = (event: KeyboardEvent) => {
+      if (isTextInput(document.activeElement)) return
+      if (event.key === 'Delete') {
+        deleteSelectedEdge()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', onDeleteKey)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keydown', onDeleteKey)
+    }
+  }, [undo, redo, deleteSelectedEdge])
 
   return (
     <>
