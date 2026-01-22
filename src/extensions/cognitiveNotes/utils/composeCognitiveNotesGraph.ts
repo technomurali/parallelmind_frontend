@@ -17,8 +17,6 @@ export type CognitiveNotesComposeResult = {
 
 const DEFAULT_NODE_SIZE = 200;
 const DEFAULT_COLUMNS = 4;
-const DEFAULT_COLUMN_GAP = 40;
-const DEFAULT_ROW_GAP = 40;
 
 const normalizeRootId = (root: CognitiveNotesJson): string => {
   if (typeof root?.id === "string" && root.id.trim()) return root.id.trim();
@@ -73,23 +71,22 @@ export const composeCognitiveNotesGraph = (
     typeof options.columns === "number" && Number.isFinite(options.columns)
       ? Math.max(1, Math.round(options.columns))
       : DEFAULT_COLUMNS;
-  const columnGap =
-    typeof options.columnGap === "number" && Number.isFinite(options.columnGap)
-      ? options.columnGap
-      : DEFAULT_COLUMN_GAP;
-  const rowGap =
-    typeof options.rowGap === "number" && Number.isFinite(options.rowGap)
-      ? options.rowGap
-      : DEFAULT_ROW_GAP;
+  const columnGap = 10;
+  const rowGap = 10;
+  const gridLeftPadding = 30;
 
-  const nodes: Node[] = [buildRootNode(root, rootNodeId, rootPosition)];
+  const rootPositionTopLeft = {
+    x: rootPosition.x + gridLeftPadding,
+    y: rootPosition.y,
+  };
+  const nodes: Node[] = [buildRootNode(root, rootNodeId, rootPositionTopLeft)];
   const edges: Edge[] = [];
 
   const related = Array.isArray(root.related_nodes) ? root.related_nodes : [];
   const spacingX = nodeSize + columnGap;
   const spacingY = nodeSize + rowGap;
-  const baseX = rootPosition.x + spacingX;
-  const baseY = rootPosition.y;
+  const baseX = rootPositionTopLeft.x;
+  const baseY = rootPositionTopLeft.y + spacingY;
 
   related.forEach((note, index) => {
     if (!note || typeof note !== "object") return;
