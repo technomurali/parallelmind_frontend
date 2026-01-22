@@ -122,13 +122,25 @@ export const composeCognitiveNotesGraph = (
   const nodes: Node[] = [buildRootNode(root, rootNodeId, rootPositionTopLeft)];
   const edges: Edge[] = [];
 
-  const related = Array.isArray(root.child) ? root.child : [];
+  const related = Array.isArray(root.child) ? [...root.child] : [];
+  const layoutNodes = related.sort((a, b) => {
+    const aIndex =
+      typeof a.sort_index === "number" && Number.isFinite(a.sort_index)
+        ? a.sort_index
+        : Number.POSITIVE_INFINITY;
+    const bIndex =
+      typeof b.sort_index === "number" && Number.isFinite(b.sort_index)
+        ? b.sort_index
+        : Number.POSITIVE_INFINITY;
+    if (aIndex !== bIndex) return aIndex - bIndex;
+    return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+  });
   const spacingX = nodeSize + columnGap;
   const spacingY = nodeSize + rowGap;
   const baseX = rootPositionTopLeft.x;
   const baseY = rootPositionTopLeft.y + spacingY;
 
-  related.forEach((note, index) => {
+  layoutNodes.forEach((note, index) => {
     if (!note || typeof note !== "object") return;
     if (typeof note.id !== "string" || !note.id.trim()) return;
     const fileName = note.extension

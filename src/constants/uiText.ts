@@ -69,6 +69,7 @@ export const uiText = {
       name: 'Name',
       caption: 'Caption',
       purpose: 'Purpose',
+      sortOrder: 'Sort order',
       sectionTitle: 'File details',
       decisionStatement: 'If & Else Statement',
       decisionDetailsLabel: 'Details',

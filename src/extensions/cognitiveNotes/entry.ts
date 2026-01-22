@@ -26,6 +26,10 @@ const openCognitiveNotes = async (): Promise<void> => {
     store.setTabTitle(tabId, result.root.name ?? "Cognitive Notes");
     store.setTabModule(tabId, "cognitiveNotes");
     store.setCognitiveNotesRoot(result.root);
+    store.setCognitiveNotesSource(
+      typeof selection === "string" ? null : selection,
+      typeof selection === "string" ? selection : null
+    );
 
     const settings = store.settings;
     const { nodes, edges, rootNodeId } = composeCognitiveNotesGraph(result.root, {

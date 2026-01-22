@@ -11,6 +11,7 @@ export type CognitiveNotesFileNode = {
   last_viewed_on: string;
   views: number;
   related_nodes: CognitiveNotesRelation[];
+  sort_index: number | null;
 };
 
 export type CognitiveNotesRelation = {
@@ -170,11 +171,12 @@ export class CognitiveNotesManager {
       node_size[key] = value;
     });
 
-    const child = Array.isArray(obj.child)
+    const rawChild = Array.isArray(obj.child)
       ? (obj.child as CognitiveNotesFileNode[])
       : Array.isArray(obj.related_nodes)
       ? (obj.related_nodes as CognitiveNotesFileNode[])
       : [];
+    const child = this.normalizeChildNodes(rawChild);
 
     return {
       schema_version: "1.0.0",
@@ -218,6 +220,24 @@ export class CognitiveNotesManager {
       node_size: {},
       child: [],
     };
+  }
+
+  private normalizeChildNodes(nodes: CognitiveNotesFileNode[]): CognitiveNotesFileNode[] {
+    return (nodes ?? []).map((node) => {
+      const related_nodes = Array.isArray((node as any).related_nodes)
+        ? (node as any).related_nodes
+        : [];
+      const sort_index =
+        typeof (node as any).sort_index === "number" &&
+        Number.isFinite((node as any).sort_index)
+          ? (node as any).sort_index
+          : null;
+      return {
+        ...(node as any),
+        related_nodes,
+        sort_index,
+      } as CognitiveNotesFileNode;
+    });
   }
 
   private buildExistingNodeMaps(
@@ -277,6 +297,12 @@ export class CognitiveNotesManager {
         : Array.isArray(scanned.related_nodes)
         ? scanned.related_nodes
         : [],
+      sort_index:
+        typeof existing?.sort_index === "number" && Number.isFinite(existing.sort_index)
+          ? existing.sort_index
+          : typeof scanned.sort_index === "number" && Number.isFinite(scanned.sort_index)
+          ? scanned.sort_index
+          : null,
     };
   }
 
@@ -402,6 +428,7 @@ export class CognitiveNotesManager {
         last_viewed_on: now,
         views: 0,
         related_nodes: [],
+        sort_index: null,
       };
       nodes.push(fileNode);
     }
@@ -442,6 +469,7 @@ export class CognitiveNotesManager {
         last_viewed_on: now,
         views: 0,
         related_nodes: [],
+        sort_index: null,
       };
     });
   }

@@ -102,6 +102,8 @@ export type CanvasTab = {
   rootDirectoryHandle: FileSystemDirectoryHandle | null;
   rootFolderJson: RootFolderJson | null;
   cognitiveNotesRoot: CognitiveNotesJson | null;
+  cognitiveNotesDirectoryHandle: FileSystemDirectoryHandle | null;
+  cognitiveNotesFolderPath: string | null;
   inlineEditNodeId: string | null;
   areNodesCollapsed: boolean;
   hasCustomLayout: boolean;
@@ -112,6 +114,7 @@ type TabSnapshot = {
   nodes: any[];
   edges: any[];
   rootFolderJson: RootFolderJson | null;
+  cognitiveNotesRoot: CognitiveNotesJson | null;
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
   title: string;
@@ -135,6 +138,8 @@ function createEmptyTab(): CanvasTab {
     rootDirectoryHandle: null,
     rootFolderJson: null,
     cognitiveNotesRoot: null,
+    cognitiveNotesDirectoryHandle: null,
+    cognitiveNotesFolderPath: null,
     inlineEditNodeId: null,
     areNodesCollapsed: false,
     hasCustomLayout: false,
@@ -159,6 +164,8 @@ function resetTabCanvas(tab: CanvasTab): CanvasTab {
     rootDirectoryHandle: null,
     rootFolderJson: null,
     cognitiveNotesRoot: null,
+    cognitiveNotesDirectoryHandle: null,
+    cognitiveNotesFolderPath: null,
     inlineEditNodeId: null,
     areNodesCollapsed: false,
     hasCustomLayout: false,
@@ -188,6 +195,7 @@ const getSnapshot = (tab: CanvasTab): TabSnapshot => {
     nodes: cloneValue(tab.nodes ?? []),
     edges: cloneValue(tab.edges ?? []),
     rootFolderJson: cloneValue(tab.rootFolderJson),
+    cognitiveNotesRoot: cloneValue(tab.cognitiveNotesRoot),
     selectedNodeId: tab.selectedNodeId ?? null,
     selectedEdgeId: tab.selectedEdgeId ?? null,
     title: tab.title ?? "",
@@ -281,6 +289,11 @@ export interface MindMapActions {
   setRoot: (handle: FileSystemDirectoryHandle | null, root: RootFolderJson) => void;
   clearRoot: () => void;
   setCognitiveNotesRoot: (root: CognitiveNotesJson) => void;
+  setCognitiveNotesSource: (
+    handle: FileSystemDirectoryHandle | null,
+    path: string | null
+  ) => void;
+  updateCognitiveNotesRoot: (root: CognitiveNotesJson) => void;
   setInlineEditNodeId: (nodeId: string | null) => void;
   updateRootFolderJson: (root: RootFolderJson) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
@@ -545,6 +558,8 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         rootDirectoryHandle: handle,
         rootFolderJson: root,
         cognitiveNotesRoot: null,
+        cognitiveNotesDirectoryHandle: null,
+        cognitiveNotesFolderPath: null,
         title: typeof root?.name === "string" ? root.name : tab.title,
         moduleType: "parallelmind",
         history: { past: [], future: [] },
@@ -564,6 +579,23 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         title: typeof root?.name === "string" ? root.name : tab.title,
         moduleType: "cognitiveNotes",
         history: { past: [], future: [] },
+      })),
+    })),
+  setCognitiveNotesSource: (handle, path) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        cognitiveNotesDirectoryHandle: handle,
+        cognitiveNotesFolderPath: path,
+      })),
+    })),
+  updateCognitiveNotesRoot: (root) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...pushHistory(tab),
+        cognitiveNotesRoot: root,
+        title: typeof root?.name === "string" ? root.name : tab.title,
+        moduleType: "cognitiveNotes",
       })),
     })),
   clearRoot: () =>
@@ -706,6 +738,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
           nodes: cloneValue(prev.nodes),
           edges: cloneValue(prev.edges),
           rootFolderJson: cloneValue(prev.rootFolderJson),
+          cognitiveNotesRoot: cloneValue(prev.cognitiveNotesRoot),
           selectedNodeId: prev.selectedNodeId,
           selectedEdgeId: prev.selectedEdgeId,
           title: prev.title,
@@ -733,6 +766,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
           nodes: cloneValue(next.nodes),
           edges: cloneValue(next.edges),
           rootFolderJson: cloneValue(next.rootFolderJson),
+          cognitiveNotesRoot: cloneValue(next.cognitiveNotesRoot),
           selectedNodeId: next.selectedNodeId,
           selectedEdgeId: next.selectedEdgeId,
           title: next.title,

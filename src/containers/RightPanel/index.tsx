@@ -17,6 +17,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import { FileManager } from "../../data/fileManager";
+import {
+  CognitiveNotesManager,
+  type CognitiveNotesJson,
+} from "../../extensions/cognitiveNotes/data/cognitiveNotesManager";
 import { useAutoSave } from "../../hooks/useAutoSave";
 import SmartPad from "../../components/SmartPad";
 
@@ -35,6 +39,10 @@ export default function RightPanel() {
   const nodes = activeTab?.nodes ?? [];
   const edges = activeTab?.edges ?? [];
   const cognitiveNotesRoot = activeTab?.cognitiveNotesRoot ?? null;
+  const moduleType = activeTab?.moduleType ?? null;
+  const cognitiveNotesDirectoryHandle =
+    activeTab?.cognitiveNotesDirectoryHandle ?? null;
+  const cognitiveNotesFolderPath = activeTab?.cognitiveNotesFolderPath ?? null;
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const setNodes = useMindMapStore((s) => s.setNodes);
   const setEdges = useMindMapStore((s) => s.setEdges);
@@ -47,6 +55,9 @@ export default function RightPanel() {
   );
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
+  const updateCognitiveNotesRoot = useMindMapStore(
+    (s) => s.updateCognitiveNotesRoot
+  );
   const setRoot = useMindMapStore((s) => s.setRoot);
   const selectNode = useMindMapStore((s) => s.selectNode);
   const selectEdge = useMindMapStore((s) => s.selectEdge);
@@ -81,6 +92,7 @@ export default function RightPanel() {
   };
 
   const fileManager = useMemo(() => new FileManager(), []);
+  const cognitiveNotesManager = useMemo(() => new CognitiveNotesManager(), []);
   // Draft state lives only in this container to satisfy "single container rule".
   const [draft, setDraft] = useState({
     name: "",
@@ -105,6 +117,11 @@ export default function RightPanel() {
     "idle" | "saving" | "saved"
   >("idle");
   const [edgeDeleteConfirmOpen, setEdgeDeleteConfirmOpen] = useState(false);
+  const [sortIndexDraft, setSortIndexDraft] = useState<number | "">("");
+  const [sortIndexDirty, setSortIndexDirty] = useState(false);
+  const [sortIndexSaveStatus, setSortIndexSaveStatus] = useState<
+    "idle" | "saving" | "saved"
+  >("idle");
 
   // Used to auto-focus and visually guide the user when name is mandatory.
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -131,6 +148,9 @@ export default function RightPanel() {
       setActionError(null);
       setDeleteConfirmOpen(false);
       setDeleteInProgress(false);
+      setSortIndexDraft("");
+      setSortIndexDirty(false);
+      setSortIndexSaveStatus("idle");
       lastHydratedSelectedIdRef.current = null;
       return;
     }
@@ -166,6 +186,11 @@ export default function RightPanel() {
         purpose: typeof data.purpose === "string" ? data.purpose : "",
         details: typeof data.details === "string" ? data.details : "",
       });
+      const sortIndexValue =
+        typeof data.sort_index === "number" && Number.isFinite(data.sort_index)
+          ? data.sort_index
+          : "";
+      setSortIndexDraft(sortIndexValue);
     }
     if (selectionChanged) {
       setSaveStatus("idle");
@@ -175,6 +200,8 @@ export default function RightPanel() {
       setActionError(null);
       setDeleteConfirmOpen(false);
       setDeleteInProgress(false);
+      setSortIndexDirty(false);
+      setSortIndexSaveStatus("idle");
     }
     lastHydratedSelectedIdRef.current = selectedNodeId;
   }, [nodes, selectedNodeId]);
@@ -247,6 +274,28 @@ export default function RightPanel() {
     (selectedNode?.data as any)?.node_type === "fullImageNode" ||
     (selectedNode?.data as any)?.type === "fullImageNode" ||
     selectedNode?.type === "fullImageNode";
+  const showSortIndex =
+    moduleType === "cognitiveNotes" &&
+    !isRootNode &&
+    (isFileNode || isImageNode);
+  const sortIndexOptions = useMemo(() => {
+    if (!showSortIndex || !cognitiveNotesRoot) return [];
+    const total = cognitiveNotesRoot.child?.length ?? 0;
+    const used = new Set<number>();
+    (cognitiveNotesRoot.child ?? []).forEach((node: any) => {
+      if (!node || node.id === selectedNodeId) return;
+      if (typeof node.sort_index === "number" && Number.isFinite(node.sort_index)) {
+        used.add(node.sort_index);
+      }
+    });
+    const options: number[] = [];
+    for (let i = 1; i <= total; i += 1) {
+      if (!used.has(i) || sortIndexDraft === i) {
+        options.push(i);
+      }
+    }
+    return options;
+  }, [showSortIndex, cognitiveNotesRoot, selectedNodeId, sortIndexDraft]);
 
   const getExtensionFromMimeType = (mimeType: string): string => {
     const mime = (mimeType ?? "").toLowerCase();
@@ -678,6 +727,28 @@ export default function RightPanel() {
     }
   };
 
+  const persistCognitiveNotesRoot = async (nextRoot: CognitiveNotesJson) => {
+    updateCognitiveNotesRoot(nextRoot);
+    try {
+      if (cognitiveNotesDirectoryHandle) {
+        await cognitiveNotesManager.writeCognitiveNotesJson(
+          cognitiveNotesDirectoryHandle,
+          nextRoot
+        );
+      } else {
+        const targetPath = cognitiveNotesFolderPath ?? nextRoot.path ?? "";
+        if (targetPath) {
+          await cognitiveNotesManager.writeCognitiveNotesJsonFromPath(
+            targetPath,
+            nextRoot
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[RightPanel] Failed to save cognitive notes:", err);
+    }
+  };
+
   // Debounced auto-save: "Saving..." while debounce is active, "Saved" after commit.
   useAutoSave(
     () => {
@@ -726,6 +797,46 @@ export default function RightPanel() {
     edgeDirty
   );
 
+  useAutoSave(
+    () => {
+      if (moduleType !== "cognitiveNotes") return;
+      if (!selectedNodeId || !cognitiveNotesRoot) return;
+      if (selectedNodeId === "00") return;
+      const nextSortIndex =
+        typeof sortIndexDraft === "number" && Number.isFinite(sortIndexDraft)
+          ? sortIndexDraft
+          : null;
+      setNodes(
+        (nodes ?? []).map((node: any) =>
+          node?.id === selectedNodeId
+            ? {
+                ...node,
+                data: { ...(node.data ?? {}), sort_index: nextSortIndex },
+              }
+            : node
+        )
+      );
+      const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) =>
+        node?.id === selectedNodeId
+          ? { ...node, sort_index: nextSortIndex }
+          : node
+      );
+      void persistCognitiveNotesRoot({ ...cognitiveNotesRoot, child: nextChild });
+      setSortIndexDirty(false);
+      setSortIndexSaveStatus("saved");
+    },
+    3000,
+    [
+      sortIndexDraft,
+      selectedNodeId,
+      sortIndexDirty,
+      moduleType,
+      cognitiveNotesRoot,
+      nodes,
+    ],
+    sortIndexDirty
+  );
+
   const onFieldChange =
     (field: "name" | "purpose" | "details") => (value: string) => {
       setDraft((d) => ({ ...d, [field]: value }));
@@ -738,6 +849,17 @@ export default function RightPanel() {
     setEdgeDraft((d) => ({ ...d, purpose: value }));
     setEdgeDirty(true);
     setEdgeSaveStatus("saving");
+  };
+
+  const onSortIndexChange = (value: string) => {
+    if (!value) {
+      setSortIndexDraft("");
+    } else {
+      const parsed = Number(value);
+      setSortIndexDraft(Number.isFinite(parsed) ? parsed : "");
+    }
+    setSortIndexDirty(true);
+    setSortIndexSaveStatus("saving");
   };
 
   const onDeleteSelectedEdge = () => {
@@ -1464,6 +1586,55 @@ export default function RightPanel() {
                                 {nameError}
                               </div>
                             )}
+                          </label>
+                        )}
+
+                        {showSortIndex && (
+                          <label
+                            style={{
+                              display: "grid",
+                              gap: "var(--space-2)",
+                              width: "100%",
+                              minWidth: 0,
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                              {uiText.fields.nodeDetails.sortOrder}
+                            </div>
+                            <select
+                              value={sortIndexDraft === "" ? "" : String(sortIndexDraft)}
+                              onChange={(e) => onSortIndexChange(e.target.value)}
+                              style={{
+                                width: "100%",
+                                minWidth: 0,
+                                boxSizing: "border-box",
+                                borderRadius: "var(--radius-md)",
+                                border: "var(--border-width) solid var(--border)",
+                                padding: "var(--space-2)",
+                                background: "var(--surface-1)",
+                                color: "var(--text)",
+                                fontFamily: "var(--font-family)",
+                              }}
+                            >
+                              <option value="">—</option>
+                              {sortIndexOptions.map((value) => (
+                                <option key={value} value={String(value)}>
+                                  {value}
+                                </option>
+                              ))}
+                            </select>
+                            <div
+                              style={{
+                                fontSize: "0.75rem",
+                                opacity: 0.7,
+                              }}
+                            >
+                              {sortIndexSaveStatus === "saving"
+                                ? uiText.statusMessages.saving
+                                : sortIndexSaveStatus === "saved"
+                                ? uiText.statusMessages.saved
+                                : ""}
+                            </div>
                           </label>
                         )}
 
