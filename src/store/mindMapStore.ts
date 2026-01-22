@@ -82,6 +82,7 @@ function generateTabId(): string {
 export type CanvasTab = {
   id: string;
   title: string;
+  moduleType: "parallelmind" | "cognitiveNotes" | null;
   // ReactFlow data
   nodes: any[];
   edges: any[];
@@ -105,6 +106,7 @@ function createEmptyTab(): CanvasTab {
   return {
     id: generateTabId(),
     title: "",
+    moduleType: null,
     nodes: [],
     edges: [],
     selectedNodeId: null,
@@ -123,6 +125,7 @@ function resetTabCanvas(tab: CanvasTab): CanvasTab {
   return {
     ...tab,
     title: "",
+    moduleType: null,
     nodes: [],
     edges: [],
     selectedNodeId: null,
@@ -224,6 +227,8 @@ export interface MindMapActions {
   createTab: () => string;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
+  setTabTitle: (tabId: string, title: string) => void;
+  setTabModule: (tabId: string, moduleType: CanvasTab["moduleType"]) => void;
   setHasCustomLayout: (enabled: boolean) => void;
   setShouldFitView: (enabled: boolean) => void;
 }
@@ -475,6 +480,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         rootDirectoryHandle: handle,
         rootFolderJson: root,
         title: typeof root?.name === "string" ? root.name : tab.title,
+        moduleType: "parallelmind",
         hasCustomLayout:
           !!root?.node_positions &&
           Object.keys(root.node_positions ?? {}).length > 0,
@@ -500,6 +506,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         ...tab,
         rootFolderJson: root,
         title: typeof root?.name === "string" ? root.name : tab.title,
+        moduleType: "parallelmind",
       })),
     })),
   updateNodeData: (nodeId, data) =>
@@ -561,6 +568,20 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       if (!state.tabs.find((tab) => tab.id === tabId)) return state;
       return { activeTabId: tabId };
     }),
+  setTabTitle: (tabId, title) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, tabId, (tab) => ({
+        ...tab,
+        title: typeof title === "string" ? title : tab.title,
+      })),
+    })),
+  setTabModule: (tabId, moduleType) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, tabId, (tab) => ({
+        ...tab,
+        moduleType,
+      })),
+    })),
   setHasCustomLayout: (enabled) =>
     set((state) => ({
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({

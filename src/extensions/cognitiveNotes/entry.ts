@@ -1,5 +1,7 @@
 import type { ExtensionEntry } from "../extensionTypes";
 import { CognitiveNotesManager } from "./data/cognitiveNotesManager";
+import { composeCognitiveNotesGraph } from "./utils/composeCognitiveNotesGraph";
+import { useMindMapStore } from "../../store/mindMapStore";
 
 const cognitiveNotesManager = new CognitiveNotesManager();
 
@@ -13,13 +15,31 @@ const openCognitiveNotes = async (): Promise<void> => {
   }
   if (!selection) return;
   try {
-    if (typeof selection === "string") {
-      await cognitiveNotesManager.loadOrCreateCognitiveNotesJsonFromPath(selection);
-    } else {
-      await cognitiveNotesManager.loadOrCreateCognitiveNotesJson(selection);
-    }
+    const result =
+      typeof selection === "string"
+        ? await cognitiveNotesManager.loadOrCreateCognitiveNotesJsonFromPath(selection)
+        : await cognitiveNotesManager.loadOrCreateCognitiveNotesJson(selection);
+
+    const store = useMindMapStore.getState();
+    const tabId = store.createTab();
+    store.setActiveTab(tabId);
+    store.setTabTitle(tabId, result.root.name ?? "Cognitive Notes");
+    store.setTabModule(tabId, "cognitiveNotes");
+
+    const settings = store.settings;
+    const { nodes, edges, rootNodeId } = composeCognitiveNotesGraph(result.root, {
+      nodeSize: settings.appearance.nodeSize,
+      columns: settings.appearance.gridColumns,
+      columnGap: settings.appearance.gridColumnGap,
+      rowGap: settings.appearance.gridRowGap,
+    });
+
+    store.setNodes(nodes);
+    store.setEdges(edges);
+    store.setShouldFitView(true);
+    store.selectNode(rootNodeId);
   } catch (err) {
-    console.error("[CognitiveNotes] Failed to create index file:", err);
+    console.error("[CognitiveNotes] Failed to load cognitive notes:", err);
   }
 };
 

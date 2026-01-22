@@ -6,6 +6,15 @@ const formatTabTitle = (title: string): string => {
   return `${title.slice(0, 10)}...`;
 };
 
+const formatTabTooltip = (
+  title: string,
+  moduleType: "parallelmind" | "cognitiveNotes" | null
+): string => {
+  if (moduleType === "parallelmind") return `${title} Parallelmind`;
+  if (moduleType === "cognitiveNotes") return `${title} Cognitive Notes`;
+  return title;
+};
+
 export function CanvasTabs() {
   const tabs = useMindMapStore((s) => s.tabs);
   const activeTabId = useMindMapStore((s) => s.activeTabId);
@@ -20,6 +29,7 @@ export function CanvasTabs() {
         const isActive = tab.id === activeTabId;
         const fullTitle = tab.title?.trim() || fallbackTitle;
         const displayTitle = formatTabTitle(fullTitle);
+        const tooltip = formatTabTooltip(fullTitle, tab.moduleType ?? null);
 
         return (
           <div
@@ -28,7 +38,7 @@ export function CanvasTabs() {
             role="tab"
             aria-selected={isActive}
             tabIndex={0}
-            title={fullTitle}
+            title={tooltip}
             onClick={() => setActiveTab(tab.id)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {

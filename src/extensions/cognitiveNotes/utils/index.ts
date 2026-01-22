@@ -1,2 +1,5 @@
-// Placeholder exports for Cognitive Notes utilities.
-export {};
+export { composeCognitiveNotesGraph } from "./composeCognitiveNotesGraph";
+export type {
+  CognitiveNotesComposeOptions,
+  CognitiveNotesComposeResult,
+} from "./composeCognitiveNotesGraph";
