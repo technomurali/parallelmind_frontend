@@ -45,6 +45,14 @@ import DecisionNode from "./DecisionNode";
 import ImageNode from "./ImageNode";
 import FullImageNode from "./FullImageNode";
 
+const NODE_TYPES = {
+  rootFolder: RootFolderNode,
+  file: FileNode,
+  decision: DecisionNode,
+  polaroidImage: ImageNode,
+  fullImageNode: FullImageNode,
+} as const;
+
 /**
  * MindMap component
  *
@@ -59,7 +67,8 @@ export default function MindMap() {
   const setNodes = useMindMapStore((s) => s.setNodes);
   const setEdges = useMindMapStore((s) => s.setEdges);
   const selectEdge = useMindMapStore((s) => s.selectEdge);
-  const moduleType = activeTab?.moduleType ?? null;
+  const moduleTypeValue = String(activeTab?.moduleType ?? "");
+  const isCognitiveNotes = moduleTypeValue === "cognitiveNotes";
   const cognitiveNotesRoot = activeTab?.cognitiveNotesRoot ?? null;
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
@@ -167,16 +176,7 @@ export default function MindMap() {
     }, 2000);
     return () => window.clearTimeout(timeout);
   }, [layoutSaveStatus]);
-  const nodeTypes = useMemo(
-    () => ({
-      rootFolder: RootFolderNode,
-      file: FileNode,
-      decision: DecisionNode,
-      polaroidImage: ImageNode,
-      fullImageNode: FullImageNode,
-    }),
-    []
-  );
+  const nodeTypes = NODE_TYPES;
   const parentPath = useMemo(() => {
     if (!showParentPath || !selectedNodeId) {
       return { nodeIds: new Set<string>(), edgeIds: new Set<string>() };
@@ -879,7 +879,7 @@ export default function MindMap() {
   };
 
   const onConnect = (connection: Connection) => {
-    if (moduleType !== "cognitiveNotes") return;
+    if (!isCognitiveNotes) return;
     if (!connection.source || !connection.target) return;
     if (connection.source === connection.target) return;
     const edgeId = `e_${connection.source}_${connection.target}_${Date.now()}`;
@@ -1040,7 +1040,18 @@ export default function MindMap() {
     const selectedNode =
       selectedNodeId && (nodes ?? []).find((node) => node?.id === selectedNodeId);
     const parentNodeId =
-      selectedNode && isFolderNode(selectedNode) ? selectedNode.id : null;
+      isCognitiveNotes
+        ? cognitiveNotesRoot?.id ?? null
+        : selectedNode && isFolderNode(selectedNode)
+        ? selectedNode.id
+        : null;
+    if (isCognitiveNotes) {
+      console.log("[CognitiveNotes] Context menu parent", {
+        parentNodeId,
+        rootId: cognitiveNotesRoot?.id ?? null,
+        selectedNodeId,
+      });
+    }
     setPaneMenu({ open: true, x, y, flowPos, parentNodeId });
   };
 
@@ -2417,6 +2428,12 @@ export default function MindMap() {
                   const parentNodeId = paneMenu.parentNodeId;
                   closePaneMenu();
                   if (!flowPos || !parentNodeId) return;
+                  if (isCognitiveNotes) {
+                    console.log("[CognitiveNotes] New File draft", {
+                      parentNodeId,
+                      flowPos,
+                    });
+                  }
 
                   // Create a temporary node with no name. It will not be committed (and no edge is created)
                   // until the user enters a valid name and it is saved from the Node Details panel.
@@ -2449,21 +2466,22 @@ export default function MindMap() {
 
                   const existing = nodes ?? [];
                   const edgeId = `e_${parentNodeId}_${tempNodeId}`;
-                  const nextEdges = (edges ?? []).some(
-                    (edge: any) => edge?.id === edgeId
-                  )
-                    ? edges
-                    : [
-                        ...(edges ?? []),
-                        {
-                          id: edgeId,
-                          source: parentNodeId,
-                          target: tempNodeId,
-                          type: "default",
-                          style: { opacity: 1, transition: "opacity 180ms ease" },
-                          data: { isDraft: true, nonPersistent: true },
-                        },
-                      ];
+                  const nextEdges =
+                    isCognitiveNotes
+                      ? edges
+                      : (edges ?? []).some((edge: any) => edge?.id === edgeId)
+                      ? edges
+                      : [
+                          ...(edges ?? []),
+                          {
+                            id: edgeId,
+                            source: parentNodeId,
+                            target: tempNodeId,
+                            type: "default",
+                            style: { opacity: 1, transition: "opacity 180ms ease" },
+                            data: { isDraft: true, nonPersistent: true },
+                          },
+                        ];
                   const next = [
                     ...existing.map((n: any) => ({
                       ...n,
@@ -2538,21 +2556,28 @@ export default function MindMap() {
                   };
                   const existing = nodes ?? [];
                   const edgeId = `e_${parentNodeId}_${tempNodeId}`;
-                  const nextEdges = (edges ?? []).some(
-                    (edge: any) => edge?.id === edgeId
-                  )
-                    ? edges
-                    : [
-                        ...(edges ?? []),
-                        {
-                          id: edgeId,
-                          source: parentNodeId,
-                          target: tempNodeId,
-                          type: "default",
-                          style: { opacity: 1, transition: "opacity 180ms ease" },
-                          data: { isDraft: true, nonPersistent: true },
-                        },
-                      ];
+                  if (isCognitiveNotes) {
+                    console.log("[CognitiveNotes] New Image draft", {
+                      parentNodeId,
+                      flowPos,
+                    });
+                  }
+                  const nextEdges =
+                    isCognitiveNotes
+                      ? edges
+                      : (edges ?? []).some((edge: any) => edge?.id === edgeId)
+                      ? edges
+                      : [
+                          ...(edges ?? []),
+                          {
+                            id: edgeId,
+                            source: parentNodeId,
+                            target: tempNodeId,
+                            type: "default",
+                            style: { opacity: 1, transition: "opacity 180ms ease" },
+                            data: { isDraft: true, nonPersistent: true },
+                          },
+                        ];
                   const next = [
                     ...existing.map((n: any) => ({
                       ...n,
@@ -2736,14 +2761,20 @@ export default function MindMap() {
                   border: "none",
                   background: "transparent",
                   color: "inherit",
-                  cursor: paneMenu.parentNodeId ? "pointer" : "not-allowed",
+                  cursor:
+                    paneMenu.parentNodeId && !isCognitiveNotes
+                      ? "pointer"
+                      : "not-allowed",
                   fontFamily: "var(--font-family)",
                   whiteSpace: "normal",
                   overflowWrap: "anywhere",
-                  opacity: paneMenu.parentNodeId ? 1 : 0.5,
+                  opacity:
+                    paneMenu.parentNodeId && !isCognitiveNotes
+                      ? 1
+                      : 0.5,
                 }}
                 onMouseEnter={(e) => {
-                  if (!paneMenu.parentNodeId) return;
+                  if (!paneMenu.parentNodeId || isCognitiveNotes) return;
                   (e.currentTarget as HTMLButtonElement).style.background =
                     "var(--surface-1)";
                 }}
@@ -2751,7 +2782,7 @@ export default function MindMap() {
                   (e.currentTarget as HTMLButtonElement).style.background =
                     "transparent";
                 }}
-                disabled={!paneMenu.parentNodeId}
+                disabled={!paneMenu.parentNodeId || isCognitiveNotes}
               >
                 {uiText.contextMenus.canvas.newFolder}
               </button>

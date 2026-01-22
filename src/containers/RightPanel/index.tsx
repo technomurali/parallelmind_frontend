@@ -884,13 +884,61 @@ export default function RightPanel() {
     }
   };
 
+  const joinPath = (dirPath: string, fileName: string): string => {
+    const trimmed = dirPath.replace(/[\\/]+$/, "");
+    const sep = trimmed.includes("\\") ? "\\" : "/";
+    return `${trimmed}${sep}${fileName}`;
+  };
+
+  const writeCognitiveNotesFile = async (fileName: string, content: string) => {
+    if (cognitiveNotesDirectoryHandle) {
+      const fileHandle = await cognitiveNotesDirectoryHandle.getFileHandle(fileName, {
+        create: true,
+      });
+      const writable = await (fileHandle as any).createWritable?.();
+      if (!writable) throw new Error("Failed to create cognitive notes file.");
+      await writable.write(content);
+      await writable.close();
+      return;
+    }
+    const targetPath = cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
+    if (!targetPath) throw new Error("Cognitive Notes folder path is missing.");
+    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+    await writeTextFile(joinPath(targetPath, fileName), content, { create: true });
+  };
+
+  const writeCognitiveNotesImage = async (fileName: string, file: File) => {
+    if (cognitiveNotesDirectoryHandle) {
+      const fileHandle = await cognitiveNotesDirectoryHandle.getFileHandle(fileName, {
+        create: true,
+      });
+      const writable = await (fileHandle as any).createWritable?.();
+      if (!writable) throw new Error("Failed to create cognitive notes image.");
+      await writable.write(file);
+      await writable.close();
+      return;
+    }
+    const targetPath = cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
+    if (!targetPath) throw new Error("Cognitive Notes folder path is missing.");
+    const { writeFile } = await import("@tauri-apps/plugin-fs");
+    const buffer = await file.arrayBuffer();
+    await writeFile(joinPath(targetPath, fileName), new Uint8Array(buffer));
+  };
+
   const canCreateDraft =
     isDraftNode &&
     !!parentIdForDraft &&
     !nameError &&
-    (!!rootDirectoryHandle ||
-      (typeof rootFolderJson?.path === "string" &&
-        rootFolderJson.path.trim().length > 0));
+    (moduleType === "cognitiveNotes"
+      ? !!cognitiveNotesRoot &&
+        (!!cognitiveNotesDirectoryHandle ||
+          (typeof cognitiveNotesFolderPath === "string" &&
+            cognitiveNotesFolderPath.trim().length > 0) ||
+          (typeof cognitiveNotesRoot?.path === "string" &&
+            cognitiveNotesRoot.path.trim().length > 0))
+      : !!rootDirectoryHandle ||
+        (typeof rootFolderJson?.path === "string" &&
+          rootFolderJson.path.trim().length > 0));
 
   const onCreateDraft = async () => {
     if (!isDraftNode || !selectedNodeId) return;
@@ -901,7 +949,11 @@ export default function RightPanel() {
       nameInputRef.current?.focus();
       return;
     }
-    if (!parentIdForDraft || !rootFolderJson) {
+    if (!parentIdForDraft) {
+      setCreateError(uiText.alerts.errorCreateFailed);
+      return;
+    }
+    if (moduleType !== "cognitiveNotes" && !rootFolderJson) {
       setCreateError(uiText.alerts.errorCreateFailed);
       return;
     }
@@ -914,6 +966,121 @@ export default function RightPanel() {
       : null;
     setSaveStatus("saving");
     try {
+      if (moduleType === "cognitiveNotes") {
+        if (!cognitiveNotesRoot) {
+          setCreateError(uiText.alerts.errorCreateFailed);
+          setSaveStatus("idle");
+          return;
+        }
+        if (isImageNode) {
+          const draftNode = (nodes ?? []).find((n: any) => n?.id === draftNodeId);
+          const clipboardFile = (draftNode?.data as any)?.clipboardFile as File | null;
+          const clipboardMimeType = (draftNode?.data as any)?.clipboardMimeType as string | null;
+          if (!clipboardFile) {
+            setCreateError("Image file not found. Please paste an image again.");
+            setSaveStatus("idle");
+            return;
+          }
+          const ext = clipboardMimeType ? getExtensionFromMimeType(clipboardMimeType) : "png";
+          const fileName = trimmedCaption
+            ? `${trimmedCaption}.${ext}`
+            : `image_${Date.now()}.${ext}`;
+          await writeCognitiveNotesImage(fileName, clipboardFile);
+          const nodePath = cognitiveNotesDirectoryHandle ? fileName : joinPath(
+            cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "",
+            fileName
+          );
+          setNodes(
+            (nodes ?? []).map((node: any) =>
+              node?.id === draftNodeId
+                ? {
+                    ...node,
+                    data: {
+                      ...(node.data ?? {}),
+                      name: trimmedCaption,
+                      caption: trimmedCaption,
+                      extension: ext,
+                      path: nodePath,
+                      purpose: draft.purpose,
+                      isDraft: false,
+                      nonPersistent: false,
+                    },
+                  }
+                : node
+            )
+          );
+          const nextChild = [
+            ...(cognitiveNotesRoot.child ?? []),
+            {
+              id: draftNodeId,
+              name: trimmedCaption,
+              extension: ext,
+              purpose: draft.purpose,
+              type: "file_A",
+              level: 1,
+              path: nodePath,
+              created_on: new Date().toISOString(),
+              updated_on: new Date().toISOString(),
+              last_viewed_on: new Date().toISOString(),
+              views: 0,
+              related_nodes: [],
+              sort_index: null,
+            },
+          ];
+          await persistCognitiveNotesRoot({ ...cognitiveNotesRoot, child: nextChild });
+        } else {
+          const nextFileName = splitDraftFileName(trimmedName).fullName;
+          await writeCognitiveNotesFile(nextFileName, "");
+          const nodePath = cognitiveNotesDirectoryHandle ? nextFileName : joinPath(
+            cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "",
+            nextFileName
+          );
+          setNodes(
+            (nodes ?? []).map((node: any) =>
+              node?.id === draftNodeId
+                ? {
+                    ...node,
+                    data: {
+                      ...(node.data ?? {}),
+                      name: splitDraftFileName(trimmedName).name,
+                      extension: splitDraftFileName(trimmedName).extension,
+                      path: nodePath,
+                      purpose: draft.purpose,
+                      isDraft: false,
+                      nonPersistent: false,
+                    },
+                  }
+                : node
+            )
+          );
+          const nextChild = [
+            ...(cognitiveNotesRoot.child ?? []),
+            {
+              id: draftNodeId,
+              name: splitDraftFileName(trimmedName).name,
+              extension: splitDraftFileName(trimmedName).extension,
+              purpose: draft.purpose,
+              type: "file_A",
+              level: 1,
+              path: nodePath,
+              created_on: new Date().toISOString(),
+              updated_on: new Date().toISOString(),
+              last_viewed_on: new Date().toISOString(),
+              views: 0,
+              related_nodes: [],
+              sort_index: null,
+            },
+          ];
+          await persistCognitiveNotesRoot({ ...cognitiveNotesRoot, child: nextChild });
+        }
+
+        setPendingChildCreation(null);
+        selectNode(draftNodeId);
+        setDirty(false);
+        setSaveStatus("saved");
+        return;
+      }
+
       let result: any;
       if (isImageNode) {
         // Image node: get clipboard file and MIME type from draft node data

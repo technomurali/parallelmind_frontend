@@ -6,7 +6,7 @@
  */
 
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { Handle, NodeResizer, Position, type NodeProps } from "reactflow";
+import { Handle, Position, type NodeProps } from "reactflow";
 import { FileManager } from "../../data/fileManager";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 
@@ -14,6 +14,7 @@ const FILE_NODE_BASE_WIDTH = 125;
 const DEFAULT_IMAGE_WIDTH_RATIO = 0.8;
 const MAX_IMAGE_WIDTH = Math.round(FILE_NODE_BASE_WIDTH * DEFAULT_IMAGE_WIDTH_RATIO);
 const FRAME_PADDING = 3;
+const CONTROL_STRIP_HEIGHT = 16;
 
 const isDirectImageSource = (value: string) =>
   value.startsWith("data:") ||
@@ -60,6 +61,9 @@ export default function FullImageNode({
   const imgRef = useRef<HTMLImageElement | null>(null);
   const nodeTextColor =
     settings.appearance.nodeFontColor === "black" ? "#000000" : "#ffffff";
+  const minNodeWidth = 120;
+  const minNodeHeight = 120 + CONTROL_STRIP_HEIGHT;
+  const stepSize = Math.max(6, Math.round(FILE_NODE_BASE_WIDTH * 0.1));
 
   const rawImageSource =
     typeof (data as any)?.imageSrc === "string"
@@ -71,26 +75,84 @@ export default function FullImageNode({
     typeof (data as any)?.nodeWidth === "number" ? (data as any).nodeWidth : 0;
   const storedHeight =
     typeof (data as any)?.nodeHeight === "number" ? (data as any).nodeHeight : 0;
+  const storedImageWidth =
+    typeof (data as any)?.imageWidth === "number" ? (data as any).imageWidth : 0;
+  const storedImageHeight =
+    typeof (data as any)?.imageHeight === "number" ? (data as any).imageHeight : 0;
 
   const defaultSize = useMemo(() => {
     if (storedWidth > 0 && storedHeight > 0) {
+      const hasControlStrip =
+        storedImageHeight > 0 &&
+        storedHeight >=
+          storedImageHeight + FRAME_PADDING * 2 + CONTROL_STRIP_HEIGHT - 1;
+      const nextHeight = storedHeight + (hasControlStrip ? 0 : CONTROL_STRIP_HEIGHT);
       return {
         w: storedWidth,
-        h: storedHeight,
-        imageWidth: Math.max(1, storedWidth - FRAME_PADDING * 2),
-        imageHeight: Math.max(1, storedHeight - FRAME_PADDING * 2),
+        h: nextHeight,
+        imageWidth:
+          storedImageWidth > 0
+            ? storedImageWidth
+            : Math.max(1, storedWidth - FRAME_PADDING * 2),
+        imageHeight:
+          storedImageHeight > 0
+            ? storedImageHeight
+            : Math.max(1, storedHeight - FRAME_PADDING * 2),
       };
     }
     const fallback = getFullImageSize(260, 320);
     return {
       w: fallback.w,
-      h: fallback.h,
+      h: fallback.h + CONTROL_STRIP_HEIGHT,
       imageWidth: fallback.imageWidth,
       imageHeight: fallback.imageHeight,
     };
-  }, [storedWidth, storedHeight]);
+  }, [storedHeight, storedImageHeight, storedImageWidth, storedWidth]);
 
   const [size, setSize] = useState(defaultSize);
+  const applySizeDelta = (delta: number) => {
+    const aspectRatio =
+      size.imageHeight > 0 ? size.imageWidth / size.imageHeight : 1;
+    const minImageHeightFromHeight = Math.max(
+      1,
+      minNodeHeight - FRAME_PADDING * 2 - CONTROL_STRIP_HEIGHT
+    );
+    const minImageHeightFromWidth = Math.max(
+      1,
+      Math.ceil((minNodeWidth - FRAME_PADDING * 2) / aspectRatio)
+    );
+    const minImageHeight = Math.max(
+      minImageHeightFromHeight,
+      minImageHeightFromWidth
+    );
+    const minImageWidth = Math.max(1, Math.round(minImageHeight * aspectRatio));
+
+    const nextImageWidth = Math.max(
+      minImageWidth,
+      Math.round(size.imageWidth + delta)
+    );
+    let nextImageHeight = Math.max(
+      minImageHeight,
+      Math.round(nextImageWidth / aspectRatio)
+    );
+    let nextImageWidthAdjusted = Math.round(nextImageHeight * aspectRatio);
+
+    const nextWidth = nextImageWidthAdjusted + FRAME_PADDING * 2;
+    const nextHeight =
+      nextImageHeight + FRAME_PADDING * 2 + CONTROL_STRIP_HEIGHT;
+    setSize({
+      w: nextWidth,
+      h: nextHeight,
+      imageWidth: nextImageWidthAdjusted,
+      imageHeight: nextImageHeight,
+    });
+    updateNodeData(id, {
+      nodeWidth: nextWidth,
+      nodeHeight: nextHeight,
+      imageWidth: nextImageWidthAdjusted,
+      imageHeight: nextImageHeight,
+    });
+  };
   const [resolvedImageSrc, setResolvedImageSrc] = useState("");
 
   useEffect(() => {
@@ -195,15 +257,31 @@ export default function FullImageNode({
 
     const imageWidth = (data as any)?.imageWidth;
     const imageHeight = (data as any)?.imageHeight;
-    if (typeof imageWidth === "number" && typeof imageHeight === "number") {
-      applySize(getFullImageSize(imageWidth, imageHeight));
+    const nodeWidth = (data as any)?.nodeWidth;
+    const nodeHeight = (data as any)?.nodeHeight;
+    if (
+      typeof imageWidth === "number" &&
+      typeof imageHeight === "number" &&
+      typeof nodeWidth === "number" &&
+      typeof nodeHeight === "number"
+    ) {
+      applySize({
+        w: nodeWidth,
+        h: nodeHeight,
+        imageWidth,
+        imageHeight,
+      });
       return;
     }
 
     const img = imgRef.current;
     if (!img) return;
     const onLoad = () => {
-      applySize(getFullImageSize(img.naturalWidth, img.naturalHeight));
+      const next = getFullImageSize(img.naturalWidth, img.naturalHeight);
+      applySize({
+        ...next,
+        h: next.h + CONTROL_STRIP_HEIGHT,
+      });
     };
     img.addEventListener("load", onLoad);
     return () => {
@@ -211,6 +289,7 @@ export default function FullImageNode({
     };
   }, [data, id, imageSrc, updateNodeData]);
 
+  const controlStripHeight = CONTROL_STRIP_HEIGHT;
   const imageAreaHeight = Math.max(0, size.imageHeight);
   const handleWidth = 12;
   const handleHeight = 6;
@@ -253,32 +332,75 @@ export default function FullImageNode({
         boxSizing: "border-box",
         border: selected ? "2px solid var(--primary-color)" : "1px solid #e2e2e2",
         transition: dragging ? "none" : "box-shadow 0.2s ease, border 0.2s ease",
+        position: "relative",
       }}
     >
-      <NodeResizer
-        isVisible={selected}
-        minWidth={160}
-        minHeight={160}
-        onResizeEnd={(_, params) => {
-          if (!params) return;
-          const nextWidth = Math.max(1, Math.round(params.width));
-          const nextHeight = Math.max(1, Math.round(params.height));
-          const nextImageWidth = Math.max(1, nextWidth - FRAME_PADDING * 2);
-          const nextImageHeight = Math.max(1, nextHeight - FRAME_PADDING * 2);
-          setSize({
-            w: nextWidth,
-            h: nextHeight,
-            imageWidth: nextImageWidth,
-            imageHeight: nextImageHeight,
-          });
-          updateNodeData(id, {
-            nodeWidth: nextWidth,
-            nodeHeight: nextHeight,
-            imageWidth: nextImageWidth,
-            imageHeight: nextImageHeight,
-          });
+      <div
+        style={{
+          width: size.imageWidth,
+          height: controlStripHeight,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: 4,
+          paddingRight: 4,
+          boxSizing: "border-box",
+          pointerEvents: "auto",
         }}
-      />
+      >
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            applySizeDelta(stepSize);
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 4,
+            border: "none",
+            background: "transparent",
+            color: nodeTextColor,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            fontSize: 12,
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            applySizeDelta(-stepSize);
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 4,
+            border: "none",
+            background: "transparent",
+            color: nodeTextColor,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            fontSize: 12,
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          −
+        </button>
+      </div>
       <Handle
         type="target"
         position={Position.Top}
