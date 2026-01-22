@@ -2916,7 +2916,7 @@ export default function MindMap() {
                             );
                           if (!result.created) {
                             // TODO: define the "existing root" flow (e.g., merge, refresh, or re-scan)
-                            // when a parallelmind_index.json file already exists in the chosen folder.
+                            // when a <root>_rootIndex.json file already exists in the chosen folder.
                           }
                           setRoot(null, result.root);
                           selectNode("00");

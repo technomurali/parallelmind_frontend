@@ -1,5 +1,5 @@
 /**
- * parallelmind_index.json
+ * parallelmind_rootIndex.json
  * 
  * Central JSON file tracking all nodes, folders, and files in the mind map.
  * This is the master structure file that maintains the hierarchical organization

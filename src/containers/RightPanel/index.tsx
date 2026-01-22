@@ -499,7 +499,7 @@ export default function RightPanel() {
       return;
     }
 
-    // Persist to parallelmind_index.json only for the root node (existing mechanism).
+    // Persist to <root>_rootIndex.json only for the root node (existing mechanism).
     if (selectedNodeId === "00") {
       // Check if we have a valid persistence mechanism
       const hasDirectoryHandle = !!rootDirectoryHandle;
@@ -568,7 +568,7 @@ export default function RightPanel() {
         setDirty(false);
         setSaveStatus("saved");
       } catch (error) {
-        console.error("[RightPanel] Failed to save parallelmind_index.json:", error);
+        console.error("[RightPanel] Failed to save rootIndex json:", error);
         setDirty(true); // Keep dirty state so user knows save failed
         setSaveStatus("idle");
       }

@@ -136,14 +136,14 @@ export function GlobalHeaderBar({ title: _title }: GlobalHeaderBarProps) {
         );
         if (!result.created) {
           // TODO: define the "existing root" flow (e.g., merge, refresh, or re-scan)
-          // when a parallelmind_index.json file already exists in the chosen folder.
+          // when a <root>_rootIndex.json file already exists in the chosen folder.
         }
         setRoot(null, result.root);
       } else {
         const result = await fileManager.loadOrCreateRootFolderJson(selection);
         if (!result.created) {
           // TODO: define the "existing root" flow (e.g., merge, refresh, or re-scan)
-          // when a parallelmind_index.json file already exists in the chosen folder.
+          // when a <root>_rootIndex.json file already exists in the chosen folder.
         }
         setRoot(selection, result.root);
       }

@@ -7,7 +7,7 @@
  * - Reading file contents and folder structures
  * - Updating file contents and metadata
  * - Deleting files and folders
- * - Synchronizing changes with the parallelmind_index.json structure
+ * - Synchronizing changes with the root index json structure
  */
 
 export interface FileNode {
@@ -76,10 +76,12 @@ export type RootFolderJson = {
  * 
  * Manages all CRUD operations for files and folders in the mind map.
  * Provides methods to interact with the file system structure and
- * maintain consistency with parallelmind_index.json.
+ * maintain consistency with the root index json.
  */
 export class FileManager {
-  private static LEGACY_ROOT_FILE_NAME = 'parallelmind_index.json' as const;
+  private static LEGACY_ROOT_FILE_NAME = "parallelmind_index.json" as const;
+  private static ROOT_FILE_SUFFIX = "_rootIndex.json" as const;
+  private static LEGACY_ROOT_SUFFIX = "_index.json" as const;
   private static MAX_LEVEL = 4 as const;
 
   private nowIso(): string {
@@ -114,15 +116,29 @@ export class FileManager {
   private getIndexFileName(rootName: string): string {
     const trimmed = (rootName ?? "").trim();
     if (!trimmed) return FileManager.LEGACY_ROOT_FILE_NAME;
-    return `${trimmed}_index.json`;
+    return `${trimmed}${FileManager.ROOT_FILE_SUFFIX}`;
+  }
+
+  private getLegacyIndexFileName(rootName: string): string {
+    const trimmed = (rootName ?? "").trim();
+    if (!trimmed) return FileManager.LEGACY_ROOT_FILE_NAME;
+    return `${trimmed}${FileManager.LEGACY_ROOT_SUFFIX}`;
   }
 
   private getIndexFileNameFromHandle(dirHandle: FileSystemDirectoryHandle): string {
     return this.getIndexFileName(dirHandle?.name ?? "");
   }
 
+  private getLegacyIndexFileNameFromHandle(dirHandle: FileSystemDirectoryHandle): string {
+    return this.getLegacyIndexFileName(dirHandle?.name ?? "");
+  }
+
   private getIndexFileNameFromPath(rootPath: string): string {
     return this.getIndexFileName(this.baseNameFromPath(rootPath));
+  }
+
+  private getLegacyIndexFileNameFromPath(rootPath: string): string {
+    return this.getLegacyIndexFileName(this.baseNameFromPath(rootPath));
   }
 
   private folderTypeForLevel(level: number): FolderTypeByLevel {
@@ -583,7 +599,10 @@ export class FileManager {
     for await (const entry of (dirHandle as any).values()) {
       if (entry?.kind !== "file") continue;
       if (typeof entry.name !== "string") continue;
-      if (entry.name.endsWith("_index.json")) {
+      if (
+        entry.name.endsWith(FileManager.ROOT_FILE_SUFFIX) ||
+        entry.name.endsWith(FileManager.LEGACY_ROOT_SUFFIX)
+      ) {
         names.push(entry.name);
       }
     }
@@ -603,7 +622,11 @@ export class FileManager {
       const names = entries
         .filter((e: any) => e?.isFile && typeof e.name === "string")
         .map((e: any) => e.name)
-        .filter((name: string) => name.endsWith("_index.json"));
+        .filter(
+          (name: string) =>
+            name.endsWith(FileManager.ROOT_FILE_SUFFIX) ||
+            name.endsWith(FileManager.LEGACY_ROOT_SUFFIX)
+        );
       names.sort((a, b) => {
         if (a === FileManager.LEGACY_ROOT_FILE_NAME) return -1;
         if (b === FileManager.LEGACY_ROOT_FILE_NAME) return 1;
@@ -1008,12 +1031,17 @@ export class FileManager {
   ): Promise<RootFolderJson> {
     const now = this.nowIso();
     const indexFileName = this.getIndexFileNameFromHandle(dirHandle);
+    const legacyIndexFileName = this.getLegacyIndexFileNameFromHandle(dirHandle);
     // Web mode: root path is not available; use empty string.
     const root = this.buildNewRootFolderJson({ name: dirHandle.name, path: "", now });
 
     // Root notification: if any non-index FILE exists at root before initialization.
     for await (const entry of (dirHandle as any).values()) {
-      if (entry.kind === "file" && entry.name !== indexFileName) {
+      if (
+        entry.kind === "file" &&
+        entry.name !== indexFileName &&
+        entry.name !== legacyIndexFileName
+      ) {
         root.notifications.push("Root folder contained files before initialization");
         break;
       }
@@ -1025,6 +1053,7 @@ export class FileManager {
       1,
       "",
       indexFileName,
+      legacyIndexFileName,
       root.notifications,
       now,
     );
@@ -1038,12 +1067,18 @@ export class FileManager {
     const now = this.nowIso();
     const rootName = this.baseNameFromPath(rootPath);
     const indexFileName = this.getIndexFileName(rootName);
+    const legacyIndexFileName = this.getLegacyIndexFileName(rootName);
     const root = this.buildNewRootFolderJson({ name: rootName, path: rootPath, now });
 
     try {
       const { readDir } = await import("@tauri-apps/plugin-fs");
       const entries = await readDir(rootPath);
-      if (entries.some((e: any) => e?.isFile && e?.name !== indexFileName)) {
+      if (
+        entries.some(
+          (e: any) =>
+            e?.isFile && e?.name !== indexFileName && e?.name !== legacyIndexFileName
+        )
+      ) {
         root.notifications.push("Root folder contained files before initialization");
       }
       root.child = await this.scanDirPath(
@@ -1051,6 +1086,7 @@ export class FileManager {
         1,
         rootPath,
         indexFileName,
+        legacyIndexFileName,
         root.notifications,
         now
       );
@@ -1069,6 +1105,7 @@ export class FileManager {
     level: number,
     parentRel: string,
     rootIndexFileName: string,
+    legacyIndexFileName: string,
     rootNotifications: string[],
     now: string,
   ): Promise<IndexNode[]> {
@@ -1081,7 +1118,10 @@ export class FileManager {
     const dirs: FileSystemDirectoryHandle[] = [];
     const files: FileSystemFileHandle[] = [];
     for await (const entry of (dirHandle as any).values()) {
-      if (level === 1 && entry.name === rootIndexFileName) continue;
+      if (level === 1) {
+        if (entry.name === rootIndexFileName) continue;
+        if (entry.name === legacyIndexFileName) continue;
+      }
       if (entry.kind === "directory") dirs.push(entry);
       else if (entry.kind === "file") files.push(entry);
     }
@@ -1109,6 +1149,7 @@ export class FileManager {
           level + 1,
           relPath,
           rootIndexFileName,
+          legacyIndexFileName,
           rootNotifications,
           now,
         );
@@ -1187,6 +1228,7 @@ export class FileManager {
     level: number,
     parentPath: string,
     rootIndexFileName: string,
+    legacyIndexFileName: string,
     rootNotifications: string[],
     now: string,
   ): Promise<IndexNode[]> {
@@ -1224,6 +1266,7 @@ export class FileManager {
           level + 1,
           absPath,
           rootIndexFileName,
+          legacyIndexFileName,
           rootNotifications,
           now,
         );
@@ -1239,7 +1282,10 @@ export class FileManager {
     }
 
     for (const f of files) {
-      if (level === 1 && f.name === rootIndexFileName) continue;
+      if (level === 1) {
+        if (f.name === rootIndexFileName) continue;
+        if (f.name === legacyIndexFileName) continue;
+      }
       const absPath = this.joinPath(parentPath, f.name);
       const parts = this.splitFileName(f.name);
       const fileNode: IndexFileNode = {
@@ -1328,7 +1374,7 @@ export class FileManager {
   }
 
   /**
-   * Reads parallelmind_index.json from the selected directory if it exists.
+   * Reads <root>_rootIndex.json from the selected directory if it exists.
    * Returns null when the file does not exist or cannot be read.
    *
    * We keep failures silent by design (no alerts/toasts).
@@ -1427,7 +1473,7 @@ export class FileManager {
   }
 
   /**
-   * Loads existing parallelmind_index.json if present; otherwise creates it.
+   * Loads existing rootIndex json if present; otherwise creates it.
    * This prevents "recreating" the root when the file already exists.
    */
   async loadOrCreateRootFolderJson(
@@ -1475,7 +1521,7 @@ export class FileManager {
   }
 
   /**
-   * Reads parallelmind_index.json from an absolute directory path (Tauri).
+   * Reads <root>_rootIndex.json from an absolute directory path (Tauri).
    * Returns null when missing/unreadable. Silent by design.
    */
   async readRootFolderJsonFromPath(dirPath: string): Promise<RootFolderJson | null> {
@@ -1521,7 +1567,7 @@ export class FileManager {
   async writeRootFolderJsonFromPath(dirPath: string, root: RootFolderJson): Promise<void> {
     if (!dirPath || typeof dirPath !== 'string' || dirPath.trim() === '') {
       console.error('[FileManager] writeRootFolderJsonFromPath: dirPath is empty or invalid', dirPath);
-      throw new Error('Directory path is required for saving parallelmind_index.json');
+      throw new Error("Directory path is required for saving rootIndex json");
     }
 
     try {
@@ -1584,7 +1630,7 @@ export class FileManager {
       const fileName = this.getIndexFileNameFromPath(dirPath);
       await this.writeRootFolderJsonFromPathAtomic(dirPath, normalized, fileName);
     } catch (error) {
-      console.error('[FileManager] Failed to write parallelmind_index.json:', error);
+      console.error("[FileManager] Failed to write rootIndex json:", error);
       throw error;
     }
   }
@@ -1593,7 +1639,7 @@ export class FileManager {
     dirPath: string,
   ): Promise<{ root: RootFolderJson; created: boolean }> {
     if (!dirPath || typeof dirPath !== 'string' || dirPath.trim() === '') {
-      throw new Error('Directory path is required for loading parallelmind_index.json');
+      throw new Error("Directory path is required for loading rootIndex json");
     }
 
     const existing = await this.readRootFolderJsonFromPath(dirPath);
@@ -1608,7 +1654,7 @@ export class FileManager {
   }
 
   /**
-   * Creates (or overwrites) `parallelmind_index.json` in the selected folder with the strict initial structure.
+   * Creates (or overwrites) `<root>_rootIndex.json` in the selected folder with the strict initial structure.
    * This JSON file is the single source of truth (no extra keys).
    */
   async createRootFolderJson(
@@ -1736,8 +1782,8 @@ export class FileManager {
   }
 
   /**
-   * Synchronizes the current state with parallelmind_index.json
-   * Ensures all changes are persisted to the master structure file
+   * Synchronizes the current state with the rootIndex json.
+   * Ensures all changes are persisted to the master structure file.
    */
   sync(): void {
     // TODO: Implement sync logic
@@ -2442,6 +2488,7 @@ export class FileManager {
     const now = this.nowIso();
     const rootName = dirHandle.name;
     const indexFileName = this.getIndexFileName(rootName);
+    const legacyIndexFileName = this.getLegacyIndexFileName(rootName);
     const notifications = Array.isArray(existing.notifications)
       ? [...existing.notifications]
       : [];
@@ -2449,7 +2496,11 @@ export class FileManager {
     // Add root notification if any non-index file exists at root.
     let hasRootFile = false;
     for await (const entry of (dirHandle as any).values()) {
-      if (entry.kind === "file" && entry.name !== indexFileName) {
+      if (
+        entry.kind === "file" &&
+        entry.name !== indexFileName &&
+        entry.name !== legacyIndexFileName
+      ) {
         hasRootFile = true;
         break;
       }
@@ -2465,6 +2516,7 @@ export class FileManager {
         1,
         "",
         indexFileName,
+        legacyIndexFileName,
         notifications,
         now
       );
@@ -2497,6 +2549,7 @@ export class FileManager {
     const now = this.nowIso();
     const rootName = this.baseNameFromPath(dirPath);
     const indexFileName = this.getIndexFileName(rootName);
+    const legacyIndexFileName = this.getLegacyIndexFileName(rootName);
     const notifications = Array.isArray(existing.notifications)
       ? [...existing.notifications]
       : [];
@@ -2504,7 +2557,12 @@ export class FileManager {
     try {
       const { readDir } = await import("@tauri-apps/plugin-fs");
       const entries = await readDir(dirPath);
-      if (entries.some((e: any) => e?.isFile && e?.name !== indexFileName)) {
+      if (
+        entries.some(
+          (e: any) =>
+            e?.isFile && e?.name !== indexFileName && e?.name !== legacyIndexFileName
+        )
+      ) {
         const note = "Root folder contained files before initialization";
         if (!notifications.includes(note)) notifications.push(note);
       }
@@ -2513,6 +2571,7 @@ export class FileManager {
         1,
         dirPath,
         indexFileName,
+        legacyIndexFileName,
         notifications,
         now
       );
