@@ -70,6 +70,8 @@ export default function FileNode({
 
   const handleWidth = 12;
   const handleHeight = 6;
+  const sideHandleWidth = handleHeight;
+  const sideHandleHeight = handleWidth;
   const handleBaseStyle: React.CSSProperties = {
     width: handleWidth,
     height: handleHeight,
@@ -78,6 +80,8 @@ export default function FileNode({
     opacity: 1,
     zIndex: 3,
   };
+  const viewBoxMinX = 80;
+  const viewBoxWidth = 240;
   const viewBoxMinY = 55;
   const viewBoxHeight = 420;
   const svgHeight = Math.round(130 * sizeScale);
@@ -86,6 +90,8 @@ export default function FileNode({
   const collapsedPathBottomY = 120;
   const bodyTopY = 120;
   const bodyBottomY = isExpanded ? expandedPathBottomY : collapsedPathBottomY;
+  const bodyLeftX = 80;
+  const bodyRightX = 320;
   const bodyCornerRadius = Math.max(
     0,
     Math.min(12, (bodyBottomY - bodyTopY) / 2)
@@ -93,6 +99,15 @@ export default function FileNode({
   const toSvgPx = (y: number) =>
     Math.round(((y - viewBoxMinY) / viewBoxHeight) * svgHeight);
   const topHandleTop = toSvgPx(pathTopY) - Math.round(strokeWidth / 2) + 2;
+  const sideHandleTop =
+    toSvgPx((bodyTopY + bodyBottomY) / 2) - Math.round(handleHeight / 2);
+  const bottomHandleTop =
+    toSvgPx(bodyBottomY) +
+    Math.round(strokeWidth / 2) -
+    Math.round(handleHeight / 2) +
+    Math.round(15 * sizeScale);
+  const leftHandleLeft = `calc(${((bodyLeftX - viewBoxMinX) / viewBoxWidth) * 100}% - ${Math.round(strokeWidth / 2)}px)`;
+  const rightHandleLeft = `calc(${((bodyRightX - viewBoxMinX) / viewBoxWidth) * 100}% + ${Math.round(strokeWidth / 2)}px)`;
   const buildDetailedPathD = (bottomY: number, radius: number) =>
     `M 80 60 H 150 C 165 60 175 40 200 40 C 225 40 235 60 250 60 H 320 V ${bodyTopY} H 80 Z ` +
     `M 80 ${bodyTopY} V ${bottomY - radius} A ${radius} ${radius} 0 0 0 ${
@@ -196,6 +211,92 @@ export default function FileNode({
             top: topHandleTop,
             transform: "translate(-50%, 0)",
             borderRadius: "9px 9px 0 0",
+            transition: dragging ? "none" : "top 180ms ease-in-out",
+          }}
+        />
+        <Handle
+          type="target"
+          position={Position.Left}
+          id="target-left"
+          style={{
+            ...handleBaseStyle,
+            width: sideHandleWidth,
+            height: sideHandleHeight,
+            left: leftHandleLeft,
+            top: sideHandleTop,
+            transform: "translate(-50%, -50%)",
+            borderRadius: "9px 0 0 9px",
+            transition: dragging ? "none" : "top 180ms ease-in-out",
+          }}
+        />
+        <Handle
+          type="source"
+          position={Position.Left}
+          id="source-left"
+          style={{
+            ...handleBaseStyle,
+            width: sideHandleWidth,
+            height: sideHandleHeight,
+            left: leftHandleLeft,
+            top: sideHandleTop,
+            transform: "translate(-50%, -50%)",
+            borderRadius: "9px 0 0 9px",
+            transition: dragging ? "none" : "top 180ms ease-in-out",
+          }}
+        />
+        <Handle
+          type="target"
+          position={Position.Right}
+          id="target-right"
+          style={{
+            ...handleBaseStyle,
+            width: sideHandleWidth,
+            height: sideHandleHeight,
+            left: rightHandleLeft,
+            top: sideHandleTop,
+            transform: "translate(-50%, -50%)",
+            borderRadius: "0 9px 9px 0",
+            transition: dragging ? "none" : "top 180ms ease-in-out",
+          }}
+        />
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="source-right"
+          style={{
+            ...handleBaseStyle,
+            width: sideHandleWidth,
+            height: sideHandleHeight,
+            left: rightHandleLeft,
+            top: sideHandleTop,
+            transform: "translate(-50%, -50%)",
+            borderRadius: "0 9px 9px 0",
+            transition: dragging ? "none" : "top 180ms ease-in-out",
+          }}
+        />
+        <Handle
+          type="target"
+          position={Position.Bottom}
+          id="target-bottom"
+          style={{
+            ...handleBaseStyle,
+            left: "50%",
+            top: bottomHandleTop,
+            transform: "translate(-50%, 0)",
+            borderRadius: "0 0 9px 9px",
+            transition: dragging ? "none" : "top 180ms ease-in-out",
+          }}
+        />
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id="source-bottom"
+          style={{
+            ...handleBaseStyle,
+            left: "50%",
+            top: bottomHandleTop,
+            transform: "translate(-50%, 0)",
+            borderRadius: "0 0 9px 9px",
             transition: dragging ? "none" : "top 180ms ease-in-out",
           }}
         />

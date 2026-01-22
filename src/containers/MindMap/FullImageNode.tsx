@@ -81,7 +81,7 @@ export default function FullImageNode({
         imageHeight: Math.max(1, storedHeight - FRAME_PADDING * 2),
       };
     }
-    const fallback = getFullImageSize(220, 260);
+    const fallback = getFullImageSize(260, 320);
     return {
       w: fallback.w,
       h: fallback.h,
@@ -214,7 +214,16 @@ export default function FullImageNode({
   const imageAreaHeight = Math.max(0, size.imageHeight);
   const handleWidth = 12;
   const handleHeight = 6;
-  const handleOffset = Math.round(-handleHeight / 2);
+  const sideHandleWidth = handleHeight;
+  const sideHandleHeight = handleWidth;
+  const borderWidth = selected ? 2 : 1;
+  const topHandleTop = Math.round(-handleHeight / 2 - borderWidth / 2);
+  const bottomHandleTop = Math.round(
+    size.h + borderWidth / 2 - handleHeight / 2
+  );
+  const sideHandleTop = Math.round(size.h / 2);
+  const leftHandleLeft = `calc(0% - ${Math.round(borderWidth / 2)}px)`;
+  const rightHandleLeft = `calc(100% + ${Math.round(borderWidth / 2)}px)`;
   const handleBaseStyle: CSSProperties = {
     width: handleWidth,
     height: handleHeight,
@@ -276,10 +285,78 @@ export default function FullImageNode({
         id="target-top"
         style={{
           ...handleBaseStyle,
-          top: handleOffset,
+          top: topHandleTop,
           left: "50%",
           transform: "translate(-50%, 0)",
           borderRadius: "9px 9px 0 0",
+        }}
+      />
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="target-left"
+        style={{
+          ...handleBaseStyle,
+          width: sideHandleWidth,
+          height: sideHandleHeight,
+          left: leftHandleLeft,
+          top: sideHandleTop,
+          transform: "translate(-50%, -50%)",
+          borderRadius: "9px 0 0 9px",
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Left}
+        id="source-left"
+        style={{
+          ...handleBaseStyle,
+          width: sideHandleWidth,
+          height: sideHandleHeight,
+          left: leftHandleLeft,
+          top: sideHandleTop,
+          transform: "translate(-50%, -50%)",
+          borderRadius: "9px 0 0 9px",
+        }}
+      />
+      <Handle
+        type="target"
+        position={Position.Right}
+        id="target-right"
+        style={{
+          ...handleBaseStyle,
+          width: sideHandleWidth,
+          height: sideHandleHeight,
+          left: rightHandleLeft,
+          top: sideHandleTop,
+          transform: "translate(-50%, -50%)",
+          borderRadius: "0 9px 9px 0",
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="source-right"
+        style={{
+          ...handleBaseStyle,
+          width: sideHandleWidth,
+          height: sideHandleHeight,
+          left: rightHandleLeft,
+          top: sideHandleTop,
+          transform: "translate(-50%, -50%)",
+          borderRadius: "0 9px 9px 0",
+        }}
+      />
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="target-bottom"
+        style={{
+          ...handleBaseStyle,
+          left: "50%",
+          top: bottomHandleTop,
+          transform: "translate(-50%, 0)",
+          borderRadius: "0 0 9px 9px",
         }}
       />
       <Handle
@@ -288,8 +365,8 @@ export default function FullImageNode({
         id="source-bottom"
         style={{
           ...handleBaseStyle,
-          bottom: handleOffset,
           left: "50%",
+          top: bottomHandleTop,
           transform: "translate(-50%, 0)",
           borderRadius: "0 0 9px 9px",
         }}
