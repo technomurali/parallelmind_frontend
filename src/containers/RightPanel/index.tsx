@@ -1216,7 +1216,7 @@ export default function RightPanel() {
     (isFolderNode || isFileNode || isImageNode) && !isRootNode && !isDraftNode && !!selectedNodeId;
 
   const onRenameItem = async () => {
-    if (!canRenameItem || !selectedNodeId || !rootFolderJson) return;
+    if (!canRenameItem || !selectedNodeId) return;
     setActionError(null);
     if (!renameActive) {
       setRenameActive(true);
@@ -1230,42 +1230,121 @@ export default function RightPanel() {
       nameInputRef.current?.focus();
       return;
     }
-    if (!rootFolderJson.path) {
-      setActionError(uiText.alerts.errorCreateFailed);
-      return;
-    }
     setSaveStatus("saving");
     try {
-      let result: any;
-      if (isImageNode) {
-        // For images: rename the file using caption as base name, preserve extension
-        const target = (nodes ?? []).find((n: any) => n?.id === selectedNodeId);
-        const currentExt = typeof (target?.data as any)?.extension === "string"
-          ? (target.data as any).extension
-          : "png";
-        const newFileName = draft.name.trim() ? `${draft.name.trim()}.${currentExt}` : `image.${currentExt}`;
-        result = await fileManager.renameFileChildFromPath({
-          dirPath: rootFolderJson.path,
-          existing: rootFolderJson,
-          nodeId: selectedNodeId,
-          nextFileName: newFileName,
+      if (moduleType === "cognitiveNotes") {
+        if (!cognitiveNotesRoot) {
+          setActionError(uiText.alerts.errorCreateFailed);
+          setSaveStatus("idle");
+          return;
+        }
+        const target = (cognitiveNotesRoot.child ?? []).find(
+          (node: any) => node?.id === selectedNodeId
+        );
+        if (!target) throw new Error("Cognitive Notes node not found.");
+        const currentExt =
+          typeof target.extension === "string" && target.extension.trim()
+            ? target.extension.trim()
+            : "txt";
+        const trimmedName = draft.name.trim();
+        const nextFileName = isImageNode
+          ? trimmedName
+            ? `${trimmedName}.${currentExt}`
+            : `image.${currentExt}`
+          : splitDraftFileName(trimmedName).fullName;
+        const targetPath = typeof target.path === "string" ? target.path : "";
+        if (!targetPath) throw new Error("Cognitive Notes file path not found.");
+        if (cognitiveNotesDirectoryHandle) {
+          const oldName = targetPath.split(/[\\/]/).pop() ?? targetPath;
+          const oldHandle = await cognitiveNotesDirectoryHandle.getFileHandle(oldName);
+          const oldFile = await oldHandle.getFile();
+          const newHandle = await cognitiveNotesDirectoryHandle.getFileHandle(nextFileName, {
+            create: true,
+          });
+          const writable = await (newHandle as any).createWritable?.();
+          if (!writable) throw new Error("Failed to rename Cognitive Notes file.");
+          await writable.write(oldFile);
+          await writable.close();
+          await cognitiveNotesDirectoryHandle.removeEntry(oldName);
+        } else {
+          const { rename } = await import("@tauri-apps/plugin-fs");
+          const basePath = cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "";
+          if (!basePath) throw new Error("Cognitive Notes folder path is missing.");
+          await rename(targetPath, joinPath(basePath, nextFileName));
+        }
+        const nextPath = cognitiveNotesDirectoryHandle
+          ? nextFileName
+          : joinPath(cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "", nextFileName);
+        const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) => {
+          if (node?.id !== selectedNodeId) return node;
+          const nextName = isImageNode
+            ? trimmedName || "image"
+            : splitDraftFileName(trimmedName).name;
+          return {
+            ...node,
+            name: nextName,
+            extension: currentExt,
+            path: nextPath,
+            updated_on: new Date().toISOString(),
+          };
         });
+        setNodes(
+          (nodes ?? []).map((node: any) =>
+            node?.id === selectedNodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...(node.data ?? {}),
+                    name: isImageNode
+                      ? trimmedName || "image"
+                      : splitDraftFileName(trimmedName).name,
+                    extension: currentExt,
+                    path: nextPath,
+                  },
+                }
+              : node
+          )
+        );
+        await persistCognitiveNotesRoot({ ...cognitiveNotesRoot, child: nextChild });
       } else {
-        result = isFileNode
-          ? await fileManager.renameFileChildFromPath({
-              dirPath: rootFolderJson.path,
-              existing: rootFolderJson,
-              nodeId: selectedNodeId,
-              nextFileName: splitDraftFileName(draft.name.trim()).fullName,
-            })
-          : await fileManager.renameFolderChildFromPath({
-              dirPath: rootFolderJson.path,
-              existing: rootFolderJson,
-              nodeId: selectedNodeId,
-              newName: draft.name.trim(),
-            });
+        if (!rootFolderJson?.path) {
+          setActionError(uiText.alerts.errorCreateFailed);
+          setSaveStatus("idle");
+          return;
+        }
+        let result: any;
+        if (isImageNode) {
+          // For images: rename the file using caption as base name, preserve extension
+          const target = (nodes ?? []).find((n: any) => n?.id === selectedNodeId);
+          const currentExt = typeof (target?.data as any)?.extension === "string"
+            ? (target.data as any).extension
+            : "png";
+          const newFileName = draft.name.trim()
+            ? `${draft.name.trim()}.${currentExt}`
+            : `image.${currentExt}`;
+          result = await fileManager.renameFileChildFromPath({
+            dirPath: rootFolderJson.path,
+            existing: rootFolderJson,
+            nodeId: selectedNodeId,
+            nextFileName: newFileName,
+          });
+        } else {
+          result = isFileNode
+            ? await fileManager.renameFileChildFromPath({
+                dirPath: rootFolderJson.path,
+                existing: rootFolderJson,
+                nodeId: selectedNodeId,
+                nextFileName: splitDraftFileName(draft.name.trim()).fullName,
+              })
+            : await fileManager.renameFolderChildFromPath({
+                dirPath: rootFolderJson.path,
+                existing: rootFolderJson,
+                nodeId: selectedNodeId,
+                newName: draft.name.trim(),
+              });
+        }
+        updateRootFolderJson(result.root);
       }
-      setRoot(null, result.root);
       setRenameActive(false);
       setDirty(false);
       setSaveStatus("saved");
