@@ -652,6 +652,7 @@ export default function MindMap() {
     x: number;
     y: number;
   } | null>(null);
+  const [isNodeDragging, setIsNodeDragging] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const decisionMenuLabel = (uiText.contextMenus.canvas as any)
     .newDecision as string;
@@ -1246,20 +1247,30 @@ export default function MindMap() {
   };
 
   const onNodeMouseEnter = (event: any, node: Node) => {
-    if (!showDetailsActive || !isDetailsPreviewNode(node)) return;
+    if (!showDetailsActive || isNodeDragging || !isDetailsPreviewNode(node)) return;
     const pos = getPreviewPosition(event.clientX, event.clientY);
     setDetailsPreview({ node, ...pos });
   };
 
   const onNodeMouseMove = (event: any, node: Node) => {
-    if (!showDetailsActive || !isDetailsPreviewNode(node)) return;
+    if (!showDetailsActive || isNodeDragging || !isDetailsPreviewNode(node)) return;
     const pos = getPreviewPosition(event.clientX, event.clientY);
     setDetailsPreview({ node, ...pos });
   };
 
   const onNodeMouseLeave = () => {
-    if (!showDetailsActive) return;
+    if (!showDetailsActive || isNodeDragging) return;
     setDetailsPreview(null);
+  };
+
+  const onNodeDragStart = () => {
+    if (!showDetailsActive) return;
+    setIsNodeDragging(true);
+    setDetailsPreview(null);
+  };
+
+  const onNodeDragStop = () => {
+    setIsNodeDragging(false);
   };
 
   const onCanvasMouseDown = (event: any) => {
@@ -1443,6 +1454,7 @@ export default function MindMap() {
   useEffect(() => {
     if (!showDetailsActive) {
       setDetailsPreview(null);
+      setIsNodeDragging(false);
       setIsPanning(false);
       return;
     }
@@ -2786,6 +2798,8 @@ export default function MindMap() {
             onNodeMouseEnter={onNodeMouseEnter}
             onNodeMouseMove={onNodeMouseMove}
             onNodeMouseLeave={onNodeMouseLeave}
+            onNodeDragStart={onNodeDragStart}
+            onNodeDragStop={onNodeDragStop}
           />
 
           {showDetailsActive && detailsPreview && (
