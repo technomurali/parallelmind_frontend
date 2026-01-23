@@ -45,6 +45,14 @@ import FileNode from "./FileNode";
 import DecisionNode from "./DecisionNode";
 import ImageNode from "./ImageNode";
 import FullImageNode from "./FullImageNode";
+import {
+  FlowchartRoundRectNode,
+  FlowchartRectNode,
+  FlowchartTriangleNode,
+  FlowchartDecisionNode,
+  FlowchartCircleNode,
+  FlowchartParallelogramNode,
+} from "./flowchartnode";
 
 const NODE_TYPES = {
   rootFolder: RootFolderNode,
@@ -52,6 +60,12 @@ const NODE_TYPES = {
   decision: DecisionNode,
   polaroidImage: ImageNode,
   fullImageNode: FullImageNode,
+  "flowchart.roundRect": FlowchartRoundRectNode,
+  "flowchart.rect": FlowchartRectNode,
+  "flowchart.triangle": FlowchartTriangleNode,
+  "flowchart.decision": FlowchartDecisionNode,
+  "flowchart.circle": FlowchartCircleNode,
+  "flowchart.parallelogram": FlowchartParallelogramNode,
 } as const;
 
 /**
@@ -101,6 +115,8 @@ export default function MindMap() {
   const discardPendingChildCreationIfSelected = useMindMapStore(
     (s) => s.discardPendingChildCreationIfSelected
   );
+  const setLastCanvasPosition = useMindMapStore((s) => s.setLastCanvasPosition);
+  const setCanvasCenter = useMindMapStore((s) => s.setCanvasCenter);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasBodyRef = useRef<HTMLDivElement | null>(null);
@@ -334,6 +350,22 @@ export default function MindMap() {
   useEffect(() => {
     setCognitiveNotesDirty(false);
   }, [activeTab?.id, cognitiveNotesRoot?.id]);
+
+  useEffect(() => {
+    if (!rf) return;
+    const updateCenter = () => {
+      const rect = wrapperRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const center = rf.screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+      setCanvasCenter(center);
+    };
+    updateCenter();
+    window.addEventListener("resize", updateCenter);
+    return () => window.removeEventListener("resize", updateCenter);
+  }, [rf, setCanvasCenter]);
   const nodeTypes = NODE_TYPES;
   const selectedNode = useMemo(
     () => (nodes ?? []).find((node: any) => node?.id === selectedNodeId) ?? null,
@@ -1310,6 +1342,7 @@ export default function MindMap() {
     // Convert the click to flow coordinates so the new node appears exactly
     // where the user right-clicked on the canvas.
     const flowPos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    setLastCanvasPosition(flowPos);
     const selectedNode =
       selectedNodeId && (nodes ?? []).find((node) => node?.id === selectedNodeId);
     const parentNodeId =
@@ -1708,24 +1741,17 @@ export default function MindMap() {
       : new Map<string, { x: number; y: number }>();
 
     const sizeMap = rootFolderJson?.node_size ?? {};
-    const withSelection = composedNodes.map((node) => {
-      const preserved =
-        storedPositions.get(node.id) ?? existingPositions.get(node.id);
-      const sizeValue = sizeMap[node.id];
-      const existingNode = existing.find((n: any) => n?.id === node.id);
-      const existingData = existingNode?.data ?? {};
-      
-      // Runtime fields that should be preserved from existing node data
-      // These are not stored in RootFolderJson and should persist across recompositions
+    const buildRuntimeFields = (existingData: Record<string, unknown>) => {
       const runtimeFields: Record<string, unknown> = {};
-      // Preserve imageSrc only if it's a data URL or http/https URL (not blob URLs which can become invalid)
-      // Blob URLs should be regenerated from path by ImageNode's resolution logic
-      if (typeof existingData.imageSrc === "string") {
-        const imageSrc = existingData.imageSrc;
-        if (imageSrc.startsWith("data:") || imageSrc.startsWith("http://") || imageSrc.startsWith("https://")) {
+      const imageSrc = existingData.imageSrc;
+      if (typeof imageSrc === "string") {
+        if (
+          imageSrc.startsWith("data:") ||
+          imageSrc.startsWith("http://") ||
+          imageSrc.startsWith("https://")
+        ) {
           runtimeFields.imageSrc = imageSrc;
         }
-        // For blob URLs, don't preserve - let ImageNode resolve from path
       }
       if (typeof existingData.imageWidth === "number") {
         runtimeFields.imageWidth = existingData.imageWidth;
@@ -1760,9 +1786,17 @@ export default function MindMap() {
       if (typeof existingData.moveChildrenOnDrag === "boolean") {
         runtimeFields.moveChildrenOnDrag = existingData.moveChildrenOnDrag;
       }
-      
-      // Merge: newly composed data (from RootFolderJson) + preserved runtime fields + node_size
-      // Order matters: RootFolderJson data first (includes updated purpose, path), then runtime fields override
+      return runtimeFields;
+    };
+
+    const withSelection = composedNodes.map((node) => {
+      const preserved =
+        storedPositions.get(node.id) ?? existingPositions.get(node.id);
+      const sizeValue = sizeMap[node.id];
+      const existingNode = existing.find((n: any) => n?.id === node.id);
+      const existingData = existingNode?.data ?? {};
+      const runtimeFields = buildRuntimeFields(existingData);
+
       const mergedData = {
         ...(node.data ?? {}),
         ...runtimeFields,
@@ -1770,18 +1804,56 @@ export default function MindMap() {
           ? { node_size: sizeValue }
           : {}),
       };
-      
-      // Preserve style properties (width, height) from existing node if they exist
+
       const preservedStyle = existingNode?.style
         ? { ...(node.style ?? {}), ...existingNode.style }
         : node.style;
-      
+
       return {
         ...node,
         position: preserved ?? node.position,
         style: preservedStyle,
         data: mergedData,
         selected: node.id === selectedNodeId,
+      };
+    });
+
+    const flowchartNodes = Array.isArray(rootFolderJson.flowchart_nodes)
+      ? rootFolderJson.flowchart_nodes
+      : [];
+    const flowchartNodeObjects = flowchartNodes.map((flowNode: any) => {
+      const existingNode = existing.find((n: any) => n?.id === flowNode?.id);
+      const existingData = existingNode?.data ?? {};
+      const runtimeFields = buildRuntimeFields(existingData);
+      const sizeValue = flowNode?.id ? sizeMap[flowNode.id] : undefined;
+      const baseNode = {
+        id: flowNode.id,
+        type: flowNode.type,
+        position: rootPosition,
+        data: {
+          ...flowNode,
+          type: flowNode.type,
+          node_type: flowNode.type,
+        },
+      } as Node;
+      const preserved =
+        storedPositions.get(flowNode.id) ?? existingPositions.get(flowNode.id);
+      const mergedData = {
+        ...(baseNode.data ?? {}),
+        ...runtimeFields,
+        ...(typeof sizeValue === "number" && Number.isFinite(sizeValue)
+          ? { node_size: sizeValue }
+          : {}),
+      };
+      const preservedStyle = existingNode?.style
+        ? { ...(baseNode.style ?? {}), ...existingNode.style }
+        : baseNode.style;
+      return {
+        ...baseNode,
+        position: preserved ?? baseNode.position,
+        style: preservedStyle,
+        data: mergedData,
+        selected: flowNode.id === selectedNodeId,
       };
     });
 
@@ -1794,6 +1866,9 @@ export default function MindMap() {
     }));
     const mergedNodes = [
       ...withSelection,
+      ...flowchartNodeObjects.filter(
+        (node) => !withSelection.some((n) => n.id === node.id)
+      ),
       ...customNodes.filter(
         (node: any) => !withSelection.some((n) => n.id === node.id)
       ),

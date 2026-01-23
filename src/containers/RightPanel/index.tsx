@@ -16,7 +16,13 @@ import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
-import { FileManager } from "../../data/fileManager";
+import { FileManager, type RootFolderJson } from "../../data/fileManager";
+import {
+  FLOWCHART_NODE_DEFINITIONS,
+  FlowchartNodeIcons,
+  isFlowchartNodeType,
+  type FlowchartNodeType,
+} from "../MindMap/flowchartnode";
 import {
   CognitiveNotesManager,
   type CognitiveNotesJson,
@@ -59,10 +65,13 @@ export default function RightPanel() {
   );
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
+  const lastCanvasPosition = activeTab?.lastCanvasPosition ?? null;
+  const canvasCenter = activeTab?.canvasCenter ?? null;
   const updateCognitiveNotesRoot = useMindMapStore(
     (s) => s.updateCognitiveNotesRoot
   );
   const setRoot = useMindMapStore((s) => s.setRoot);
+  const updateRootFolderJson = useMindMapStore((s) => s.updateRootFolderJson);
   const selectNode = useMindMapStore((s) => s.selectNode);
   const selectEdge = useMindMapStore((s) => s.selectEdge);
 
@@ -263,6 +272,9 @@ export default function RightPanel() {
   const isDecisionNode =
     (selectedNode?.data as any)?.node_type === "decision" ||
     (selectedNode?.data as any)?.type === "decision";
+  const isFlowchartNode =
+    isFlowchartNodeType((selectedNode?.data as any)?.node_type) ||
+    isFlowchartNodeType((selectedNode as any)?.type);
   const parentIdForDraft =
     typeof (selectedNode?.data as any)?.parentId === "string"
       ? ((selectedNode?.data as any)?.parentId as string)
@@ -367,6 +379,8 @@ export default function RightPanel() {
   const validateNodeNameForDraft = (name: string): string | null => {
     const trimmed = name.trim();
     if (!trimmed) return uiText.alerts.nodeNameRequired;
+
+    if (isFlowchartNode) return null;
 
     // For file nodes: accept "filename.ext" and default to .md when missing.
     // For image nodes: use caption as base name, extension comes from clipboard MIME type.
@@ -593,6 +607,50 @@ export default function RightPanel() {
       details: draft.details,
     });
 
+    if (isFlowchartNode) {
+      const nowIso = new Date().toISOString();
+      const flowType =
+        (selectedNode?.data as any)?.node_type ?? (selectedNode as any)?.type ?? "";
+      if (moduleType === "cognitiveNotes") {
+        if (cognitiveNotesRoot) {
+          const nextFlowNodes = upsertFlowchartNode(
+            cognitiveNotesRoot.flowchart_nodes ?? [],
+            {
+              id: selectedNodeId,
+              type: flowType,
+              name: draft.name.trim(),
+              purpose: draft.purpose,
+              updated_on: nowIso,
+            }
+          );
+          await persistCognitiveNotesRoot({
+            ...cognitiveNotesRoot,
+            updated_on: nowIso,
+            flowchart_nodes: nextFlowNodes,
+          });
+        }
+      } else if (rootFolderJson) {
+        const nextFlowNodes = upsertFlowchartNode(
+          rootFolderJson.flowchart_nodes ?? [],
+          {
+            id: selectedNodeId,
+            type: flowType,
+            name: draft.name.trim(),
+            purpose: draft.purpose,
+            updated_on: nowIso,
+          }
+        );
+        await persistParallelmindRoot({
+          ...rootFolderJson,
+          updated_on: nowIso,
+          flowchart_nodes: nextFlowNodes,
+        });
+      }
+      setDirty(false);
+      setSaveStatus("saved");
+      return;
+    }
+
     if (isDecisionNode) {
       setDirty(false);
       setSaveStatus("saved");
@@ -638,6 +696,7 @@ export default function RightPanel() {
         notifications: rootFolderJson?.notifications ?? [],
         recommendations: rootFolderJson?.recommendations ?? [],
         error_messages: rootFolderJson?.error_messages ?? [],
+        flowchart_nodes: rootFolderJson?.flowchart_nodes ?? [],
         child: rootFolderJson?.child ?? [],
       };
 
@@ -765,6 +824,57 @@ export default function RightPanel() {
       console.error("[RightPanel] Failed to save cognitive notes:", err);
       setCanvasSaveStatus("error");
     }
+  };
+
+  const persistParallelmindRoot = async (nextRoot: RootFolderJson) => {
+    updateRootFolderJson(nextRoot);
+    setCanvasSaveStatus("saving");
+    try {
+      if (rootDirectoryHandle) {
+        await fileManager.writeRootFolderJson(rootDirectoryHandle, nextRoot);
+      } else if (nextRoot.path) {
+        await fileManager.writeRootFolderJsonFromPath(nextRoot.path, nextRoot);
+      } else {
+        throw new Error("Root folder path is missing.");
+      }
+      setCanvasSaveStatus("saved");
+    } catch (err) {
+      console.error("[RightPanel] Failed to save flowchart nodes:", err);
+      setCanvasSaveStatus("error");
+    }
+  };
+
+  const upsertFlowchartNode = (
+    list: { id: string; type: string; name: string; purpose: string; created_on: string; updated_on: string }[],
+    payload: { id: string; type: string; name: string; purpose: string; updated_on: string }
+  ) => {
+    const index = list.findIndex((node) => node.id === payload.id);
+    if (index >= 0) {
+      const existing = list[index];
+      const updated = {
+        ...existing,
+        type: payload.type || existing.type,
+        name: payload.name,
+        purpose: payload.purpose,
+        updated_on: payload.updated_on,
+      };
+      return [
+        ...list.slice(0, index),
+        updated,
+        ...list.slice(index + 1),
+      ];
+    }
+    return [
+      ...list,
+      {
+        id: payload.id,
+        type: payload.type,
+        name: payload.name,
+        purpose: payload.purpose,
+        created_on: payload.updated_on,
+        updated_on: payload.updated_on,
+      },
+    ];
   };
 
   // Debounced auto-save: "Saving..." while debounce is active, "Saved" after commit.
@@ -943,20 +1053,86 @@ export default function RightPanel() {
     await writeFile(joinPath(targetPath, fileName), new Uint8Array(buffer));
   };
 
+  const hasParallelmindPersistence =
+    !!rootDirectoryHandle ||
+    (typeof rootFolderJson?.path === "string" &&
+      rootFolderJson.path.trim().length > 0);
+  const hasCognitiveNotesPersistence =
+    !!cognitiveNotesRoot &&
+    (!!cognitiveNotesDirectoryHandle ||
+      (typeof cognitiveNotesFolderPath === "string" &&
+        cognitiveNotesFolderPath.trim().length > 0) ||
+      (typeof cognitiveNotesRoot?.path === "string" &&
+        cognitiveNotesRoot.path.trim().length > 0));
+
   const canCreateDraft =
     isDraftNode &&
-    !!parentIdForDraft &&
     !nameError &&
-    (moduleType === "cognitiveNotes"
-      ? !!cognitiveNotesRoot &&
-        (!!cognitiveNotesDirectoryHandle ||
-          (typeof cognitiveNotesFolderPath === "string" &&
-            cognitiveNotesFolderPath.trim().length > 0) ||
-          (typeof cognitiveNotesRoot?.path === "string" &&
-            cognitiveNotesRoot.path.trim().length > 0))
-      : !!rootDirectoryHandle ||
-        (typeof rootFolderJson?.path === "string" &&
-          rootFolderJson.path.trim().length > 0));
+    (isFlowchartNode
+      ? moduleType === "cognitiveNotes"
+        ? hasCognitiveNotesPersistence
+        : !!rootFolderJson && hasParallelmindPersistence
+      : !!parentIdForDraft &&
+        (moduleType === "cognitiveNotes"
+          ? hasCognitiveNotesPersistence
+          : hasParallelmindPersistence));
+  const canAddFlowchartNodes =
+    moduleType === "cognitiveNotes"
+      ? hasCognitiveNotesPersistence
+      : !!rootFolderJson && hasParallelmindPersistence;
+
+  const flowchartTextByType: Record<
+    FlowchartNodeType,
+    { name: string; purpose: string }
+  > = {
+    "flowchart.roundRect": uiText.flowchartNodes.roundRect,
+    "flowchart.rect": uiText.flowchartNodes.rect,
+    "flowchart.triangle": uiText.flowchartNodes.triangle,
+    "flowchart.decision": uiText.flowchartNodes.decision,
+    "flowchart.circle": uiText.flowchartNodes.circle,
+    "flowchart.parallelogram": uiText.flowchartNodes.parallelogram,
+  };
+
+  const flowchartSelectorItems = FLOWCHART_NODE_DEFINITIONS.map((def) => ({
+    ...def,
+    name: flowchartTextByType[def.type]?.name ?? def.label,
+    description: flowchartTextByType[def.type]?.purpose ?? def.purpose,
+  }));
+
+  const createFlowchartDraftNode = (type: FlowchartNodeType) => {
+    const position = lastCanvasPosition ?? canvasCenter ?? { x: 0, y: 0 };
+    const tempNodeId = `flow_${Date.now()}_${Math.random()
+      .toString(16)
+      .slice(2)}`;
+    const nowIso = new Date().toISOString();
+    const tempNode: any = {
+      id: tempNodeId,
+      type,
+      position,
+      data: {
+        type,
+        node_type: type,
+        name: "",
+        purpose: "",
+        created_on: nowIso,
+        updated_on: nowIso,
+        isDraft: true,
+        nonPersistent: true,
+      },
+      selected: true,
+    };
+    const existing = nodes ?? [];
+    const next = [
+      ...existing.map((n: any) => ({
+        ...n,
+        selected: n?.id === tempNodeId,
+      })),
+      tempNode,
+    ];
+    setNodes(next);
+    selectNode(tempNodeId);
+    setRightPanelMode("nodeDetails");
+  };
 
   const onCreateDraft = async () => {
     if (!isDraftNode || !selectedNodeId) return;
@@ -965,6 +1141,109 @@ export default function RightPanel() {
     if (err) {
       setCreateError(err);
       nameInputRef.current?.focus();
+      return;
+    }
+    if (isFlowchartNode) {
+      const nowIso = new Date().toISOString();
+      const trimmedName = draft.name.trim();
+      const draftNodeId = selectedNodeId;
+      const nextRecord = {
+        id: draftNodeId,
+        type: (selectedNode?.data as any)?.node_type ?? (selectedNode as any)?.type,
+        name: trimmedName,
+        purpose: draft.purpose,
+        created_on: nowIso,
+        updated_on: nowIso,
+      };
+      const nodePosition = (selectedNode as any)?.position ?? null;
+      if (moduleType === "cognitiveNotes") {
+        if (!cognitiveNotesRoot) {
+          setCreateError(uiText.alerts.errorCreateFailed);
+          setSaveStatus("idle");
+          return;
+        }
+        const nextPositions = {
+          ...(cognitiveNotesRoot.node_positions ?? {}),
+        };
+        if (nodePosition) {
+          nextPositions[draftNodeId] = {
+            x: nodePosition.x,
+            y: nodePosition.y,
+          };
+        }
+        const nextFlowNodes = [
+          ...(cognitiveNotesRoot.flowchart_nodes ?? []),
+          nextRecord,
+        ];
+        const nextRoot = {
+          ...cognitiveNotesRoot,
+          updated_on: nowIso,
+          flowchart_nodes: nextFlowNodes,
+          node_positions: nextPositions,
+        };
+        setNodes(
+          (nodes ?? []).map((node: any) =>
+            node?.id === draftNodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...(node.data ?? {}),
+                    name: trimmedName,
+                    purpose: draft.purpose,
+                    isDraft: false,
+                    nonPersistent: false,
+                  },
+                }
+              : node
+          )
+        );
+        await persistCognitiveNotesRoot(nextRoot);
+      } else {
+        if (!rootFolderJson) {
+          setCreateError(uiText.alerts.errorCreateFailed);
+          setSaveStatus("idle");
+          return;
+        }
+        const nextPositions = {
+          ...(rootFolderJson.node_positions ?? {}),
+        };
+        if (nodePosition) {
+          nextPositions[draftNodeId] = {
+            x: nodePosition.x,
+            y: nodePosition.y,
+          };
+        }
+        const nextFlowNodes = [
+          ...(rootFolderJson.flowchart_nodes ?? []),
+          nextRecord,
+        ];
+        const nextRoot = {
+          ...rootFolderJson,
+          updated_on: nowIso,
+          flowchart_nodes: nextFlowNodes,
+          node_positions: nextPositions,
+        };
+        setNodes(
+          (nodes ?? []).map((node: any) =>
+            node?.id === draftNodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...(node.data ?? {}),
+                    name: trimmedName,
+                    purpose: draft.purpose,
+                    isDraft: false,
+                    nonPersistent: false,
+                  },
+                }
+              : node
+          )
+        );
+        await persistParallelmindRoot(nextRoot);
+      }
+      selectNode(draftNodeId);
+      setDirty(false);
+      setSaveStatus("saved");
       return;
     }
     if (!parentIdForDraft) {
@@ -1250,11 +1529,76 @@ export default function RightPanel() {
   };
 
   const canRenameItem =
-    (isFolderNode || isFileNode || isImageNode) && !isRootNode && !isDraftNode && !!selectedNodeId;
+    (isFolderNode || isFileNode || isImageNode || isFlowchartNode) &&
+    !isRootNode &&
+    !isDraftNode &&
+    !!selectedNodeId;
 
   const onRenameItem = async () => {
     if (!canRenameItem || !selectedNodeId) return;
     setActionError(null);
+    if (isFlowchartNode) {
+      if (!renameActive) {
+        setRenameActive(true);
+        nameInputRef.current?.focus();
+        nameInputRef.current?.select();
+        return;
+      }
+      const err = validateNodeNameForDraft(draft.name);
+      if (err) {
+        setActionError(err);
+        nameInputRef.current?.focus();
+        return;
+      }
+      try {
+        const nowIso = new Date().toISOString();
+        const flowType =
+          (selectedNode?.data as any)?.node_type ?? (selectedNode as any)?.type ?? "";
+        if (moduleType === "cognitiveNotes") {
+          if (cognitiveNotesRoot) {
+            const nextFlowNodes = upsertFlowchartNode(
+              cognitiveNotesRoot.flowchart_nodes ?? [],
+              {
+                id: selectedNodeId,
+                type: flowType,
+                name: draft.name.trim(),
+                purpose: draft.purpose,
+                updated_on: nowIso,
+              }
+            );
+            await persistCognitiveNotesRoot({
+              ...cognitiveNotesRoot,
+              updated_on: nowIso,
+              flowchart_nodes: nextFlowNodes,
+            });
+          }
+        } else if (rootFolderJson) {
+          const nextFlowNodes = upsertFlowchartNode(
+            rootFolderJson.flowchart_nodes ?? [],
+            {
+              id: selectedNodeId,
+              type: flowType,
+              name: draft.name.trim(),
+              purpose: draft.purpose,
+              updated_on: nowIso,
+            }
+          );
+          await persistParallelmindRoot({
+            ...rootFolderJson,
+            updated_on: nowIso,
+            flowchart_nodes: nextFlowNodes,
+          });
+        }
+        setRenameActive(false);
+        setDirty(false);
+        setSaveStatus("saved");
+      } catch (error) {
+        console.error("[RightPanel] Rename flowchart node failed:", error);
+        setActionError(uiText.alerts.errorCreateFailed);
+        setSaveStatus("idle");
+      }
+      return;
+    }
     if (!renameActive) {
       setRenameActive(true);
       nameInputRef.current?.focus();
@@ -1393,7 +1737,7 @@ export default function RightPanel() {
   };
 
   const canDeleteItem =
-    (isFolderNode || isFileNode || isImageNode) &&
+    (isFolderNode || isFileNode || isImageNode || isFlowchartNode) &&
     !isRootNode &&
     !isDraftNode &&
     !!selectedNodeId &&
@@ -1460,6 +1804,64 @@ export default function RightPanel() {
   const confirmDeleteItem = async () => {
     if (!canDeleteItem || !selectedNodeId) return;
     setDeleteInProgress(true);
+    if (isFlowchartNode) {
+      setSaveStatus("saving");
+      try {
+        const nodeId = selectedNodeId;
+        setNodes((nodes ?? []).filter((node: any) => node?.id !== nodeId));
+        setEdges(
+          (edges ?? []).filter(
+            (edge: any) => edge?.source !== nodeId && edge?.target !== nodeId
+          )
+        );
+        selectNode(null);
+        selectEdge(null);
+        const nowIso = new Date().toISOString();
+        if (moduleType === "cognitiveNotes") {
+          if (cognitiveNotesRoot) {
+            const nextPositions = { ...(cognitiveNotesRoot.node_positions ?? {}) };
+            const nextSizes = { ...(cognitiveNotesRoot.node_size ?? {}) };
+            delete nextPositions[nodeId];
+            delete nextSizes[nodeId];
+            const nextFlowNodes = (cognitiveNotesRoot.flowchart_nodes ?? []).filter(
+              (node) => node.id !== nodeId
+            );
+            await persistCognitiveNotesRoot({
+              ...cognitiveNotesRoot,
+              updated_on: nowIso,
+              flowchart_nodes: nextFlowNodes,
+              node_positions: nextPositions,
+              node_size: nextSizes,
+            });
+          }
+        } else if (rootFolderJson) {
+          const nextPositions = { ...(rootFolderJson.node_positions ?? {}) };
+          const nextSizes = { ...(rootFolderJson.node_size ?? {}) };
+          delete nextPositions[nodeId];
+          delete nextSizes[nodeId];
+          const nextFlowNodes = (rootFolderJson.flowchart_nodes ?? []).filter(
+            (node) => node.id !== nodeId
+          );
+          await persistParallelmindRoot({
+            ...rootFolderJson,
+            updated_on: nowIso,
+            flowchart_nodes: nextFlowNodes,
+            node_positions: nextPositions,
+            node_size: nextSizes,
+          });
+        }
+        setDirty(false);
+        setSaveStatus("saved");
+        setDeleteConfirmOpen(false);
+      } catch (error) {
+        console.error("[RightPanel] Delete flowchart node failed:", error);
+        setActionError(uiText.alerts.errorDeleteFailed);
+        setSaveStatus("idle");
+      } finally {
+        setDeleteInProgress(false);
+      }
+      return;
+    }
     if (moduleType === "cognitiveNotes") {
       setSaveStatus("saving");
       try {
@@ -1692,8 +2094,54 @@ export default function RightPanel() {
               }}
             >
               <div style={{ fontWeight: 600 }}>{uiText.panels.nodeSelector}</div>
-              <div style={{ opacity: 0.8 }}>
-                TODO: Implement Node Selector for Cognitive Notes and Parallelmind.
+              <div style={{ opacity: 0.75 }}>
+                Flowchart nodes can be added to the canvas from here.
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gap: "var(--space-2)",
+                }}
+              >
+                {flowchartSelectorItems.map((item) => (
+                  <button
+                    key={item.type}
+                    type="button"
+                    onClick={() => createFlowchartDraftNode(item.type)}
+                    disabled={!canAddFlowchartNodes}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "28px 1fr",
+                      alignItems: "center",
+                      gap: "var(--space-2)",
+                      padding: "10px",
+                      borderRadius: "var(--radius-md)",
+                      border: "var(--border-width) solid var(--border)",
+                      background: "var(--surface-2)",
+                      color: "inherit",
+                      cursor: canAddFlowchartNodes ? "pointer" : "not-allowed",
+                      opacity: canAddFlowchartNodes ? 1 : 0.6,
+                      textAlign: "left",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!canAddFlowchartNodes) return;
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-2)";
+                    }}
+                  >
+                    <span aria-hidden="true">
+                      <FlowchartNodeIcons type={item.type} size={22} />
+                    </span>
+                    <span style={{ display: "grid", gap: 2 }}>
+                      <span style={{ fontWeight: 600 }}>{item.name}</span>
+                      <span style={{ opacity: 0.75 }}>{item.description}</span>
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
           ) : selectedEdgeId && !selectedNodeId ? (
@@ -1932,7 +2380,7 @@ export default function RightPanel() {
                               }}
                               placeholder={isImageNode ? "Enter caption" : uiText.placeholders.nodeName}
                               aria-label={isImageNode ? uiText.fields.nodeDetails.caption : uiText.fields.nodeDetails.name}
-                              disabled={!isDraftNode && !renameActive}
+                              disabled={!isDraftNode && !renameActive && !isFlowchartNode}
                               style={{
                                 // Input fills 100% of its label container.
                                 width: "100%",
@@ -2377,7 +2825,11 @@ export default function RightPanel() {
         <div
           role="dialog"
           aria-label={
-            isFileNode ? uiText.alerts.confirmDeleteFile : uiText.alerts.confirmDeleteFolder
+            isFlowchartNode
+              ? uiText.alerts.confirmDelete
+              : isFileNode
+              ? uiText.alerts.confirmDeleteFile
+              : uiText.alerts.confirmDeleteFolder
           }
           style={{
             position: "absolute",
@@ -2403,7 +2855,11 @@ export default function RightPanel() {
             }}
           >
             <div style={{ fontWeight: 600, marginBottom: "8px" }}>
-              {isFileNode ? uiText.alerts.confirmDeleteFile : uiText.alerts.confirmDeleteFolder}
+              {isFlowchartNode
+                ? uiText.alerts.confirmDelete
+                : isFileNode
+                ? uiText.alerts.confirmDeleteFile
+                : uiText.alerts.confirmDeleteFolder}
             </div>
             <div
               style={{

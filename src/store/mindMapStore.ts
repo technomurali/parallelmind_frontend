@@ -99,6 +99,8 @@ export type CanvasTab = {
     tempNodeId: string;
     parentNodeId: string;
   } | null;
+  lastCanvasPosition: { x: number; y: number } | null;
+  canvasCenter: { x: number; y: number } | null;
   // Root state
   rootDirectoryHandle: FileSystemDirectoryHandle | null;
   rootFolderJson: RootFolderJson | null;
@@ -137,6 +139,8 @@ function createEmptyTab(): CanvasTab {
     selectedNodeId: null,
     selectedEdgeId: null,
     pendingChildCreation: null,
+    lastCanvasPosition: null,
+    canvasCenter: null,
     rootDirectoryHandle: null,
     rootFolderJson: null,
     cognitiveNotesRoot: null,
@@ -164,6 +168,8 @@ function resetTabCanvas(tab: CanvasTab): CanvasTab {
     selectedNodeId: null,
     selectedEdgeId: null,
     pendingChildCreation: null,
+    lastCanvasPosition: null,
+    canvasCenter: null,
     rootDirectoryHandle: null,
     rootFolderJson: null,
     cognitiveNotesRoot: null,
@@ -289,6 +295,8 @@ export interface MindMapActions {
   setPendingChildCreation: (
     pending: { tempNodeId: string; parentNodeId: string } | null
   ) => void;
+  setLastCanvasPosition: (position: { x: number; y: number } | null) => void;
+  setCanvasCenter: (position: { x: number; y: number } | null) => void;
   finalizePendingChildCreation: () => void;
   discardPendingChildCreationIfSelected: () => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
@@ -449,6 +457,20 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
         ...tab,
         pendingChildCreation: pending,
+      })),
+    })),
+  setLastCanvasPosition: (position) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        lastCanvasPosition: position,
+      })),
+    })),
+  setCanvasCenter: (position) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        canvasCenter: position,
       })),
     })),
   finalizePendingChildCreation: () =>

@@ -31,6 +31,32 @@ export const uiText = {
     folderTree: 'Folder Tree',
     nodeSelector: 'Node Selector',
   },
+  flowchartNodes: {
+    roundRect: {
+      name: 'Rounded Rectangle',
+      purpose: 'Start or end of a flow.',
+    },
+    rect: {
+      name: 'Rectangle',
+      purpose: 'Process or action step.',
+    },
+    triangle: {
+      name: 'Triangle',
+      purpose: 'Directional or merge indicator.',
+    },
+    decision: {
+      name: 'Decision',
+      purpose: 'Branching decision point.',
+    },
+    circle: {
+      name: 'Circle',
+      purpose: 'Connector or pause point.',
+    },
+    parallelogram: {
+      name: 'Parallelogram',
+      purpose: 'Input or output.',
+    },
+  },
   settings: {
     appearance: {
       edgeTypeLabel: 'Edge type',

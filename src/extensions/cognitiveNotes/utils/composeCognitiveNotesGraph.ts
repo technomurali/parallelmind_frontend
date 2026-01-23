@@ -225,6 +225,35 @@ export const composeCognitiveNotesGraph = (
     nodeTypeById.set(note.id, renderType);
   });
 
+  const flowchartNodes = Array.isArray(root.flowchart_nodes)
+    ? root.flowchart_nodes
+    : [];
+  flowchartNodes.forEach((flowNode, index) => {
+    if (!flowNode || typeof flowNode !== "object") return;
+    if (typeof flowNode.id !== "string" || !flowNode.id.trim()) return;
+    if (typeof flowNode.type !== "string" || !flowNode.type.trim()) return;
+    const savedPosition = storedPositions[flowNode.id];
+    const position =
+      savedPosition ??
+      ({
+        x: baseX + (columns + 1) * spacingX,
+        y: baseY + index * spacingY,
+      } as { x: number; y: number });
+    nodes.push({
+      id: flowNode.id,
+      type: flowNode.type,
+      position,
+      data: {
+        ...flowNode,
+        type: flowNode.type,
+        node_type: flowNode.type,
+        name: typeof flowNode.name === "string" ? flowNode.name : "",
+        purpose: typeof flowNode.purpose === "string" ? flowNode.purpose : "",
+      },
+    });
+    nodeTypeById.set(flowNode.id, flowNode.type);
+  });
+
   const relationEdges = collectEdgesFromRelations(related, nodeTypeById);
   edges.push(...relationEdges);
   return { nodes, edges, rootNodeId };

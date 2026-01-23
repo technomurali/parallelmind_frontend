@@ -51,6 +51,15 @@ export type IndexFileNode = {
 
 export type IndexNode = IndexFolderNode | IndexFileNode;
 
+export type FlowchartNode = {
+  id: string;
+  type: string;
+  name: string;
+  purpose: string;
+  created_on: string;
+  updated_on: string;
+};
+
 export type RootFolderJson = {
   schema_version: "1.0.0";
   id: string; // UUID
@@ -68,6 +77,7 @@ export type RootFolderJson = {
   error_messages: string[];
   node_positions: Record<string, { x: number; y: number }>;
   node_size: Record<string, number>;
+  flowchart_nodes: FlowchartNode[];
   child: IndexNode[];
 };
 
@@ -553,6 +563,26 @@ export class FileManager {
       node_size[key] = value;
     });
 
+    const rawFlowchartNodes = Array.isArray(obj.flowchart_nodes)
+      ? (obj.flowchart_nodes as any[])
+      : [];
+    const flowchart_nodes: FlowchartNode[] = rawFlowchartNodes
+      .filter((node) => node && typeof node === "object")
+      .map((node) => ({
+        id: typeof node.id === "string" ? node.id : "",
+        type: typeof node.type === "string" ? node.type : "",
+        name: typeof node.name === "string" ? node.name : "",
+        purpose: typeof node.purpose === "string" ? node.purpose : "",
+        created_on: typeof node.created_on === "string" ? node.created_on : "",
+        updated_on:
+          typeof node.updated_on === "string"
+            ? node.updated_on
+            : typeof node.created_on === "string"
+            ? node.created_on
+            : "",
+      }))
+      .filter((node) => node.id && node.type);
+
     const child = Array.isArray(obj.child) ? (obj.child as IndexNode[]) : [];
 
     return {
@@ -572,6 +602,7 @@ export class FileManager {
       error_messages,
       node_positions,
       node_size,
+      flowchart_nodes,
       child,
     };
   }
@@ -848,6 +879,9 @@ export class FileManager {
         existing && typeof existing.node_size === "object"
           ? (existing.node_size as Record<string, number>)
           : {},
+      flowchart_nodes: Array.isArray(existing.flowchart_nodes)
+        ? existing.flowchart_nodes
+        : [],
       child: mergedChildren,
     };
   }
@@ -1018,6 +1052,7 @@ export class FileManager {
       error_messages: [],
       node_positions: {},
       node_size: {},
+      flowchart_nodes: [],
       child: [],
     };
   }
@@ -1624,6 +1659,9 @@ export class FileManager {
         root && typeof root.node_size === "object"
           ? (root.node_size as Record<string, number>)
           : existing?.node_size ?? {},
+      flowchart_nodes: Array.isArray(root.flowchart_nodes)
+        ? (root.flowchart_nodes as FlowchartNode[])
+        : existing?.flowchart_nodes ?? [],
         child: Array.isArray(root.child) ? (root.child as IndexNode[]) : existing?.child ?? [],
       };
 
@@ -1738,6 +1776,9 @@ export class FileManager {
         root && typeof root.node_size === "object"
           ? (root.node_size as Record<string, number>)
           : existing?.node_size ?? {},
+      flowchart_nodes: Array.isArray(root.flowchart_nodes)
+        ? (root.flowchart_nodes as FlowchartNode[])
+        : existing?.flowchart_nodes ?? [],
       child: Array.isArray(root.child) ? (root.child as IndexNode[]) : existing?.child ?? [],
     };
 
