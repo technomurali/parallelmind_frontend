@@ -118,6 +118,7 @@ export default function MindMap() {
   const [layoutSaveStatus, setLayoutSaveStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const [cognitiveNotesDirty, setCognitiveNotesDirty] = useState(false);
   const canvasSaveStatus = activeTab?.canvasSaveStatus ?? "idle";
   const [showParentPath, setShowParentPath] = useState(false);
   const [showChildrenPath, setShowChildrenPath] = useState(false);
@@ -287,6 +288,7 @@ export default function MindMap() {
         await cognitiveNotesManager.writeCognitiveNotesJsonFromPath(targetPath, nextRoot);
       }
       setCanvasSaveStatus("saved");
+      setCognitiveNotesDirty(false);
     } catch (err) {
       console.error("[MindMap] Failed to save cognitive notes canvas:", err);
       setCanvasSaveStatus("error");
@@ -321,6 +323,10 @@ export default function MindMap() {
     }, 2000);
     return () => window.clearTimeout(timeout);
   }, [canvasSaveStatus, setCanvasSaveStatus]);
+
+  useEffect(() => {
+    setCognitiveNotesDirty(false);
+  }, [activeTab?.id, cognitiveNotesRoot?.id]);
   const nodeTypes = NODE_TYPES;
   const parentPath = useMemo(() => {
     if (!showParentPath || !selectedNodeId) {
@@ -928,6 +934,9 @@ export default function MindMap() {
     const hasPositionChange = changes.some(
       (change) => change.type === "position"
     );
+    if (isCognitiveNotes && hasPositionChange) {
+      setCognitiveNotesDirty(true);
+    }
     if (!settings.interaction.lockNodePositions && hasPositionChange) {
       setHasCustomLayout(true);
     }
@@ -1042,12 +1051,16 @@ export default function MindMap() {
 
   const onEdgesChange = (changes: EdgeChange[]) => {
     setEdges(applyEdgeChanges(changes, edges));
+    if (isCognitiveNotes && changes.length) {
+      setCognitiveNotesDirty(true);
+    }
   };
 
   const onConnect = (connection: Connection) => {
     if (!isCognitiveNotes) return;
     if (!connection.source || !connection.target) return;
     if (connection.source === connection.target) return;
+    setCognitiveNotesDirty(true);
     const edgeId = `e_${connection.source}_${connection.target}_${Date.now()}`;
     setEdges(
       addEdge(
@@ -1130,6 +1143,9 @@ export default function MindMap() {
 
   const onEdgesDelete = (deleted: Edge[]) => {
     if (!deleted.length) return;
+    if (isCognitiveNotes) {
+      setCognitiveNotesDirty(true);
+    }
     const deletedIds = new Set(deleted.map((edge) => edge.id));
     setEdges((edges ?? []).filter((edge: any) => !deletedIds.has(edge?.id)));
     selectEdge(null);
@@ -1787,6 +1803,7 @@ export default function MindMap() {
                 onClick={() => void saveCognitiveNotesCanvas()}
                 aria-label={uiText.buttons.save}
                 title={uiText.buttons.save}
+                disabled={!cognitiveNotesDirty || canvasSaveStatus === "saving"}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -1794,16 +1811,25 @@ export default function MindMap() {
                   height: "var(--control-size-sm)",
                   width: "var(--control-size-sm)",
                   borderRadius: "var(--radius-md)",
-                  border: "var(--border-width) solid var(--border)",
-                  background: "var(--surface-1)",
+                  border: "none",
+                  background:
+                    !cognitiveNotesDirty || canvasSaveStatus === "saving"
+                      ? "transparent"
+                      : "var(--surface-1)",
                   color: "var(--text)",
-                  cursor: "pointer",
+                  cursor:
+                    !cognitiveNotesDirty || canvasSaveStatus === "saving"
+                      ? "default"
+                      : "pointer",
+                  opacity: !cognitiveNotesDirty || canvasSaveStatus === "saving" ? 0.5 : 1,
                 }}
                 onMouseEnter={(e) => {
+                  if (!cognitiveNotesDirty || canvasSaveStatus === "saving") return;
                   (e.currentTarget as HTMLButtonElement).style.background =
                     "var(--surface-2)";
                 }}
                 onMouseLeave={(e) => {
+                  if (!cognitiveNotesDirty || canvasSaveStatus === "saving") return;
                   (e.currentTarget as HTMLButtonElement).style.background =
                     "var(--surface-1)";
                 }}
