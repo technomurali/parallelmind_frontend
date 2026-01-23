@@ -329,7 +329,7 @@ export default function MindMap() {
   }, [activeTab?.id, cognitiveNotesRoot?.id]);
   const nodeTypes = NODE_TYPES;
   const parentPath = useMemo(() => {
-    if (!showParentPath || !selectedNodeId) {
+    if (isCognitiveNotes || !showParentPath || !selectedNodeId) {
       return { nodeIds: new Set<string>(), edgeIds: new Set<string>() };
     }
     const edgeByTarget = new Map<string, Edge>();
@@ -349,7 +349,12 @@ export default function MindMap() {
       currentId = edge.source;
     }
     return { nodeIds, edgeIds };
-  }, [edges, selectedNodeId, showParentPath]);
+  }, [edges, isCognitiveNotes, selectedNodeId, showParentPath]);
+
+  useEffect(() => {
+    if (!isCognitiveNotes) return;
+    if (showParentPath) setShowParentPath(false);
+  }, [isCognitiveNotes, showParentPath]);
 
   const childrenPath = useMemo(() => {
     if (!showChildrenPath || !selectedNodeId) {
@@ -393,6 +398,8 @@ export default function MindMap() {
       typeof settings.appearance.edgeOpacity === "number"
         ? settings.appearance.edgeOpacity
         : 0.85;
+    const cognitiveRootId =
+      isCognitiveNotes && cognitiveNotesRoot?.id ? cognitiveNotesRoot.id : null;
     return (edges ?? []).map((edge: any) => {
       const highlight =
         parentPath.edgeIds.has(edge?.id) || childrenPath.edgeIds.has(edge?.id);
@@ -422,7 +429,9 @@ export default function MindMap() {
         animated: highlight,
         hidden:
           collapsedNodeIds.has(edge?.source) ||
-          collapsedNodeIds.has(edge?.target),
+          collapsedNodeIds.has(edge?.target) ||
+          (cognitiveRootId &&
+            (edge?.source === cognitiveRootId || edge?.target === cognitiveRootId)),
         markerEnd: {
           type: MarkerType.ArrowClosed,
           width: 18,
@@ -434,6 +443,8 @@ export default function MindMap() {
     });
   }, [
     edges,
+    isCognitiveNotes,
+    cognitiveNotesRoot?.id,
     parentPath.edgeIds,
     childrenPath.edgeIds,
     collapsedNodeIds,
@@ -484,6 +495,16 @@ export default function MindMap() {
     if (!nodes?.length) return nodes;
     return nodes.map((node: any) => {
       const isHidden = collapsedNodeIds.has(node?.id);
+      if (isCognitiveNotes && node?.type === "rootFolder") {
+        return {
+          ...node,
+          hidden: true,
+          selectable: false,
+          draggable: false,
+          connectable: false,
+          style: { ...(node.style ?? {}), display: "none" },
+        };
+      }
       const highlight =
         parentPath.nodeIds.has(node?.id) || childrenPath.nodeIds.has(node?.id);
       const highlightStyle = highlight
@@ -3067,37 +3088,39 @@ export default function MindMap() {
                 padding: "6px",
               }}
             >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setShowParentPath((prev) => !prev);
-                  closeContextMenu();
-                }}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "8px 10px",
-                  borderRadius: "var(--radius-sm)",
-                  border: "none",
-                  background: "transparent",
-                  color: "inherit",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-family)",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "var(--surface-1)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "transparent";
-                }}
-              >
-                {showParentPath
-                  ? uiText.contextMenus.node.hideParentPath
-                  : uiText.contextMenus.node.showParentPath}
-              </button>
+              {!isCognitiveNotes ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setShowParentPath((prev) => !prev);
+                    closeContextMenu();
+                  }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "8px 10px",
+                    borderRadius: "var(--radius-sm)",
+                    border: "none",
+                    background: "transparent",
+                    color: "inherit",
+                    cursor: "pointer",
+                    fontFamily: "var(--font-family)",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "var(--surface-1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "transparent";
+                  }}
+                >
+                  {showParentPath
+                    ? uiText.contextMenus.node.hideParentPath
+                    : uiText.contextMenus.node.showParentPath}
+                </button>
+              ) : null}
               <button
                 type="button"
                 role="menuitem"
