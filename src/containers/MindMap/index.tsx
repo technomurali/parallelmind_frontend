@@ -173,6 +173,44 @@ export default function MindMap() {
   const saveCognitiveNotesCanvas = async () => {
     if (!isCognitiveNotes || !cognitiveNotesRoot) return;
     setCanvasSaveStatus("saving");
+    const defaultSourceHandle = (nodeType: string | undefined) => {
+      if (nodeType === "rootFolder") return "source-bottom";
+      return "source-right";
+    };
+    const defaultTargetHandle = (nodeType: string | undefined) => {
+      if (nodeType === "rootFolder") return "target-top";
+      return "target-left";
+    };
+    const allowedHandlesByType: Record<
+      string,
+      { source: Set<string>; target: Set<string> }
+    > = {
+      file: {
+        source: new Set(["source-left", "source-right", "source-bottom"]),
+        target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
+      },
+      fullImageNode: {
+        source: new Set(["source-left", "source-right", "source-bottom"]),
+        target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
+      },
+      rootFolder: {
+        source: new Set(["source-bottom"]),
+        target: new Set(["target-top"]),
+      },
+    };
+    const normalizeHandle = (
+      handle: unknown,
+      nodeType: string | undefined,
+      kind: "source" | "target"
+    ) => {
+      if (typeof handle === "string" && handle.trim()) {
+        const allowed = nodeType ? allowedHandlesByType[nodeType]?.[kind] : null;
+        if (!allowed || allowed.has(handle)) return handle;
+      }
+      return kind === "source"
+        ? defaultSourceHandle(nodeType)
+        : defaultTargetHandle(nodeType);
+    };
     const nextPositions: Record<string, { x: number; y: number }> = {
       ...(cognitiveNotesRoot.node_positions ?? {}),
     };
@@ -189,21 +227,39 @@ export default function MindMap() {
         .filter((node: any) => node?.id)
         .map((node: any) => [node.id, node])
     );
+    const nodeTypeById = new Map<string, string>();
+    (nodes ?? []).forEach((node: any) => {
+      if (node?.id && typeof node.type === "string") {
+        nodeTypeById.set(node.id, node.type);
+      }
+    });
     const relationMap = new Map<
       string,
-      { edge_id: string; target_id: string; purpose: string }[]
+      {
+        edge_id: string;
+        target_id: string;
+        purpose: string;
+        source_handle?: string;
+        target_handle?: string;
+      }[]
     >();
     (edges ?? []).forEach((edge: any) => {
       if (!edge?.id || !edge?.source || !edge?.target) return;
       if (!childById.has(edge.source) || !childById.has(edge.target)) return;
+      const sourceType = nodeTypeById.get(edge.source);
+      const targetType = nodeTypeById.get(edge.target);
       const purpose =
         typeof (edge.data as any)?.purpose === "string"
           ? (edge.data as any).purpose
           : "";
-      const relSource = { edge_id: edge.id, target_id: edge.target, purpose };
-      const relTarget = { edge_id: edge.id, target_id: edge.source, purpose };
+      const relSource = {
+        edge_id: edge.id,
+        target_id: edge.target,
+        purpose,
+        source_handle: normalizeHandle(edge.sourceHandle, sourceType, "source"),
+        target_handle: normalizeHandle(edge.targetHandle, targetType, "target"),
+      };
       relationMap.set(edge.source, [...(relationMap.get(edge.source) ?? []), relSource]);
-      relationMap.set(edge.target, [...(relationMap.get(edge.target) ?? []), relTarget]);
     });
 
     const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) => ({
@@ -1006,45 +1062,40 @@ export default function MindMap() {
     );
     if (cognitiveNotesRoot) {
       const updatedChild = (cognitiveNotesRoot.child ?? []).map((node: any) => {
-        if (node?.id === connection.source) {
-          const nextRelations = Array.isArray(node.related_nodes)
-            ? [
-                ...node.related_nodes,
-                {
-                  edge_id: edgeId,
-                  target_id: connection.target,
-                  purpose: "",
-                },
-              ]
-            : [
-                {
-                  edge_id: edgeId,
-                  target_id: connection.target,
-                  purpose: "",
-                },
-              ];
-          return { ...node, related_nodes: nextRelations };
-        }
-        if (node?.id === connection.target) {
-          const nextRelations = Array.isArray(node.related_nodes)
-            ? [
-                ...node.related_nodes,
-                {
-                  edge_id: edgeId,
-                  target_id: connection.source,
-                  purpose: "",
-                },
-              ]
-            : [
-                {
-                  edge_id: edgeId,
-                  target_id: connection.source,
-                  purpose: "",
-                },
-              ];
-          return { ...node, related_nodes: nextRelations };
-        }
-        return node;
+        if (node?.id !== connection.source) return node;
+        const nextRelations = Array.isArray(node.related_nodes)
+          ? [
+              ...node.related_nodes,
+              {
+                edge_id: edgeId,
+                target_id: connection.target,
+                purpose: "",
+                source_handle:
+                  typeof connection.sourceHandle === "string"
+                    ? connection.sourceHandle
+                    : undefined,
+                target_handle:
+                  typeof connection.targetHandle === "string"
+                    ? connection.targetHandle
+                    : undefined,
+              },
+            ]
+          : [
+              {
+                edge_id: edgeId,
+                target_id: connection.target,
+                purpose: "",
+                source_handle:
+                  typeof connection.sourceHandle === "string"
+                    ? connection.sourceHandle
+                    : undefined,
+                target_handle:
+                  typeof connection.targetHandle === "string"
+                    ? connection.targetHandle
+                    : undefined,
+              },
+            ];
+        return { ...node, related_nodes: nextRelations };
       });
       useMindMapStore.getState().setCognitiveNotesRoot({
         ...cognitiveNotesRoot,

@@ -18,6 +18,8 @@ export type CognitiveNotesRelation = {
   edge_id: string;
   target_id: string;
   purpose: string;
+  source_handle?: string;
+  target_handle?: string;
 };
 
 export type CognitiveNotesJson = {

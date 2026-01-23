@@ -71,8 +71,46 @@ const buildNoteNode = (
   };
 };
 
+const NODE_HANDLE_SETS: Record<
+  string,
+  { source: Set<string>; target: Set<string> }
+> = {
+  file: {
+    source: new Set(["source-left", "source-right", "source-bottom"]),
+    target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
+  },
+  fullImageNode: {
+    source: new Set(["source-left", "source-right", "source-bottom"]),
+    target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
+  },
+  rootFolder: {
+    source: new Set(["source-bottom"]),
+    target: new Set(["target-top"]),
+  },
+};
+
+const getDefaultHandle = (nodeType: string, kind: "source" | "target") => {
+  if (nodeType === "rootFolder") {
+    return kind === "source" ? "source-bottom" : "target-top";
+  }
+  return kind === "source" ? "source-right" : "target-left";
+};
+
+const normalizeHandle = (
+  handle: unknown,
+  nodeType: string,
+  kind: "source" | "target"
+): string => {
+  if (typeof handle === "string" && handle.trim()) {
+    const allowed = NODE_HANDLE_SETS[nodeType]?.[kind];
+    if (!allowed || allowed.has(handle)) return handle;
+  }
+  return getDefaultHandle(nodeType, kind);
+};
+
 const collectEdgesFromRelations = (
-  nodes: CognitiveNotesFileNode[]
+  nodes: CognitiveNotesFileNode[],
+  nodeTypeById: Map<string, string>
 ): Edge[] => {
   const edges: Edge[] = [];
   const seen = new Set<string>();
@@ -85,11 +123,17 @@ const collectEdgesFromRelations = (
       if (!rel.edge_id || !rel.target_id) return;
       if (seen.has(rel.edge_id)) return;
       seen.add(rel.edge_id);
+      const sourceType = nodeTypeById.get(node.id) ?? "file";
+      const targetType = nodeTypeById.get(rel.target_id) ?? "file";
+      const sourceHandle = normalizeHandle(rel.source_handle, sourceType, "source");
+      const targetHandle = normalizeHandle(rel.target_handle, targetType, "target");
       edges.push({
         id: rel.edge_id,
         source: node.id,
         target: rel.target_id,
         type: "default",
+        sourceHandle,
+        targetHandle,
         data: { purpose: rel.purpose ?? "" },
       });
     });
@@ -122,6 +166,8 @@ export const composeCognitiveNotesGraph = (
   };
   const nodes: Node[] = [buildRootNode(root, rootNodeId, rootPositionTopLeft)];
   const edges: Edge[] = [];
+  const nodeTypeById = new Map<string, string>();
+  nodeTypeById.set(rootNodeId, "rootFolder");
 
   const related = Array.isArray(root.child) ? [...root.child] : [];
   const layoutNodes = related.sort((a, b) => {
@@ -167,9 +213,10 @@ export const composeCognitiveNotesGraph = (
         ? { x: savedPosition.x, y: savedPosition.y }
         : { x, y };
     nodes.push(buildNoteNode(note, position, renderType));
+    nodeTypeById.set(note.id, renderType);
   });
 
-  const relationEdges = collectEdgesFromRelations(related);
+  const relationEdges = collectEdgesFromRelations(related, nodeTypeById);
   edges.push(...relationEdges);
   return { nodes, edges, rootNodeId };
 };
