@@ -102,7 +102,8 @@ export const composeCognitiveNotesGraph = (
   options: CognitiveNotesComposeOptions = {}
 ): CognitiveNotesComposeResult => {
   const rootNodeId = normalizeRootId(root);
-  const rootPosition = options.rootPosition ?? { x: 0, y: 0 };
+  const storedPositions = root?.node_positions ?? {};
+  const rootPosition = storedPositions[rootNodeId] ?? options.rootPosition ?? { x: 0, y: 0 };
   const nodeSize =
     typeof options.nodeSize === "number" && Number.isFinite(options.nodeSize)
       ? options.nodeSize
@@ -160,7 +161,12 @@ export const composeCognitiveNotesGraph = (
     const row = Math.floor(index / columns);
     const x = baseX + col * spacingX;
     const y = baseY + row * spacingY;
-    nodes.push(buildNoteNode(note, { x, y }, renderType));
+    const savedPosition = storedPositions[note.id];
+    const position =
+      savedPosition && typeof savedPosition === "object"
+        ? { x: savedPosition.x, y: savedPosition.y }
+        : { x, y };
+    nodes.push(buildNoteNode(note, position, renderType));
   });
 
   const relationEdges = collectEdgesFromRelations(related);

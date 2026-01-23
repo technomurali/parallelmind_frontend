@@ -28,6 +28,7 @@ import "reactflow/dist/style.css";
 import { FiMenu } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import { FileManager } from "../../data/fileManager";
+import { CognitiveNotesManager } from "../../extensions/cognitiveNotes/data/cognitiveNotesManager";
 import type { IndexNode, RootFolderJson } from "../../data/fileManager";
 import { CanvasTabs } from "../../components/CanvasTabs/CanvasTabs";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
@@ -71,7 +72,10 @@ export default function MindMap() {
   const moduleTypeValue = String(activeTab?.moduleType ?? "");
   const isCognitiveNotes = moduleTypeValue === "cognitiveNotes";
   const cognitiveNotesRoot = activeTab?.cognitiveNotesRoot ?? null;
+  const cognitiveNotesDirectoryHandle = activeTab?.cognitiveNotesDirectoryHandle ?? null;
+  const cognitiveNotesFolderPath = activeTab?.cognitiveNotesFolderPath ?? null;
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
+  const updateCognitiveNotesRoot = useMindMapStore((s) => s.updateCognitiveNotesRoot);
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
   const settings = useMindMapStore((s) => s.settings);
   const updateSettings = useMindMapStore((s) => s.updateSettings);
@@ -110,6 +114,7 @@ export default function MindMap() {
   const lastFitRootIdRef = useRef<string | null>(null);
   const [rf, setRf] = useState<ReactFlowInstance | null>(null);
   const fileManager = useMemo(() => new FileManager(), []);
+  const cognitiveNotesManager = useMemo(() => new CognitiveNotesManager(), []);
   const [layoutSaveStatus, setLayoutSaveStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -162,6 +167,73 @@ export default function MindMap() {
     } catch (err) {
       setLayoutSaveStatus("error");
       console.error("[MindMap] Persist node positions failed:", err);
+    }
+  };
+
+  const saveCognitiveNotesCanvas = async () => {
+    if (!isCognitiveNotes || !cognitiveNotesRoot) return;
+    setCanvasSaveStatus("saving");
+    const nextPositions: Record<string, { x: number; y: number }> = {
+      ...(cognitiveNotesRoot.node_positions ?? {}),
+    };
+    (nodes ?? []).forEach((node: any) => {
+      if (!node?.id || !node.position) return;
+      nextPositions[node.id] = {
+        x: node.position.x,
+        y: node.position.y,
+      };
+    });
+
+    const childById = new Map(
+      (cognitiveNotesRoot.child ?? [])
+        .filter((node: any) => node?.id)
+        .map((node: any) => [node.id, node])
+    );
+    const relationMap = new Map<
+      string,
+      { edge_id: string; target_id: string; purpose: string }[]
+    >();
+    (edges ?? []).forEach((edge: any) => {
+      if (!edge?.id || !edge?.source || !edge?.target) return;
+      if (!childById.has(edge.source) || !childById.has(edge.target)) return;
+      const purpose =
+        typeof (edge.data as any)?.purpose === "string"
+          ? (edge.data as any).purpose
+          : "";
+      const relSource = { edge_id: edge.id, target_id: edge.target, purpose };
+      const relTarget = { edge_id: edge.id, target_id: edge.source, purpose };
+      relationMap.set(edge.source, [...(relationMap.get(edge.source) ?? []), relSource]);
+      relationMap.set(edge.target, [...(relationMap.get(edge.target) ?? []), relTarget]);
+    });
+
+    const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) => ({
+      ...node,
+      related_nodes: relationMap.get(node.id) ?? [],
+    }));
+
+    const nextRoot = {
+      ...cognitiveNotesRoot,
+      updated_on: new Date().toISOString(),
+      node_positions: nextPositions,
+      child: nextChild,
+    };
+
+    updateCognitiveNotesRoot(nextRoot);
+    try {
+      if (cognitiveNotesDirectoryHandle) {
+        await cognitiveNotesManager.writeCognitiveNotesJson(
+          cognitiveNotesDirectoryHandle,
+          nextRoot
+        );
+      } else {
+        const targetPath = cognitiveNotesFolderPath ?? nextRoot.path ?? "";
+        if (!targetPath) throw new Error("Cognitive Notes folder path is missing.");
+        await cognitiveNotesManager.writeCognitiveNotesJsonFromPath(targetPath, nextRoot);
+      }
+      setCanvasSaveStatus("saved");
+    } catch (err) {
+      console.error("[MindMap] Failed to save cognitive notes canvas:", err);
+      setCanvasSaveStatus("error");
     }
   };
 
@@ -887,6 +959,25 @@ export default function MindMap() {
       setLayoutSaveStatus("saving");
       updateRootFolderJson({
         ...rootFolderJson,
+        node_positions: nextPositions,
+      });
+    }
+    if (hasPositionChange && isCognitiveNotes && cognitiveNotesRoot) {
+      const nextPositions: Record<string, { x: number; y: number }> = {
+        ...(cognitiveNotesRoot.node_positions ?? {}),
+      };
+      changes
+        .filter((change) => change.type === "position")
+        .forEach((change) => {
+          const moved = adjustedNodes.find((node) => node.id === change.id);
+          if (!moved || !moved.position) return;
+          nextPositions[moved.id] = {
+            x: moved.position.x,
+            y: moved.position.y,
+          };
+        });
+      updateCognitiveNotesRoot({
+        ...cognitiveNotesRoot,
         node_positions: nextPositions,
       });
     }
@@ -1639,6 +1730,68 @@ export default function MindMap() {
               gap: "2px",
             }}
           >
+            {isCognitiveNotes ? (
+              <button
+                type="button"
+                onClick={() => void saveCognitiveNotesCanvas()}
+                aria-label={uiText.buttons.save}
+                title={uiText.buttons.save}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "var(--control-size-sm)",
+                  width: "var(--control-size-sm)",
+                  borderRadius: "var(--radius-md)",
+                  border: "var(--border-width) solid var(--border)",
+                  background: "var(--surface-1)",
+                  color: "var(--text)",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-2)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M5 3H16L20 7V21H5V3Z"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M8 3V8H16V3"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M8 14H16"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M8 17H14"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() =>
