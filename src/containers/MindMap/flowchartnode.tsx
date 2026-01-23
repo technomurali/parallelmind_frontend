@@ -200,10 +200,16 @@ const FlowchartNodeBase = (
 
   const handleDiameter = 12;
   const handleStyleBase = buildHandleStyle(handleDiameter);
+  const viewScale = Math.min(
+    svgWidth / viewBoxWidth,
+    svgHeight / viewBoxHeight
+  );
+  const viewOffsetX = (svgWidth - viewBoxWidth * viewScale) / 2;
+  const viewOffsetY = (svgHeight - viewBoxHeight * viewScale) / 2;
   const toHandlePxX = (x: number) =>
-    Math.round((x / viewBoxWidth) * svgWidth);
+    Math.round(viewOffsetX + x * viewScale);
   const toHandlePxY = (y: number) =>
-    Math.round((y / viewBoxHeight) * svgHeight);
+    Math.round(viewOffsetY + y * viewScale);
   const topHandleLeft = toHandlePxX(viewBoxWidth / 2);
   const topHandleTop = toHandlePxY(10);
   const bottomHandleLeft = toHandlePxX(viewBoxWidth / 2);
@@ -530,9 +536,10 @@ export const FlowchartYoutubeNode = (props: NodeProps<any>) => {
     if (playerRef.current) return playerRef.current;
     try {
       const YT = await loadYouTubeIframeAPI();
-      if (!YT?.Player) throw new Error("YT API unavailable");
+      const PlayerConstructor = YT?.Player;
+      if (!PlayerConstructor) throw new Error("YT API unavailable");
       return await new Promise<any>((resolve) => {
-        const player = new YT.Player(containerId, {
+        const player = new PlayerConstructor(containerId, {
           height: "100%",
           width: "100%",
           videoId,
