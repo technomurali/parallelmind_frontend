@@ -697,6 +697,7 @@ export default function RightPanel() {
         recommendations: rootFolderJson?.recommendations ?? [],
         error_messages: rootFolderJson?.error_messages ?? [],
         flowchart_nodes: rootFolderJson?.flowchart_nodes ?? [],
+        flowchart_edges: rootFolderJson?.flowchart_edges ?? [],
         child: rootFolderJson?.child ?? [],
       };
 
@@ -1105,6 +1106,12 @@ export default function RightPanel() {
       .toString(16)
       .slice(2)}`;
     const nowIso = new Date().toISOString();
+    const defaultColor = settings.appearance.cognitiveNotesDefaultNodeColor ?? "";
+    const nodeColor =
+      moduleType === "cognitiveNotes" &&
+      /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(defaultColor.trim())
+        ? defaultColor.trim()
+        : undefined;
     const tempNode: any = {
       id: tempNodeId,
       type,
@@ -1116,6 +1123,7 @@ export default function RightPanel() {
         purpose: "",
         created_on: nowIso,
         updated_on: nowIso,
+        node_color: nodeColor,
         isDraft: true,
         nonPersistent: true,
       },
@@ -1171,6 +1179,16 @@ export default function RightPanel() {
             y: nodePosition.y,
           };
         }
+        const nextColors = { ...(cognitiveNotesRoot.node_colors ?? {}) };
+        const draftColor = (selectedNode?.data as any)?.node_color;
+        if (
+          typeof draftColor === "string" &&
+          /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(draftColor.trim())
+        ) {
+          if (!nextColors[draftNodeId]) {
+            nextColors[draftNodeId] = draftColor.trim();
+          }
+        }
         const nextFlowNodes = [
           ...(cognitiveNotesRoot.flowchart_nodes ?? []),
           nextRecord,
@@ -1179,6 +1197,7 @@ export default function RightPanel() {
           ...cognitiveNotesRoot,
           updated_on: nowIso,
           flowchart_nodes: nextFlowNodes,
+          node_colors: nextColors,
           node_positions: nextPositions,
         };
         setNodes(
@@ -1826,10 +1845,14 @@ export default function RightPanel() {
             const nextFlowNodes = (cognitiveNotesRoot.flowchart_nodes ?? []).filter(
               (node) => node.id !== nodeId
             );
+            const nextFlowEdges = (cognitiveNotesRoot.flowchart_edges ?? []).filter(
+              (edge) => edge.source !== nodeId && edge.target !== nodeId
+            );
             await persistCognitiveNotesRoot({
               ...cognitiveNotesRoot,
               updated_on: nowIso,
               flowchart_nodes: nextFlowNodes,
+              flowchart_edges: nextFlowEdges,
               node_positions: nextPositions,
               node_size: nextSizes,
             });
@@ -1842,10 +1865,14 @@ export default function RightPanel() {
           const nextFlowNodes = (rootFolderJson.flowchart_nodes ?? []).filter(
             (node) => node.id !== nodeId
           );
+          const nextFlowEdges = (rootFolderJson.flowchart_edges ?? []).filter(
+            (edge) => edge.source !== nodeId && edge.target !== nodeId
+          );
           await persistParallelmindRoot({
             ...rootFolderJson,
             updated_on: nowIso,
             flowchart_nodes: nextFlowNodes,
+            flowchart_edges: nextFlowEdges,
             node_positions: nextPositions,
             node_size: nextSizes,
           });

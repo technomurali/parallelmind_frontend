@@ -48,6 +48,14 @@ export type CognitiveNotesJson = {
     created_on: string;
     updated_on: string;
   }[];
+  flowchart_edges: {
+    id: string;
+    source: string;
+    target: string;
+    source_handle?: string;
+    target_handle?: string;
+    purpose?: string;
+  }[];
   child: CognitiveNotesFileNode[];
 };
 
@@ -214,6 +222,23 @@ export class CognitiveNotesManager {
       }))
       .filter((node) => node.id && node.type);
 
+    const rawFlowchartEdges = Array.isArray(obj.flowchart_edges)
+      ? (obj.flowchart_edges as any[])
+      : [];
+    const flowchart_edges = rawFlowchartEdges
+      .filter((edge) => edge && typeof edge === "object")
+      .map((edge) => ({
+        id: typeof edge.id === "string" ? edge.id : "",
+        source: typeof edge.source === "string" ? edge.source : "",
+        target: typeof edge.target === "string" ? edge.target : "",
+        source_handle:
+          typeof edge.source_handle === "string" ? edge.source_handle : undefined,
+        target_handle:
+          typeof edge.target_handle === "string" ? edge.target_handle : undefined,
+        purpose: typeof edge.purpose === "string" ? edge.purpose : undefined,
+      }))
+      .filter((edge) => edge.id && edge.source && edge.target);
+
     const rawChild = Array.isArray(obj.child)
       ? (obj.child as CognitiveNotesFileNode[])
       : Array.isArray(obj.related_nodes)
@@ -240,6 +265,7 @@ export class CognitiveNotesManager {
       node_colors,
       node_size,
       flowchart_nodes,
+      flowchart_edges,
       child,
     };
   }
@@ -265,6 +291,7 @@ export class CognitiveNotesManager {
       node_colors: {},
       node_size: {},
       flowchart_nodes: [],
+      flowchart_edges: [],
       child: [],
     };
   }
@@ -442,6 +469,9 @@ export class CognitiveNotesManager {
           : {},
       flowchart_nodes: Array.isArray(existing.flowchart_nodes)
         ? existing.flowchart_nodes
+        : [],
+      flowchart_edges: Array.isArray(existing.flowchart_edges)
+        ? existing.flowchart_edges
         : [],
       child: mergedNodes,
     };
@@ -797,6 +827,9 @@ export class CognitiveNotesManager {
       flowchart_nodes: Array.isArray(root.flowchart_nodes)
         ? root.flowchart_nodes
         : existing?.flowchart_nodes ?? [],
+      flowchart_edges: Array.isArray(root.flowchart_edges)
+        ? root.flowchart_edges
+        : existing?.flowchart_edges ?? [],
       child: Array.isArray(root.child)
         ? (root.child as CognitiveNotesFileNode[])
         : existing?.child ?? [],
@@ -877,6 +910,9 @@ export class CognitiveNotesManager {
       flowchart_nodes: Array.isArray(root.flowchart_nodes)
         ? root.flowchart_nodes
         : existing?.flowchart_nodes ?? [],
+      flowchart_edges: Array.isArray(root.flowchart_edges)
+        ? root.flowchart_edges
+        : existing?.flowchart_edges ?? [],
       child: Array.isArray(root.child)
         ? (root.child as CognitiveNotesFileNode[])
         : existing?.child ?? [],

@@ -31,6 +31,10 @@ const IMAGE_EXTENSIONS = new Set([
   "svg",
 ]);
 
+const isValidHexColor = (value: unknown) =>
+  typeof value === "string" &&
+  /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim());
+
 const normalizeRootId = (root: CognitiveNotesJson): string => {
   if (typeof root?.id === "string" && root.id.trim()) return root.id.trim();
   return `cn_root_${Date.now()}`;
@@ -177,6 +181,7 @@ export const composeCognitiveNotesGraph = (
   const edges: Edge[] = [];
   const nodeTypeById = new Map<string, string>();
   nodeTypeById.set(rootNodeId, "rootFolder");
+  const edgeIds = new Set<string>();
 
   const related = Array.isArray(root.child) ? [...root.child] : [];
   const layoutNodes = related.sort((a, b) => {
@@ -233,6 +238,7 @@ export const composeCognitiveNotesGraph = (
     if (typeof flowNode.id !== "string" || !flowNode.id.trim()) return;
     if (typeof flowNode.type !== "string" || !flowNode.type.trim()) return;
     const savedPosition = storedPositions[flowNode.id];
+    const savedColor = root.node_colors?.[flowNode.id];
     const position =
       savedPosition ??
       ({
@@ -249,12 +255,37 @@ export const composeCognitiveNotesGraph = (
         node_type: flowNode.type,
         name: typeof flowNode.name === "string" ? flowNode.name : "",
         purpose: typeof flowNode.purpose === "string" ? flowNode.purpose : "",
+        node_color: isValidHexColor(savedColor) ? savedColor : undefined,
       },
     });
     nodeTypeById.set(flowNode.id, flowNode.type);
   });
 
+  const flowchartEdges = Array.isArray(root.flowchart_edges)
+    ? root.flowchart_edges
+    : [];
+  flowchartEdges.forEach((edge) => {
+    if (!edge || typeof edge !== "object") return;
+    if (!edge.id || !edge.source || !edge.target) return;
+    if (!nodeTypeById.has(edge.source) || !nodeTypeById.has(edge.target)) return;
+    if (edgeIds.has(edge.id)) return;
+    edgeIds.add(edge.id);
+    edges.push({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      type: "default",
+      sourceHandle: edge.source_handle,
+      targetHandle: edge.target_handle,
+      data: { purpose: edge.purpose ?? "" },
+    });
+  });
+
   const relationEdges = collectEdgesFromRelations(related, nodeTypeById);
-  edges.push(...relationEdges);
+  relationEdges.forEach((edge) => {
+    if (edgeIds.has(edge.id)) return;
+    edgeIds.add(edge.id);
+    edges.push(edge);
+  });
   return { nodes, edges, rootNodeId };
 };

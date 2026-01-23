@@ -60,6 +60,15 @@ export type FlowchartNode = {
   updated_on: string;
 };
 
+export type FlowchartEdge = {
+  id: string;
+  source: string;
+  target: string;
+  source_handle?: string;
+  target_handle?: string;
+  purpose?: string;
+};
+
 export type RootFolderJson = {
   schema_version: "1.0.0";
   id: string; // UUID
@@ -78,6 +87,7 @@ export type RootFolderJson = {
   node_positions: Record<string, { x: number; y: number }>;
   node_size: Record<string, number>;
   flowchart_nodes: FlowchartNode[];
+  flowchart_edges: FlowchartEdge[];
   child: IndexNode[];
 };
 
@@ -583,6 +593,23 @@ export class FileManager {
       }))
       .filter((node) => node.id && node.type);
 
+    const rawFlowchartEdges = Array.isArray(obj.flowchart_edges)
+      ? (obj.flowchart_edges as any[])
+      : [];
+    const flowchart_edges: FlowchartEdge[] = rawFlowchartEdges
+      .filter((edge) => edge && typeof edge === "object")
+      .map((edge) => ({
+        id: typeof edge.id === "string" ? edge.id : "",
+        source: typeof edge.source === "string" ? edge.source : "",
+        target: typeof edge.target === "string" ? edge.target : "",
+        source_handle:
+          typeof edge.source_handle === "string" ? edge.source_handle : undefined,
+        target_handle:
+          typeof edge.target_handle === "string" ? edge.target_handle : undefined,
+        purpose: typeof edge.purpose === "string" ? edge.purpose : undefined,
+      }))
+      .filter((edge) => edge.id && edge.source && edge.target);
+
     const child = Array.isArray(obj.child) ? (obj.child as IndexNode[]) : [];
 
     return {
@@ -603,6 +630,7 @@ export class FileManager {
       node_positions,
       node_size,
       flowchart_nodes,
+      flowchart_edges,
       child,
     };
   }
@@ -882,6 +910,9 @@ export class FileManager {
       flowchart_nodes: Array.isArray(existing.flowchart_nodes)
         ? existing.flowchart_nodes
         : [],
+      flowchart_edges: Array.isArray(existing.flowchart_edges)
+        ? existing.flowchart_edges
+        : [],
       child: mergedChildren,
     };
   }
@@ -1053,6 +1084,7 @@ export class FileManager {
       node_positions: {},
       node_size: {},
       flowchart_nodes: [],
+      flowchart_edges: [],
       child: [],
     };
   }
@@ -1662,6 +1694,9 @@ export class FileManager {
       flowchart_nodes: Array.isArray(root.flowchart_nodes)
         ? (root.flowchart_nodes as FlowchartNode[])
         : existing?.flowchart_nodes ?? [],
+      flowchart_edges: Array.isArray(root.flowchart_edges)
+        ? (root.flowchart_edges as FlowchartEdge[])
+        : existing?.flowchart_edges ?? [],
         child: Array.isArray(root.child) ? (root.child as IndexNode[]) : existing?.child ?? [],
       };
 
@@ -1779,6 +1814,9 @@ export class FileManager {
       flowchart_nodes: Array.isArray(root.flowchart_nodes)
         ? (root.flowchart_nodes as FlowchartNode[])
         : existing?.flowchart_nodes ?? [],
+      flowchart_edges: Array.isArray(root.flowchart_edges)
+        ? (root.flowchart_edges as FlowchartEdge[])
+        : existing?.flowchart_edges ?? [],
       child: Array.isArray(root.child) ? (root.child as IndexNode[]) : existing?.child ?? [],
     };
 

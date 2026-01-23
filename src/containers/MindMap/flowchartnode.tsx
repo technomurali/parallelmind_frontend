@@ -89,6 +89,10 @@ export const isFlowchartNodeType = (value: unknown): value is FlowchartNodeType 
 export const getFlowchartDefinition = (type: FlowchartNodeType) =>
   FLOWCHART_NODE_DEFINITIONS.find((item) => item.type === type) ?? null;
 
+const isValidHexColor = (value: unknown) =>
+  typeof value === "string" &&
+  /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim());
+
 const buildHandleStyle = (diameter: number): React.CSSProperties => ({
   width: diameter,
   height: diameter,
@@ -105,6 +109,7 @@ const FlowchartNodeBase = (
   const { data, selected, definition } = props;
   const settings = useMindMapStore((s) => s.settings);
   const activeTab = useMindMapStore(selectActiveTab);
+  const isCognitiveNotes = activeTab?.moduleType === "cognitiveNotes";
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
   const isExpanded = !areNodesCollapsed;
   const nodeTextColor =
@@ -124,7 +129,11 @@ const FlowchartNodeBase = (
   const viewBoxHeight = definition.viewBox.height;
   const stroke = selected ? "var(--primary-color)" : "var(--border)";
   const strokeWidth = selected ? 6 : 4;
-  const fillColor = "var(--surface-2)";
+  const customNodeColor = isValidHexColor((data as any)?.node_color)
+    ? String((data as any).node_color).trim()
+    : null;
+  const fillColor =
+    isCognitiveNotes && customNodeColor ? customNodeColor : "var(--surface-2)";
 
   const handleDiameter = 12;
   const handleStyleBase = buildHandleStyle(handleDiameter);

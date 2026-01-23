@@ -52,6 +52,7 @@ import {
   FlowchartDecisionNode,
   FlowchartCircleNode,
   FlowchartParallelogramNode,
+  isFlowchartNodeType,
 } from "./flowchartnode";
 
 const NODE_TYPES = {
@@ -132,6 +133,36 @@ export default function MindMap() {
   const [rf, setRf] = useState<ReactFlowInstance | null>(null);
   const fileManager = useMemo(() => new FileManager(), []);
   const cognitiveNotesManager = useMemo(() => new CognitiveNotesManager(), []);
+  const defaultCognitiveNodeColor =
+    settings.appearance.cognitiveNotesDefaultNodeColor ?? "";
+  const isValidHexColor = (value: string) =>
+    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim());
+  const isFlowchartNode = (node: any) =>
+    isFlowchartNodeType(node?.type) ||
+    isFlowchartNodeType(node?.data?.node_type);
+  const buildFlowchartEdges = (edgesList: Edge[], nodesList: any[]) => {
+    const nodeIds = new Set(
+      (nodesList ?? [])
+        .filter((node: any) => isFlowchartNode(node))
+        .map((node: any) => node.id)
+    );
+    return (edgesList ?? [])
+      .filter(
+        (edge: any) =>
+          nodeIds.has(edge?.source) && nodeIds.has(edge?.target)
+      )
+      .map((edge: any) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        source_handle: edge.sourceHandle ?? edge.source_handle,
+        target_handle: edge.targetHandle ?? edge.target_handle,
+        purpose:
+          typeof (edge?.data as any)?.purpose === "string"
+            ? (edge.data as any).purpose
+            : undefined,
+      }));
+  };
   const [layoutSaveStatus, setLayoutSaveStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -143,6 +174,16 @@ export default function MindMap() {
   const [showChildrenPath, setShowChildrenPath] = useState(false);
   const [pendingNodePositions, setPendingNodePositions] = useState<
     Record<string, { x: number; y: number }> | null
+  >(null);
+  const [pendingFlowchartEdges, setPendingFlowchartEdges] = useState<
+    {
+      id: string;
+      source: string;
+      target: string;
+      source_handle?: string;
+      target_handle?: string;
+      purpose?: string;
+    }[] | null
   >(null);
   const layoutStatusMessage =
     layoutSaveStatus === "saving"
@@ -187,6 +228,31 @@ export default function MindMap() {
     } catch (err) {
       setLayoutSaveStatus("error");
       console.error("[MindMap] Persist node positions failed:", err);
+    }
+  };
+
+  const persistFlowchartEdges = async () => {
+    if (!pendingFlowchartEdges || !rootFolderJson) return;
+    const nextRoot: RootFolderJson = {
+      ...rootFolderJson,
+      flowchart_edges: pendingFlowchartEdges,
+    };
+    updateRootFolderJson(nextRoot);
+    setCanvasSaveStatus("saving");
+    try {
+      if (rootDirectoryHandle) {
+        await fileManager.writeRootFolderJson(rootDirectoryHandle, nextRoot);
+      } else if (rootFolderJson.path) {
+        await fileManager.writeRootFolderJsonFromPath(rootFolderJson.path, nextRoot);
+      } else {
+        setCanvasSaveStatus("error");
+        return;
+      }
+      setCanvasSaveStatus("saved");
+      setPendingFlowchartEdges(null);
+    } catch (err) {
+      setCanvasSaveStatus("error");
+      console.error("[MindMap] Persist flowchart edges failed:", err);
     }
   };
 
@@ -289,12 +355,14 @@ export default function MindMap() {
       ...node,
       related_nodes: relationMap.get(node.id) ?? [],
     }));
+    const nextFlowchartEdges = buildFlowchartEdges(edges ?? [], nodes ?? []);
 
     const nextRoot = {
       ...cognitiveNotesRoot,
       updated_on: new Date().toISOString(),
       node_positions: nextPositions,
       node_colors: nextColors,
+      flowchart_edges: nextFlowchartEdges,
       child: nextChild,
     };
 
@@ -330,6 +398,20 @@ export default function MindMap() {
       rootDirectoryHandle,
     ],
     !!pendingNodePositions
+  );
+
+  useAutoSave(
+    () => {
+      void persistFlowchartEdges();
+    },
+    3000,
+    [
+      pendingFlowchartEdges,
+      rootFolderJson?.id,
+      rootFolderJson?.path,
+      rootDirectoryHandle,
+    ],
+    !!pendingFlowchartEdges
   );
 
   useEffect(() => {
@@ -371,8 +453,6 @@ export default function MindMap() {
     () => (nodes ?? []).find((node: any) => node?.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId]
   );
-  const isValidHexColor = (value: string) =>
-    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value);
   const selectedNodeColor =
     typeof (selectedNode?.data as any)?.node_color === "string" &&
     isValidHexColor((selectedNode?.data as any).node_color.trim())
@@ -1156,29 +1236,71 @@ export default function MindMap() {
   };
 
   const onEdgesChange = (changes: EdgeChange[]) => {
-    setEdges(applyEdgeChanges(changes, edges));
-    if (isCognitiveNotes && changes.length) {
-      setCognitiveNotesDirty(true);
+    const nextEdges = applyEdgeChanges(changes, edges);
+    setEdges(nextEdges);
+    if (changes.length) {
+      const nextFlowchartEdges = buildFlowchartEdges(nextEdges, nodes);
+      if (isCognitiveNotes && cognitiveNotesRoot) {
+        updateCognitiveNotesRoot({
+          ...cognitiveNotesRoot,
+          flowchart_edges: nextFlowchartEdges,
+        });
+        setCognitiveNotesDirty(true);
+      } else if (rootFolderJson) {
+        updateRootFolderJson({
+          ...rootFolderJson,
+          flowchart_edges: nextFlowchartEdges,
+        });
+        setPendingFlowchartEdges(nextFlowchartEdges);
+      }
     }
   };
 
   const onConnect = (connection: Connection) => {
-    if (!isCognitiveNotes) return;
     if (!connection.source || !connection.target) return;
     if (connection.source === connection.target) return;
-    setCognitiveNotesDirty(true);
-    const edgeId = `e_${connection.source}_${connection.target}_${Date.now()}`;
-    setEdges(
-      addEdge(
-        {
-          ...connection,
-          id: edgeId,
-          type: "default",
-          data: { purpose: "" },
-        },
-        edges
-      )
+
+    const sourceNode = (nodes ?? []).find(
+      (node: any) => node?.id === connection.source
     );
+    const targetNode = (nodes ?? []).find(
+      (node: any) => node?.id === connection.target
+    );
+    const isFlowchartEdge =
+      isFlowchartNode(sourceNode) && isFlowchartNode(targetNode);
+    if (!isCognitiveNotes && !isFlowchartEdge) return;
+
+    const edgeId = `e_${connection.source}_${connection.target}_${Date.now()}`;
+    const nextEdges = addEdge(
+      {
+        ...connection,
+        id: edgeId,
+        type: "default",
+        data: { purpose: "" },
+      },
+      edges
+    );
+    setEdges(nextEdges);
+
+    if (isFlowchartEdge) {
+      const nextFlowchartEdges = buildFlowchartEdges(nextEdges, nodes);
+      if (isCognitiveNotes && cognitiveNotesRoot) {
+        updateCognitiveNotesRoot({
+          ...cognitiveNotesRoot,
+          flowchart_edges: nextFlowchartEdges,
+        });
+        setCognitiveNotesDirty(true);
+      } else if (rootFolderJson) {
+        updateRootFolderJson({
+          ...rootFolderJson,
+          flowchart_edges: nextFlowchartEdges,
+        });
+        setPendingFlowchartEdges(nextFlowchartEdges);
+      }
+      return;
+    }
+
+    setCognitiveNotesDirty(true);
     if (cognitiveNotesRoot) {
       const updatedChild = (cognitiveNotesRoot.child ?? []).map((node: any) => {
         if (node?.id !== connection.source) return node;
@@ -1253,7 +1375,10 @@ export default function MindMap() {
       setCognitiveNotesDirty(true);
     }
     const deletedIds = new Set(deleted.map((edge) => edge.id));
-    setEdges((edges ?? []).filter((edge: any) => !deletedIds.has(edge?.id)));
+    const nextEdges = (edges ?? []).filter(
+      (edge: any) => !deletedIds.has(edge?.id)
+    );
+    setEdges(nextEdges);
     selectEdge(null);
     if (isCognitiveNotes && cognitiveNotesRoot) {
       const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) => ({
@@ -1262,10 +1387,20 @@ export default function MindMap() {
           ? node.related_nodes.filter((rel: any) => !deletedIds.has(rel?.edge_id))
           : [],
       }));
+      const nextFlowchartEdges = buildFlowchartEdges(nextEdges, nodes);
       useMindMapStore.getState().updateCognitiveNotesRoot({
         ...cognitiveNotesRoot,
         child: nextChild,
+        flowchart_edges: nextFlowchartEdges,
       });
+      setCognitiveNotesDirty(true);
+    } else if (rootFolderJson) {
+      const nextFlowchartEdges = buildFlowchartEdges(nextEdges, nodes);
+      updateRootFolderJson({
+        ...rootFolderJson,
+        flowchart_edges: nextFlowchartEdges,
+      });
+      setPendingFlowchartEdges(nextFlowchartEdges);
     }
   };
 
@@ -1879,10 +2014,22 @@ export default function MindMap() {
     const customEdges = (existingEdges ?? []).filter(
       (edge: any) => !!(edge?.data as any)?.nonPersistent
     );
+    const flowchartEdges = (rootFolderJson.flowchart_edges ?? []).map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      type: "default",
+      sourceHandle: edge.source_handle,
+      targetHandle: edge.target_handle,
+      data: { purpose: edge.purpose ?? "" },
+    }));
     const composedIds = new Set((composedEdges ?? []).map((edge) => edge.id));
+    const allIds = new Set<string>(composedIds);
+    flowchartEdges.forEach((edge) => allIds.add(edge.id));
     const mergedEdges = [
       ...composedEdges,
-      ...customEdges.filter((edge: any) => !composedIds.has(edge.id)),
+      ...flowchartEdges.filter((edge) => !composedIds.has(edge.id)),
+      ...customEdges.filter((edge: any) => !allIds.has(edge.id)),
     ];
     setEdges(mergedEdges);
     setInlineEditNodeId("00");
@@ -3079,6 +3226,11 @@ export default function MindMap() {
                       node_type: "file",
                       name: "",
                       purpose: "",
+                      node_color:
+                        isCognitiveNotes &&
+                        isValidHexColor(defaultCognitiveNodeColor)
+                          ? defaultCognitiveNodeColor
+                          : undefined,
                       // Preserve parent context for finalize step (in-memory only).
                       parentId: parentNodeId,
                       // Marks the node as temporary until the required name is saved.
@@ -3173,6 +3325,11 @@ export default function MindMap() {
                       name: "",
                       caption: "",
                       purpose: "",
+                      node_color:
+                        isCognitiveNotes &&
+                        isValidHexColor(defaultCognitiveNodeColor)
+                          ? defaultCognitiveNodeColor
+                          : undefined,
                       parentId: parentNodeId,
                       isDraft: true,
                       nonPersistent: true,
@@ -3265,6 +3422,11 @@ export default function MindMap() {
                       node_type: "decision",
                       name: "Decision",
                       purpose: "Describe purpose...",
+                      node_color:
+                        isCognitiveNotes &&
+                        isValidHexColor(defaultCognitiveNodeColor)
+                          ? defaultCognitiveNodeColor
+                          : undefined,
                       allowNameEdit: true,
                       nonPersistent: true,
                     },
