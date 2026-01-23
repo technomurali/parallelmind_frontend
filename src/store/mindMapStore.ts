@@ -85,6 +85,7 @@ export type CanvasTab = {
   title: string;
   moduleType: "parallelmind" | "cognitiveNotes" | null;
   canvasSaveStatus: "idle" | "saving" | "saved" | "error";
+  edgeStyle: string;
   history: {
     past: TabSnapshot[];
     future: TabSnapshot[];
@@ -130,6 +131,7 @@ function createEmptyTab(): CanvasTab {
     title: "",
     moduleType: null,
     canvasSaveStatus: "idle",
+    edgeStyle: "default",
     history: {
       past: [],
       future: [],
@@ -159,6 +161,7 @@ function resetTabCanvas(tab: CanvasTab): CanvasTab {
     title: "",
     moduleType: null,
     canvasSaveStatus: "idle",
+    edgeStyle: "default",
     history: {
       past: [],
       future: [],
@@ -318,6 +321,7 @@ export interface MindMapActions {
   toggleSettings: () => void;
   setRightPanelMode: (mode: "nodeDetails" | "nodeSelector") => void;
   setNodesCollapsed: (collapsed: boolean) => void;
+  setEdgeStyle: (style: string) => void;
   createTab: () => string;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
@@ -692,6 +696,13 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
         ...tab,
         areNodesCollapsed: collapsed,
+      })),
+    })),
+  setEdgeStyle: (style) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        edgeStyle: typeof style === "string" && style.trim() ? style : tab.edgeStyle,
       })),
     })),
   createTab: () => {

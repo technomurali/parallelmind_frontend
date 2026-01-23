@@ -118,6 +118,7 @@ export default function MindMap() {
   const discardPendingChildCreationIfSelected = useMindMapStore(
     (s) => s.discardPendingChildCreationIfSelected
   );
+  const setEdgeStyle = useMindMapStore((s) => s.setEdgeStyle);
   const setLastCanvasPosition = useMindMapStore((s) => s.setLastCanvasPosition);
   const setCanvasCenter = useMindMapStore((s) => s.setCanvasCenter);
 
@@ -173,6 +174,7 @@ export default function MindMap() {
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [colorDraft, setColorDraft] = useState("#64748b");
   const canvasSaveStatus = activeTab?.canvasSaveStatus ?? "idle";
+  const edgeStyle = activeTab?.edgeStyle ?? "default";
   const [showParentPath, setShowParentPath] = useState(false);
   const [showChildrenPath, setShowChildrenPath] = useState(false);
   const [pendingNodePositions, setPendingNodePositions] = useState<
@@ -560,7 +562,7 @@ export default function MindMap() {
   }, [rootFolderJson]);
 
   const renderedEdges = useMemo(() => {
-    const edgeType = settings.appearance.edgeStyle || "default";
+    const edgeType = edgeStyle || "default";
     const edgeOpacity =
       typeof settings.appearance.edgeOpacity === "number"
         ? settings.appearance.edgeOpacity
@@ -615,7 +617,7 @@ export default function MindMap() {
     parentPath.edgeIds,
     childrenPath.edgeIds,
     collapsedNodeIds,
-    settings.appearance.edgeStyle,
+    edgeStyle,
     settings.appearance.edgeOpacity,
   ]);
 
@@ -753,6 +755,7 @@ export default function MindMap() {
   const [canvasMenu, setCanvasMenu] = useState<{
     open: boolean;
   }>({ open: false });
+  const [edgeStyleMenuOpen, setEdgeStyleMenuOpen] = useState(false);
 
   const [spacingPanel, setSpacingPanel] = useState<{
     open: boolean;
@@ -771,6 +774,25 @@ export default function MindMap() {
   const [isPanning, setIsPanning] = useState(false);
   const decisionMenuLabel = (uiText.contextMenus.canvas as any)
     .newDecision as string;
+  const edgeStyleOptions = [
+    {
+      value: "default",
+      label: uiText.settings.appearance.edgeTypeOptions.bezier,
+    },
+    {
+      value: "straight",
+      label: uiText.settings.appearance.edgeTypeOptions.straight,
+    },
+    {
+      value: "simpleBezier",
+      label: uiText.settings.appearance.edgeTypeOptions.simpleBezier,
+    },
+    { value: "step", label: uiText.settings.appearance.edgeTypeOptions.step },
+    {
+      value: "smoothstep",
+      label: uiText.settings.appearance.edgeTypeOptions.smoothstep,
+    },
+  ];
 
   const closeContextMenu = () =>
     setContextMenu((s) =>
@@ -784,9 +806,17 @@ export default function MindMap() {
         : s
     );
 
-  const toggleCanvasMenu = () => setCanvasMenu((s) => ({ open: !s.open }));
+  const toggleCanvasMenu = () =>
+    setCanvasMenu((s) => {
+      const nextOpen = !s.open;
+      if (!nextOpen) setEdgeStyleMenuOpen(false);
+      return { open: nextOpen };
+    });
 
-  const closeCanvasMenu = () => setCanvasMenu({ open: false });
+  const closeCanvasMenu = () => {
+    setCanvasMenu({ open: false });
+    setEdgeStyleMenuOpen(false);
+  };
 
   const closeSpacingPanel = () =>
     setSpacingPanel((s) => (s.open ? { ...s, open: false } : s));
@@ -2545,6 +2575,76 @@ export default function MindMap() {
             >
               View: Details
             </div>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => setEdgeStyleMenuOpen((prev) => !prev)}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "8px 10px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: "transparent",
+                color: "inherit",
+                cursor: "pointer",
+                fontFamily: "var(--font-family)",
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "var(--space-2)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "var(--surface-1)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "transparent";
+              }}
+            >
+              <span>{uiText.settings.appearance.edgeTypeLabel}</span>
+              <span aria-hidden="true">{edgeStyleMenuOpen ? "−" : "+"}</span>
+            </button>
+            {edgeStyleMenuOpen && (
+              <div
+                style={{
+                  margin: "4px 8px 8px",
+                  padding: "8px",
+                  borderRadius: "var(--radius-md)",
+                  border: "var(--border-width) solid var(--border)",
+                  background: "var(--surface-1)",
+                  display: "grid",
+                  gap: "6px",
+                }}
+              >
+                {edgeStyleOptions.map((option) => (
+                  <label
+                    key={option.value}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      fontSize: "0.85em",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name={`edge-style-${activeTab?.id ?? "active"}`}
+                      value={option.value}
+                      checked={edgeStyle === option.value}
+                      onChange={() => {
+                        setEdgeStyle(option.value);
+                      }}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+            )}
             <button
               type="button"
               role="menuitem"

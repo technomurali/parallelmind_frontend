@@ -287,48 +287,6 @@ export default function Settings() {
                     <>
                       <div className="pm-settings__row">
                         <div className="pm-settings__rowText">
-                          <div className="pm-settings__rowTitle">
-                            {uiText.settings.appearance.edgeTypeLabel}
-                          </div>
-                          <div className="pm-settings__rowDesc">
-                            {uiText.settings.appearance.edgeTypeDesc}
-                          </div>
-                        </div>
-                        <select
-                          className="pm-settings__control"
-                          value={settings.appearance.edgeStyle ?? "step"}
-                          onChange={(e) =>
-                            updateSettings({
-                              appearance: {
-                                ...settings.appearance,
-                                edgeStyle: e.target.value,
-                              },
-                            })
-                          }
-                          aria-label={uiText.settings.appearance.edgeTypeLabel}
-                        >
-                          <option value="default">
-                            {uiText.settings.appearance.edgeTypeOptions.bezier}
-                          </option>
-                          <option value="straight">
-                            {uiText.settings.appearance.edgeTypeOptions.straight}
-                          </option>
-                          <option value="simpleBezier">
-                            {uiText.settings.appearance.edgeTypeOptions.simpleBezier}
-                          </option>
-                          <option value="step">
-                            {uiText.settings.appearance.edgeTypeOptions.step}
-                          </option>
-                          <option value="smoothstep">
-                            {uiText.settings.appearance.edgeTypeOptions.smoothstep}
-                          </option>
-                        </select>
-                      </div>
-
-                      <div className="pm-settings__divider" />
-
-                      <div className="pm-settings__row">
-                        <div className="pm-settings__rowText">
                           <div className="pm-settings__rowTitle">Edge opacity</div>
                           <div className="pm-settings__rowDesc">
                             Control the visibility of connection lines.
