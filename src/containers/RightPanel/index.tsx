@@ -275,6 +275,7 @@ export default function RightPanel() {
   const isFlowchartNode =
     isFlowchartNodeType((selectedNode?.data as any)?.node_type) ||
     isFlowchartNodeType((selectedNode as any)?.type);
+  const isNonPersistentNode = !!(selectedNode?.data as any)?.nonPersistent;
   const parentIdForDraft =
     typeof (selectedNode?.data as any)?.parentId === "string"
       ? ((selectedNode?.data as any)?.parentId as string)
@@ -1756,17 +1757,35 @@ export default function RightPanel() {
   };
 
   const canDeleteItem =
-    (isFolderNode || isFileNode || isImageNode || isFlowchartNode) &&
+    (isFolderNode || isFileNode || isImageNode || isFlowchartNode || isNonPersistentNode) &&
     !isRootNode &&
     !isDraftNode &&
     !!selectedNodeId &&
-    (moduleType === "cognitiveNotes" ? !!cognitiveNotesRoot : !!rootFolderJson);
+    (isNonPersistentNode
+      ? true
+      : moduleType === "cognitiveNotes"
+      ? !!cognitiveNotesRoot
+      : !!rootFolderJson);
 
   const onDeleteItem = async () => {
     if (!canDeleteItem || !selectedNodeId) return;
     setActionError(null);
     setDeleteConfirmOpen(true);
   };
+
+  useEffect(() => {
+    const onDeleteRequest = () => {
+      if (!selectedNodeId) return;
+      void onDeleteItem();
+    };
+    window.addEventListener("pm-request-delete-selected-node", onDeleteRequest);
+    return () => {
+      window.removeEventListener(
+        "pm-request-delete-selected-node",
+        onDeleteRequest
+      );
+    };
+  }, [selectedNodeId, onDeleteItem]);
 
   const deleteCognitiveNotesNode = async () => {
     if (!cognitiveNotesRoot || !selectedNodeId) return;
@@ -1817,12 +1836,35 @@ export default function RightPanel() {
             )
           : [],
       }));
-    await persistCognitiveNotesRoot({ ...cognitiveNotesRoot, child: nextChild });
+    const nextFlowEdges = (cognitiveNotesRoot.flowchart_edges ?? []).filter(
+      (edge) => !removedIds.has(edge.source) && !removedIds.has(edge.target)
+    );
+    await persistCognitiveNotesRoot({
+      ...cognitiveNotesRoot,
+      child: nextChild,
+      flowchart_edges: nextFlowEdges,
+    });
   };
 
   const confirmDeleteItem = async () => {
     if (!canDeleteItem || !selectedNodeId) return;
     setDeleteInProgress(true);
+    if (isNonPersistentNode && !isFlowchartNode) {
+      const nodeId = selectedNodeId;
+      setNodes((nodes ?? []).filter((node: any) => node?.id !== nodeId));
+      setEdges(
+        (edges ?? []).filter(
+          (edge: any) => edge?.source !== nodeId && edge?.target !== nodeId
+        )
+      );
+      selectNode(null);
+      selectEdge(null);
+      setDirty(false);
+      setSaveStatus("saved");
+      setDeleteConfirmOpen(false);
+      setDeleteInProgress(false);
+      return;
+    }
     if (isFlowchartNode) {
       setSaveStatus("saving");
       try {

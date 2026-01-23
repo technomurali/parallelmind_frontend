@@ -2124,6 +2124,9 @@ export class FileManager {
       delete nextPositions[id];
       delete nextSizes[id];
     });
+    const nextFlowEdges = (existing.flowchart_edges ?? []).filter(
+      (edge) => !removedIds.has(edge.source) && !removedIds.has(edge.target)
+    );
     const updatedRoot: RootFolderJson = {
       ...existing,
       path: dirPath,
@@ -2131,6 +2134,7 @@ export class FileManager {
       child: updated.nodes,
       node_positions: nextPositions,
       node_size: nextSizes,
+      flowchart_edges: nextFlowEdges,
     };
     const fileName = this.getIndexFileNameFromPath(dirPath);
     await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, fileName);
@@ -2354,6 +2358,9 @@ export class FileManager {
     const nextSizes = { ...(existing.node_size ?? {}) };
     delete nextPositions[nodeId];
     delete nextSizes[nodeId];
+    const nextFlowEdges = (existing.flowchart_edges ?? []).filter(
+      (edge) => edge.source !== nodeId && edge.target !== nodeId
+    );
 
     const updatedRoot: RootFolderJson = {
       ...existing,
@@ -2362,6 +2369,7 @@ export class FileManager {
       child: updated.nodes,
       node_positions: nextPositions,
       node_size: nextSizes,
+      flowchart_edges: nextFlowEdges,
     };
     const indexFileName = this.getIndexFileNameFromPath(dirPath);
     await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, indexFileName);

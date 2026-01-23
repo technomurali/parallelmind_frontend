@@ -147,10 +147,11 @@ export default function MindMap() {
         .map((node: any) => node.id)
     );
     return (edgesList ?? [])
-      .filter(
-        (edge: any) =>
-          nodeIds.has(edge?.source) && nodeIds.has(edge?.target)
-      )
+      .filter((edge: any) => {
+        const sourceIsFlow = nodeIds.has(edge?.source);
+        const targetIsFlow = nodeIds.has(edge?.target);
+        return sourceIsFlow || targetIsFlow;
+      })
       .map((edge: any) => ({
         id: edge.id,
         source: edge.source,
@@ -1267,7 +1268,7 @@ export default function MindMap() {
       (node: any) => node?.id === connection.target
     );
     const isFlowchartEdge =
-      isFlowchartNode(sourceNode) && isFlowchartNode(targetNode);
+      isFlowchartNode(sourceNode) || isFlowchartNode(targetNode);
     if (!isCognitiveNotes && !isFlowchartEdge) return;
 
     const edgeId = `e_${connection.source}_${connection.target}_${Date.now()}`;

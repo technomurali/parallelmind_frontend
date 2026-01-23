@@ -18,7 +18,7 @@ import RightPanel from './containers/RightPanel'
 import { uiText } from './constants/uiText'
 import { GlobalHeaderBar } from './components/GlobalHeaderBar'
 import Settings from './containers/Settings'
-import { useMindMapStore } from './store/mindMapStore'
+import { selectActiveTab, useMindMapStore } from './store/mindMapStore'
 
 /**
  * Main App component
@@ -32,6 +32,9 @@ function App() {
   const undo = useMindMapStore((s) => s.undo)
   const redo = useMindMapStore((s) => s.redo)
   const deleteSelectedEdge = useMindMapStore((s) => s.deleteSelectedEdge)
+  const selectedNodeId = useMindMapStore(
+    (s) => selectActiveTab(s)?.selectedNodeId ?? null
+  )
   const appWrapperRef = useRef<HTMLDivElement | null>(null)
   const isDesktopMode =
     typeof (window as any).__TAURI_INTERNALS__ !== 'undefined'
@@ -94,6 +97,10 @@ function App() {
     const onDeleteKey = (event: KeyboardEvent) => {
       if (isTextInput(document.activeElement)) return
       if (event.key === 'Delete') {
+        if (selectedNodeId) {
+          window.dispatchEvent(new CustomEvent('pm-request-delete-selected-node'))
+          return
+        }
         deleteSelectedEdge()
       }
     }
@@ -104,7 +111,7 @@ function App() {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keydown', onDeleteKey)
     }
-  }, [undo, redo, deleteSelectedEdge])
+  }, [undo, redo, deleteSelectedEdge, selectedNodeId])
 
   return (
     <>
