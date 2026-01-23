@@ -29,6 +29,46 @@ import {
 } from "../../extensions/cognitiveNotes/data/cognitiveNotesManager";
 import { useAutoSave } from "../../hooks/useAutoSave";
 import SmartPad from "../../components/SmartPad";
+import { parseYouTubeVideoId } from "../../utils/youtube";
+
+type YoutubeSettings = {
+  startSeconds: number;
+  endSeconds: number;
+  loop: boolean;
+  mute: boolean;
+  controls: boolean;
+};
+
+const DEFAULT_YT_SETTINGS: YoutubeSettings = {
+  startSeconds: 0,
+  endSeconds: 0,
+  loop: false,
+  mute: false,
+  controls: true,
+};
+
+const normalizeYoutubeSettings = (value: unknown): YoutubeSettings => {
+  if (!value || typeof value !== "object") return { ...DEFAULT_YT_SETTINGS };
+  const settings = value as Partial<YoutubeSettings>;
+  const startSeconds =
+    typeof settings.startSeconds === "number" && Number.isFinite(settings.startSeconds)
+      ? Math.max(0, settings.startSeconds)
+      : DEFAULT_YT_SETTINGS.startSeconds;
+  const endSeconds =
+    typeof settings.endSeconds === "number" && Number.isFinite(settings.endSeconds)
+      ? Math.max(0, settings.endSeconds)
+      : DEFAULT_YT_SETTINGS.endSeconds;
+  return {
+    startSeconds,
+    endSeconds,
+    loop: !!settings.loop,
+    mute: !!settings.mute,
+    controls:
+      typeof settings.controls === "boolean"
+        ? settings.controls
+        : DEFAULT_YT_SETTINGS.controls,
+  };
+};
 
 /**
  * RightPanel component
@@ -116,6 +156,9 @@ export default function RightPanel() {
     name: "",
     purpose: "",
     details: "",
+    youtube_url: "",
+    youtube_video_id: "",
+    yt_settings: DEFAULT_YT_SETTINGS,
   });
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
@@ -158,7 +201,14 @@ export default function RightPanel() {
       lastHydratedSelectedIdRef.current !== selectedNodeId;
 
     if (!selectedNodeId) {
-      setDraft({ name: "", purpose: "", details: "" });
+      setDraft({
+        name: "",
+        purpose: "",
+        details: "",
+        youtube_url: "",
+        youtube_video_id: "",
+        yt_settings: DEFAULT_YT_SETTINGS,
+      });
       setSaveStatus("idle");
       setDirty(false);
       setCreateError(null);
@@ -194,6 +244,13 @@ export default function RightPanel() {
       : isImage && caption
       ? caption
       : baseName;
+    const youtubeUrl =
+      typeof data.youtube_url === "string" ? data.youtube_url : "";
+    const youtubeVideoId =
+      typeof data.youtube_video_id === "string"
+        ? data.youtube_video_id
+        : parseYouTubeVideoId(youtubeUrl) ?? "";
+    const ytSettings = normalizeYoutubeSettings(data.yt_settings);
 
     // If the selection changed, re-hydrate and reset editing state.
     // If only `nodes` changed while the user is typing (dirty=true), do not clobber
@@ -203,6 +260,9 @@ export default function RightPanel() {
         name: hydratedName,
         purpose: typeof data.purpose === "string" ? data.purpose : "",
         details: typeof data.details === "string" ? data.details : "",
+        youtube_url: youtubeUrl,
+        youtube_video_id: youtubeVideoId,
+        yt_settings: ytSettings,
       });
       const sortIndexValue =
         typeof data.sort_index === "number" && Number.isFinite(data.sort_index)
@@ -272,9 +332,10 @@ export default function RightPanel() {
   const isDecisionNode =
     (selectedNode?.data as any)?.node_type === "decision" ||
     (selectedNode?.data as any)?.type === "decision";
-  const isFlowchartNode =
-    isFlowchartNodeType((selectedNode?.data as any)?.node_type) ||
-    isFlowchartNodeType((selectedNode as any)?.type);
+  const flowchartType =
+    (selectedNode?.data as any)?.node_type ?? (selectedNode as any)?.type;
+  const isFlowchartNode = isFlowchartNodeType(flowchartType);
+  const isYoutubeNode = flowchartType === "flowchart.youtube";
   const isNonPersistentNode = !!(selectedNode?.data as any)?.nonPersistent;
   const parentIdForDraft =
     typeof (selectedNode?.data as any)?.parentId === "string"
@@ -296,6 +357,7 @@ export default function RightPanel() {
     (selectedNode?.data as any)?.node_type === "fullImageNode" ||
     (selectedNode?.data as any)?.type === "fullImageNode" ||
     selectedNode?.type === "fullImageNode";
+  const youtubeSettings = draft.yt_settings ?? DEFAULT_YT_SETTINGS;
   const showSortIndex =
     moduleType === "cognitiveNotes" &&
     !isRootNode &&
@@ -595,6 +657,9 @@ export default function RightPanel() {
         name: draft.name.trim(),
         purpose: draft.purpose,
         details: draft.details,
+        youtube_url: draft.youtube_url,
+        youtube_video_id: draft.youtube_video_id,
+        yt_settings: draft.yt_settings,
       });
       setDirty(false);
       setSaveStatus("idle");
@@ -606,6 +671,9 @@ export default function RightPanel() {
       ...(isDraftNode ? { name: draft.name.trim() } : {}),
       purpose: draft.purpose,
       details: draft.details,
+      youtube_url: draft.youtube_url,
+      youtube_video_id: draft.youtube_video_id,
+      yt_settings: draft.yt_settings,
     });
 
     if (isFlowchartNode) {
@@ -621,6 +689,9 @@ export default function RightPanel() {
               type: flowType,
               name: draft.name.trim(),
               purpose: draft.purpose,
+              youtube_url: draft.youtube_url,
+              youtube_video_id: draft.youtube_video_id,
+              yt_settings: draft.yt_settings,
               updated_on: nowIso,
             }
           );
@@ -638,6 +709,9 @@ export default function RightPanel() {
             type: flowType,
             name: draft.name.trim(),
             purpose: draft.purpose,
+            youtube_url: draft.youtube_url,
+            youtube_video_id: draft.youtube_video_id,
+            yt_settings: draft.yt_settings,
             updated_on: nowIso,
           }
         );
@@ -847,8 +921,27 @@ export default function RightPanel() {
   };
 
   const upsertFlowchartNode = (
-    list: { id: string; type: string; name: string; purpose: string; created_on: string; updated_on: string }[],
-    payload: { id: string; type: string; name: string; purpose: string; updated_on: string }
+    list: {
+      id: string;
+      type: string;
+      name: string;
+      purpose: string;
+      created_on: string;
+      updated_on: string;
+      youtube_url?: string;
+      youtube_video_id?: string;
+      yt_settings?: YoutubeSettings;
+    }[],
+    payload: {
+      id: string;
+      type: string;
+      name: string;
+      purpose: string;
+      updated_on: string;
+      youtube_url?: string;
+      youtube_video_id?: string;
+      yt_settings?: YoutubeSettings;
+    }
   ) => {
     const index = list.findIndex((node) => node.id === payload.id);
     if (index >= 0) {
@@ -858,6 +951,15 @@ export default function RightPanel() {
         type: payload.type || existing.type,
         name: payload.name,
         purpose: payload.purpose,
+        youtube_url:
+          typeof payload.youtube_url === "string"
+            ? payload.youtube_url
+            : existing.youtube_url,
+        youtube_video_id:
+          typeof payload.youtube_video_id === "string"
+            ? payload.youtube_video_id
+            : existing.youtube_video_id,
+        yt_settings: payload.yt_settings ?? existing.yt_settings,
         updated_on: payload.updated_on,
       };
       return [
@@ -873,6 +975,9 @@ export default function RightPanel() {
         type: payload.type,
         name: payload.name,
         purpose: payload.purpose,
+        youtube_url: payload.youtube_url,
+        youtube_video_id: payload.youtube_video_id,
+        yt_settings: payload.yt_settings,
         created_on: payload.updated_on,
         updated_on: payload.updated_on,
       },
@@ -885,7 +990,16 @@ export default function RightPanel() {
       void commitSave();
     },
     3000,
-    [draft.name, draft.purpose, draft.details, selectedNodeId, dirty],
+    [
+      draft.name,
+      draft.purpose,
+      draft.details,
+      draft.youtube_url,
+      draft.youtube_video_id,
+      draft.yt_settings,
+      selectedNodeId,
+      dirty,
+    ],
     dirty
   );
 
@@ -974,6 +1088,29 @@ export default function RightPanel() {
       setDirty(true);
       setSaveStatus("saving");
     };
+
+  const onYoutubeUrlChange = (value: string) => {
+    const videoId = parseYouTubeVideoId(value) ?? "";
+    setDraft((d) => ({
+      ...d,
+      youtube_url: value,
+      youtube_video_id: videoId,
+    }));
+    setDirty(true);
+    setSaveStatus("saving");
+  };
+
+  const onYoutubeSettingsChange = (partial: Partial<YoutubeSettings>) => {
+    setDraft((d) => ({
+      ...d,
+      yt_settings: {
+        ...d.yt_settings,
+        ...partial,
+      },
+    }));
+    setDirty(true);
+    setSaveStatus("saving");
+  };
 
   const onEdgePurposeChange = (value: string) => {
     setEdgeDraft((d) => ({ ...d, purpose: value }));
@@ -1093,6 +1230,7 @@ export default function RightPanel() {
     "flowchart.decision": uiText.flowchartNodes.decision,
     "flowchart.circle": uiText.flowchartNodes.circle,
     "flowchart.parallelogram": uiText.flowchartNodes.parallelogram,
+    "flowchart.youtube": uiText.flowchartNodes.youtube,
   };
 
   const flowchartSelectorItems = FLOWCHART_NODE_DEFINITIONS.map((def) => ({
@@ -1113,6 +1251,7 @@ export default function RightPanel() {
       /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(defaultColor.trim())
         ? defaultColor.trim()
         : undefined;
+    const isYoutubeType = type === "flowchart.youtube";
     const tempNode: any = {
       id: tempNodeId,
       type,
@@ -1122,6 +1261,9 @@ export default function RightPanel() {
         node_type: type,
         name: "",
         purpose: "",
+        youtube_url: isYoutubeType ? "" : undefined,
+        youtube_video_id: isYoutubeType ? "" : undefined,
+        yt_settings: isYoutubeType ? { ...DEFAULT_YT_SETTINGS } : undefined,
         created_on: nowIso,
         updated_on: nowIso,
         node_color: nodeColor,
@@ -1161,6 +1303,9 @@ export default function RightPanel() {
         type: (selectedNode?.data as any)?.node_type ?? (selectedNode as any)?.type,
         name: trimmedName,
         purpose: draft.purpose,
+        youtube_url: draft.youtube_url,
+        youtube_video_id: draft.youtube_video_id,
+        yt_settings: draft.yt_settings,
         created_on: nowIso,
         updated_on: nowIso,
       };
@@ -2610,6 +2755,190 @@ export default function RightPanel() {
                             />
                           )}
                         </label>
+                        {isYoutubeNode && (
+                          <div
+                            style={{
+                              display: "grid",
+                              gap: "var(--space-2)",
+                              width: "100%",
+                              minWidth: 0,
+                            }}
+                          >
+                            <label
+                              style={{
+                                display: "grid",
+                                gap: "var(--space-2)",
+                                width: "100%",
+                                minWidth: 0,
+                              }}
+                            >
+                              <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                                {uiText.fields.nodeDetails.youtubeLink}
+                              </div>
+                              <input
+                                value={draft.youtube_url}
+                                onChange={(e) => onYoutubeUrlChange(e.target.value)}
+                                onBlur={() => {
+                                  void commitSave();
+                                }}
+                                placeholder={uiText.placeholders.youtubeLink}
+                                aria-label={uiText.fields.nodeDetails.youtubeLink}
+                                style={{
+                                  width: "100%",
+                                  minWidth: 0,
+                                  boxSizing: "border-box",
+                                  borderRadius: "var(--radius-md)",
+                                  border: "var(--border-width) solid var(--border)",
+                                  padding: "var(--space-2)",
+                                  background: "var(--surface-1)",
+                                  color: "var(--text)",
+                                  fontFamily: "var(--font-family)",
+                                }}
+                              />
+                            </label>
+                            <div
+                              style={{
+                                display: "grid",
+                                gap: "var(--space-2)",
+                                width: "100%",
+                                minWidth: 0,
+                                padding: "var(--space-2)",
+                                borderRadius: "var(--radius-md)",
+                                border: "var(--border-width) solid var(--border)",
+                                background: "var(--surface-1)",
+                              }}
+                            >
+                              <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                                {uiText.fields.nodeDetails.youtubeSettings}
+                              </div>
+                              <div
+                                style={{
+                                  display: "grid",
+                                  gridTemplateColumns: "1fr 1fr",
+                                  gap: "var(--space-2)",
+                                }}
+                              >
+                                <label style={{ display: "grid", gap: 6 }}>
+                                  <span style={{ fontSize: "0.75rem", opacity: 0.8 }}>
+                                    {uiText.fields.nodeDetails.youtubeStart}
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={youtubeSettings.startSeconds}
+                                    onChange={(e) => {
+                                      const next = Number(e.target.value);
+                                      onYoutubeSettingsChange({
+                                        startSeconds: Number.isFinite(next) ? Math.max(0, next) : 0,
+                                      });
+                                    }}
+                                    onBlur={() => {
+                                      void commitSave();
+                                    }}
+                                    style={{
+                                      width: "100%",
+                                      borderRadius: "var(--radius-md)",
+                                      border: "var(--border-width) solid var(--border)",
+                                      padding: "var(--space-2)",
+                                      background: "var(--surface-2)",
+                                      color: "var(--text)",
+                                      fontFamily: "var(--font-family)",
+                                    }}
+                                  />
+                                </label>
+                                <label style={{ display: "grid", gap: 6 }}>
+                                  <span style={{ fontSize: "0.75rem", opacity: 0.8 }}>
+                                    {uiText.fields.nodeDetails.youtubeEnd}
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={youtubeSettings.endSeconds}
+                                    onChange={(e) => {
+                                      const next = Number(e.target.value);
+                                      onYoutubeSettingsChange({
+                                        endSeconds: Number.isFinite(next) ? Math.max(0, next) : 0,
+                                      });
+                                    }}
+                                    onBlur={() => {
+                                      void commitSave();
+                                    }}
+                                    style={{
+                                      width: "100%",
+                                      borderRadius: "var(--radius-md)",
+                                      border: "var(--border-width) solid var(--border)",
+                                      padding: "var(--space-2)",
+                                      background: "var(--surface-2)",
+                                      color: "var(--text)",
+                                      fontFamily: "var(--font-family)",
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                              <div
+                                style={{
+                                  display: "grid",
+                                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                                  gap: "var(--space-2)",
+                                }}
+                              >
+                                <label
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    fontSize: "0.8rem",
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!!youtubeSettings.loop}
+                                    onChange={(e) =>
+                                      onYoutubeSettingsChange({ loop: e.target.checked })
+                                    }
+                                  />
+                                  {uiText.fields.nodeDetails.youtubeLoop}
+                                </label>
+                                <label
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    fontSize: "0.8rem",
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!!youtubeSettings.mute}
+                                    onChange={(e) =>
+                                      onYoutubeSettingsChange({ mute: e.target.checked })
+                                    }
+                                  />
+                                  {uiText.fields.nodeDetails.youtubeMute}
+                                </label>
+                                <label
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    fontSize: "0.8rem",
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!!youtubeSettings.controls}
+                                    onChange={(e) =>
+                                      onYoutubeSettingsChange({ controls: e.target.checked })
+                                    }
+                                  />
+                                  {uiText.fields.nodeDetails.youtubeControls}
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </>
                     )}
 

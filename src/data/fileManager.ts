@@ -58,6 +58,15 @@ export type FlowchartNode = {
   purpose: string;
   created_on: string;
   updated_on: string;
+  youtube_url?: string;
+  youtube_video_id?: string;
+  yt_settings?: {
+    startSeconds?: number;
+    endSeconds?: number;
+    loop?: boolean;
+    mute?: boolean;
+    controls?: boolean;
+  };
 };
 
 export type FlowchartEdge = {
@@ -578,19 +587,31 @@ export class FileManager {
       : [];
     const flowchart_nodes: FlowchartNode[] = rawFlowchartNodes
       .filter((node) => node && typeof node === "object")
-      .map((node) => ({
-        id: typeof node.id === "string" ? node.id : "",
-        type: typeof node.type === "string" ? node.type : "",
-        name: typeof node.name === "string" ? node.name : "",
-        purpose: typeof node.purpose === "string" ? node.purpose : "",
-        created_on: typeof node.created_on === "string" ? node.created_on : "",
-        updated_on:
-          typeof node.updated_on === "string"
-            ? node.updated_on
-            : typeof node.created_on === "string"
-            ? node.created_on
-            : "",
-      }))
+      .map((node) => {
+        const base = {
+          id: typeof node.id === "string" ? node.id : "",
+          type: typeof node.type === "string" ? node.type : "",
+          name: typeof node.name === "string" ? node.name : "",
+          purpose: typeof node.purpose === "string" ? node.purpose : "",
+          created_on: typeof node.created_on === "string" ? node.created_on : "",
+          updated_on:
+            typeof node.updated_on === "string"
+              ? node.updated_on
+              : typeof node.created_on === "string"
+              ? node.created_on
+              : "",
+        } as FlowchartNode;
+        if (typeof node.youtube_url === "string") {
+          base.youtube_url = node.youtube_url;
+        }
+        if (typeof node.youtube_video_id === "string") {
+          base.youtube_video_id = node.youtube_video_id;
+        }
+        if (node.yt_settings && typeof node.yt_settings === "object") {
+          base.yt_settings = { ...(node.yt_settings as any) };
+        }
+        return base;
+      })
       .filter((node) => node.id && node.type);
 
     const rawFlowchartEdges = Array.isArray(obj.flowchart_edges)

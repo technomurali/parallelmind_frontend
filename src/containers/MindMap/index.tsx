@@ -52,6 +52,7 @@ import {
   FlowchartDecisionNode,
   FlowchartCircleNode,
   FlowchartParallelogramNode,
+  FlowchartYoutubeNode,
   isFlowchartNodeType,
 } from "./flowchartnode";
 
@@ -67,6 +68,7 @@ const NODE_TYPES = {
   "flowchart.decision": FlowchartDecisionNode,
   "flowchart.circle": FlowchartCircleNode,
   "flowchart.parallelogram": FlowchartParallelogramNode,
+  "flowchart.youtube": FlowchartYoutubeNode,
 } as const;
 
 /**

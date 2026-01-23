@@ -56,6 +56,10 @@ export const uiText = {
       name: 'Parallelogram',
       purpose: 'Input or output.',
     },
+    youtube: {
+      name: 'YouTube Player',
+      purpose: 'Embed a YouTube video with controls.',
+    },
   },
   settings: {
     appearance: {
@@ -102,6 +106,13 @@ export const uiText = {
       decisionDetailsLabel: 'Details',
       createdTime: 'Created',
       updatedTime: 'Updated',
+      youtubeLink: 'YouTube link',
+      youtubeSettings: 'Player settings',
+      youtubeStart: 'Start (sec)',
+      youtubeEnd: 'End (sec)',
+      youtubeLoop: 'Loop',
+      youtubeMute: 'Mute',
+      youtubeControls: 'Controls',
     },
     edgeDetails: {
       purpose: 'Purpose',
@@ -353,6 +364,7 @@ export const uiText = {
     nodeContent: 'Enter node content...',
     nodePurpose: 'Enter purpose',
     nodeDecisionDetails: 'Enter details',
+    youtubeLink: 'Paste YouTube URL or video ID',
     fileContentEmpty: 'No content to display.',
     fileContentUnavailable: 'Unable to load file content.',
     settingsContainer: 'Settings Container',
