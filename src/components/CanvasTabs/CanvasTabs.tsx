@@ -20,6 +20,9 @@ export function CanvasTabs() {
   const activeTabId = useMindMapStore((s) => s.activeTabId);
   const setActiveTab = useMindMapStore((s) => s.setActiveTab);
   const closeTab = useMindMapStore((s) => s.closeTab);
+  const activeTabColors = useMindMapStore(
+    (s) => s.settings.appearance.activeTabColors
+  );
 
   const fallbackTitle = uiText.tabs.untitled;
 
@@ -30,6 +33,13 @@ export function CanvasTabs() {
         const fullTitle = tab.title?.trim() || fallbackTitle;
         const displayTitle = formatTabTitle(fullTitle);
         const tooltip = formatTabTooltip(fullTitle, tab.moduleType ?? null);
+        const activeColor = isActive
+          ? tab.moduleType === "cognitiveNotes"
+            ? activeTabColors.cognitiveNotes
+            : tab.moduleType === "parallelmind"
+            ? activeTabColors.parallelmind
+            : null
+          : null;
 
         return (
           <div
@@ -39,6 +49,7 @@ export function CanvasTabs() {
             aria-selected={isActive}
             tabIndex={0}
             title={tooltip}
+            style={activeColor ? { background: activeColor } : undefined}
             onClick={() => setActiveTab(tab.id)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {

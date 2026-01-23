@@ -35,6 +35,7 @@ export default function RightPanel() {
   const setRightPanelWidth = useMindMapStore((s) => s.setRightPanelWidth);
   const rightPanelMode = useMindMapStore((s) => s.rightPanelMode);
   const setRightPanelMode = useMindMapStore((s) => s.setRightPanelMode);
+  const settings = useMindMapStore((s) => s.settings);
   const activeTab = useMindMapStore(selectActiveTab);
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
   const selectedEdgeId = activeTab?.selectedEdgeId ?? null;
@@ -981,6 +982,17 @@ export default function RightPanel() {
     const edgeId = parentIdForDraft
       ? `e_${parentIdForDraft}_${draftNodeId}`
       : null;
+    const defaultCognitiveNodeColor =
+      settings.appearance.cognitiveNotesDefaultNodeColor ?? "#4330d5";
+    const getNextNodeColors = () => {
+      const existing = cognitiveNotesRoot?.node_colors ?? {};
+      if (!defaultCognitiveNodeColor || !draftNodeId) return existing;
+      if (typeof existing[draftNodeId] === "string") return existing;
+      return {
+        ...existing,
+        [draftNodeId]: defaultCognitiveNodeColor,
+      };
+    };
     setSaveStatus("saving");
     try {
       if (moduleType === "cognitiveNotes") {
@@ -1007,6 +1019,7 @@ export default function RightPanel() {
             cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "",
             fileName
           );
+          const nextNodeColors = getNextNodeColors();
           setNodes(
             (nodes ?? []).map((node: any) =>
               node?.id === draftNodeId
@@ -1019,6 +1032,10 @@ export default function RightPanel() {
                       extension: ext,
                       path: nodePath,
                       purpose: draft.purpose,
+                      node_color:
+                        (node.data as any)?.node_color ??
+                        nextNodeColors[draftNodeId] ??
+                        undefined,
                       isDraft: false,
                       nonPersistent: false,
                     },
@@ -1044,7 +1061,11 @@ export default function RightPanel() {
               sort_index: null,
             },
           ];
-          await persistCognitiveNotesRoot({ ...cognitiveNotesRoot, child: nextChild });
+          await persistCognitiveNotesRoot({
+            ...cognitiveNotesRoot,
+            child: nextChild,
+            node_colors: nextNodeColors,
+          });
         } else {
           const nextFileName = splitDraftFileName(trimmedName).fullName;
           await writeCognitiveNotesFile(nextFileName, "");
@@ -1052,6 +1073,7 @@ export default function RightPanel() {
             cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "",
             nextFileName
           );
+          const nextNodeColors = getNextNodeColors();
           setNodes(
             (nodes ?? []).map((node: any) =>
               node?.id === draftNodeId
@@ -1063,6 +1085,10 @@ export default function RightPanel() {
                       extension: splitDraftFileName(trimmedName).extension,
                       path: nodePath,
                       purpose: draft.purpose,
+                      node_color:
+                        (node.data as any)?.node_color ??
+                        nextNodeColors[draftNodeId] ??
+                        undefined,
                       isDraft: false,
                       nonPersistent: false,
                     },
@@ -1088,7 +1114,11 @@ export default function RightPanel() {
               sort_index: null,
             },
           ];
-          await persistCognitiveNotesRoot({ ...cognitiveNotesRoot, child: nextChild });
+          await persistCognitiveNotesRoot({
+            ...cognitiveNotesRoot,
+            child: nextChild,
+            node_colors: nextNodeColors,
+          });
         }
 
         setPendingChildCreation(null);

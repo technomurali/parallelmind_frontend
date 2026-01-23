@@ -116,6 +116,72 @@ export default function Settings() {
                           aria-label="Font size"
                         />
                       </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">
+                            Active tab color (Parallelmind)
+                          </div>
+                          <div className="pm-settings__rowDesc">
+                            Controls the active tab background color.
+                          </div>
+                        </div>
+                        <input
+                          className="pm-settings__control"
+                          type="color"
+                          value={
+                            settings.appearance.activeTabColors?.parallelmind ??
+                            "#1a4a8e"
+                          }
+                          onChange={(e) =>
+                            updateSettings({
+                              appearance: {
+                                ...settings.appearance,
+                                activeTabColors: {
+                                  ...settings.appearance.activeTabColors,
+                                  parallelmind: e.target.value,
+                                },
+                              },
+                            })
+                          }
+                          aria-label="Active tab color (Parallelmind)"
+                        />
+                      </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">
+                            Active tab color (Cognitive Notes)
+                          </div>
+                          <div className="pm-settings__rowDesc">
+                            Controls the active tab background color.
+                          </div>
+                        </div>
+                        <input
+                          className="pm-settings__control"
+                          type="color"
+                          value={
+                            settings.appearance.activeTabColors?.cognitiveNotes ??
+                            "#7412b5"
+                          }
+                          onChange={(e) =>
+                            updateSettings({
+                              appearance: {
+                                ...settings.appearance,
+                                activeTabColors: {
+                                  ...settings.appearance.activeTabColors,
+                                  cognitiveNotes: e.target.value,
+                                },
+                              },
+                            })
+                          }
+                          aria-label="Active tab color (Cognitive Notes)"
+                        />
+                      </div>
                     </>
                   ),
                 },
@@ -484,6 +550,36 @@ export default function Settings() {
                   desc: "Color rules applied to nodes.",
                   content: (
                     <>
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">
+                            Cognitive Notes default node color
+                          </div>
+                          <div className="pm-settings__rowDesc">
+                            Applied to new Cognitive Notes nodes.
+                          </div>
+                        </div>
+                        <input
+                          className="pm-settings__control"
+                          type="color"
+                          value={
+                            settings.appearance.cognitiveNotesDefaultNodeColor ??
+                            "#4330d5"
+                          }
+                          onChange={(e) =>
+                            updateSettings({
+                              appearance: {
+                                ...settings.appearance,
+                                cognitiveNotesDefaultNodeColor: e.target.value,
+                              },
+                            })
+                          }
+                          aria-label="Cognitive Notes default node color"
+                        />
+                      </div>
+
+                      <div className="pm-settings__divider" />
+
                       <div className="pm-settings__row">
                         <div className="pm-settings__rowText">
                           <div className="pm-settings__rowTitle">Node fill colors</div>

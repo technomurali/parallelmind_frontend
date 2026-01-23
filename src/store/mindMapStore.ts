@@ -250,6 +250,11 @@ export interface AppSettings {
       level3: string;
       level4: string;
     };
+    activeTabColors: {
+      parallelmind: string;
+      cognitiveNotes: string;
+    };
+    cognitiveNotesDefaultNodeColor: string;
   };
   interaction: {
     lockNodePositions: boolean;
@@ -366,6 +371,11 @@ export const useMindMapStore = create<MindMapStore>((set) => {
           level3: '#60A5FA',
           level4: '#BFDBFE',
         },
+        activeTabColors: {
+          parallelmind: "#1a4a8e",
+          cognitiveNotes: "#7412b5",
+        },
+        cognitiveNotesDefaultNodeColor: "#4330d5",
       },
       interaction: {
         lockNodePositions: false,
