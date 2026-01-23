@@ -329,7 +329,7 @@ export default function MindMap() {
   }, [activeTab?.id, cognitiveNotesRoot?.id]);
   const nodeTypes = NODE_TYPES;
   const parentPath = useMemo(() => {
-    if (isCognitiveNotes || !showParentPath || !selectedNodeId) {
+    if (!showParentPath || !selectedNodeId) {
       return { nodeIds: new Set<string>(), edgeIds: new Set<string>() };
     }
     const edgeByTarget = new Map<string, Edge>();
@@ -349,12 +349,7 @@ export default function MindMap() {
       currentId = edge.source;
     }
     return { nodeIds, edgeIds };
-  }, [edges, isCognitiveNotes, selectedNodeId, showParentPath]);
-
-  useEffect(() => {
-    if (!isCognitiveNotes) return;
-    if (showParentPath) setShowParentPath(false);
-  }, [isCognitiveNotes, showParentPath]);
+  }, [edges, selectedNodeId, showParentPath]);
 
   const childrenPath = useMemo(() => {
     if (!showChildrenPath || !selectedNodeId) {
@@ -3088,39 +3083,37 @@ export default function MindMap() {
                 padding: "6px",
               }}
             >
-              {!isCognitiveNotes ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setShowParentPath((prev) => !prev);
-                    closeContextMenu();
-                  }}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "8px 10px",
-                    borderRadius: "var(--radius-sm)",
-                    border: "none",
-                    background: "transparent",
-                    color: "inherit",
-                    cursor: "pointer",
-                    fontFamily: "var(--font-family)",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background =
-                      "var(--surface-1)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background =
-                      "transparent";
-                  }}
-                >
-                  {showParentPath
-                    ? uiText.contextMenus.node.hideParentPath
-                    : uiText.contextMenus.node.showParentPath}
-                </button>
-              ) : null}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setShowParentPath((prev) => !prev);
+                  closeContextMenu();
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-family)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+              >
+                {showParentPath
+                  ? uiText.contextMenus.node.hideParentPath
+                  : uiText.contextMenus.node.showParentPath}
+              </button>
               <button
                 type="button"
                 role="menuitem"

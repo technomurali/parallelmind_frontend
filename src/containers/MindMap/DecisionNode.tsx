@@ -17,6 +17,7 @@ const DECISION_PATH_D =
 export default function DecisionNode({ data, selected }: NodeProps<any>) {
   const settings = useMindMapStore((s) => s.settings);
   const activeTab = useMindMapStore(selectActiveTab);
+  const isCognitiveNotes = activeTab?.moduleType === "cognitiveNotes";
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
   const isExpanded = !areNodesCollapsed;
   const nodeTextColor =
@@ -34,11 +35,9 @@ export default function DecisionNode({ data, selected }: NodeProps<any>) {
   const stroke = selected ? "var(--primary-color)" : "var(--border)";
   const levelValue =
     typeof (data as any)?.level === "number" ? (data as any).level : 0;
-  const fillColor = getNodeFillColor(
-    settings,
-    levelValue,
-    "var(--surface-2)"
-  );
+  const fillColor = isCognitiveNotes
+    ? "var(--surface-2)"
+    : getNodeFillColor(settings, levelValue, "var(--surface-2)");
   const fillOpacity = 0.98;
 
   const baseNodeSize = settings.appearance.nodeSize;

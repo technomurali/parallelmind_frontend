@@ -158,6 +158,7 @@ export default function RootFolderNode({
 }: NodeProps<RootFolderJson>) {
   const settings = useMindMapStore((s) => s.settings);
   const activeTab = useMindMapStore(selectActiveTab);
+  const isCognitiveNotes = activeTab?.moduleType === "cognitiveNotes";
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const updateRootFolderJson = useMindMapStore((s) => s.updateRootFolderJson);
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
@@ -211,11 +212,9 @@ export default function RootFolderNode({
 
   const levelValue =
     typeof (data as any)?.level === "number" ? (data as any).level : 0;
-  const fillColor = getNodeFillColor(
-    settings,
-    levelValue,
-    "var(--surface-2)"
-  );
+  const fillColor = isCognitiveNotes
+    ? "var(--surface-2)"
+    : getNodeFillColor(settings, levelValue, "var(--surface-2)");
 
   // Extract text content from node data based on display mode.
   const nodeName =

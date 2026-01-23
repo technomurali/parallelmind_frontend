@@ -22,6 +22,7 @@ export default function FileNode({
 }: NodeProps<any>) {
   const settings = useMindMapStore((s) => s.settings);
   const activeTab = useMindMapStore(selectActiveTab);
+  const isCognitiveNotes = activeTab?.moduleType === "cognitiveNotes";
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const updateRootFolderJson = useMindMapStore((s) => s.updateRootFolderJson);
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
@@ -50,12 +51,11 @@ export default function FileNode({
   const strokeWidth = selected ? 6 : 4;
   const levelValue =
     typeof (data as any)?.level === "number" ? (data as any).level : 0;
-  const fillColor = getNodeFillColor(
-    settings,
-    levelValue,
-    "var(--surface-2)",
-    { variant: "file" }
-  );
+  const fillColor = isCognitiveNotes
+    ? "var(--surface-2)"
+    : getNodeFillColor(settings, levelValue, "var(--surface-2)", {
+        variant: "file",
+      });
   const fillOpacity = 0.98;
   const baseNodeSize = settings.appearance.nodeSize;
   const storedSize =
