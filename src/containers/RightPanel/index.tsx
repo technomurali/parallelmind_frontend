@@ -34,6 +34,7 @@ export default function RightPanel() {
   const rightPanelWidth = useMindMapStore((s) => s.rightPanelWidth);
   const setRightPanelWidth = useMindMapStore((s) => s.setRightPanelWidth);
   const rightPanelMode = useMindMapStore((s) => s.rightPanelMode);
+  const setRightPanelMode = useMindMapStore((s) => s.setRightPanelMode);
   const activeTab = useMindMapStore(selectActiveTab);
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
   const selectedEdgeId = activeTab?.selectedEdgeId ?? null;
@@ -83,6 +84,11 @@ export default function RightPanel() {
       lastExpandedWidthRef.current = rightPanelWidth;
     }
   }, [rightPanelWidth, isReduced]);
+
+  useEffect(() => {
+    if (!selectedNodeId) return;
+    setRightPanelMode("nodeDetails");
+  }, [selectedNodeId, setRightPanelMode]);
 
   const togglePanel = () => {
     if (isReduced) {
