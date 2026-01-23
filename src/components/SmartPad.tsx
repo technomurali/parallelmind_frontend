@@ -84,6 +84,18 @@ const isTextMime = (mimeType: string): boolean => {
   return false;
 };
 
+const joinPath = (dirPath: string, fileName: string): string => {
+  const trimmed = dirPath.replace(/[\\/]+$/, "");
+  const sep = trimmed.includes("\\") ? "\\" : "/";
+  return `${trimmed}${sep}${fileName}`;
+};
+
+const isAbsolutePath = (value: string): boolean => {
+  if (!value) return false;
+  if (value.startsWith("/") || value.startsWith("\\")) return true;
+  return /^[A-Za-z]:[\\/]/.test(value);
+};
+
 const isFileNode = (node: Node | null): boolean =>
   !!node &&
   ((node?.data as any)?.node_type === "file" ||
@@ -97,6 +109,10 @@ export default function SmartPad({
   const fileManager = useMemo(() => new FileManager(), []);
   const activeTab = useMindMapStore(selectActiveTab);
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
+  const cognitiveNotesRoot = activeTab?.cognitiveNotesRoot ?? null;
+  const cognitiveNotesDirectoryHandle =
+    activeTab?.cognitiveNotesDirectoryHandle ?? null;
+  const cognitiveNotesFolderPath = activeTab?.cognitiveNotesFolderPath ?? null;
   const setRoot = useMindMapStore((s) => s.setRoot);
   const filePreviewRequestRef = useRef(0);
   const contentEditableRef = useRef<HTMLDivElement | null>(null);
@@ -140,6 +156,7 @@ export default function SmartPad({
       return;
     }
 
+    const isCognitiveNotes = activeTab?.moduleType === "cognitiveNotes";
     const nodePath =
       typeof (selectedNode?.data as any)?.path === "string"
         ? ((selectedNode?.data as any)?.path as string).trim()
@@ -149,6 +166,7 @@ export default function SmartPad({
       normalizeExtension(nodePath.split(".").pop());
     const isMarkdown = isMarkdownExtension(extensionValue);
     const extensionEligible = isTextExtension(extensionValue) || isMarkdown;
+    const contentEligible = isCognitiveNotes ? true : extensionEligible;
 
     if (!nodePath) {
       resetPreview("ineligible");
@@ -159,14 +177,14 @@ export default function SmartPad({
       setPreview({ status: "loading", content: "", isMarkdown });
 
       try {
-        if (rootDirectoryHandle) {
+        if (isCognitiveNotes && cognitiveNotesDirectoryHandle) {
           const file = await fileManager.getFileFromHandle({
-            rootHandle: rootDirectoryHandle,
+            rootHandle: cognitiveNotesDirectoryHandle,
             relPath: nodePath,
           });
           const mimeType = file.type ?? "";
           const eligible =
-            isMarkdown || extensionEligible || isTextMime(mimeType);
+            contentEligible || isMarkdown || extensionEligible || isTextMime(mimeType);
           if (!eligible) {
             resetPreview("ineligible");
             return;
@@ -181,12 +199,43 @@ export default function SmartPad({
           return;
         }
 
-        if (!extensionEligible) {
+        if (!isCognitiveNotes && rootDirectoryHandle) {
+          const file = await fileManager.getFileFromHandle({
+            rootHandle: rootDirectoryHandle,
+            relPath: nodePath,
+          });
+          const mimeType = file.type ?? "";
+          const eligible =
+            contentEligible || isMarkdown || extensionEligible || isTextMime(mimeType);
+          if (!eligible) {
+            resetPreview("ineligible");
+            return;
+          }
+          const content = await file.text();
+          if (filePreviewRequestRef.current !== requestId) return;
+          setPreview({
+            status: content ? "ready" : "empty",
+            content,
+            isMarkdown,
+          });
+          return;
+        }
+
+        if (!contentEligible) {
           resetPreview("ineligible");
           return;
         }
 
-        const content = await fileManager.readTextFileFromPath(nodePath);
+        const resolvePath = () => {
+          if (!isCognitiveNotes) return nodePath;
+          if (isAbsolutePath(nodePath)) return nodePath;
+          const basePath =
+            cognitiveNotesFolderPath ??
+            cognitiveNotesRoot?.path ??
+            "";
+          return basePath ? joinPath(basePath, nodePath) : nodePath;
+        };
+        const content = await fileManager.readTextFileFromPath(resolvePath());
         if (filePreviewRequestRef.current !== requestId) return;
         setPreview({
           status: content ? "ready" : "empty",
@@ -201,7 +250,15 @@ export default function SmartPad({
     };
 
     void load();
-  }, [selectedNode, rootDirectoryHandle, fileManager]);
+  }, [
+    selectedNode,
+    rootDirectoryHandle,
+    cognitiveNotesDirectoryHandle,
+    cognitiveNotesFolderPath,
+    cognitiveNotesRoot?.path,
+    activeTab?.moduleType,
+    fileManager,
+  ]);
 
   useEffect(() => {
     if (preview.status !== "ready" && preview.status !== "empty") return;
@@ -267,8 +324,16 @@ export default function SmartPad({
     }
 
     const nodeId = selectedNode?.id ?? null;
-    const hasDirectoryHandle = !!rootDirectoryHandle;
-    const hasPath = !!(rootFolderJson?.path && rootFolderJson.path.trim() !== "");
+    const isCognitiveNotes = activeTab?.moduleType === "cognitiveNotes";
+    const hasDirectoryHandle = isCognitiveNotes
+      ? !!cognitiveNotesDirectoryHandle
+      : !!rootDirectoryHandle;
+    const hasPath = isCognitiveNotes
+      ? !!(
+          (cognitiveNotesFolderPath && cognitiveNotesFolderPath.trim()) ||
+          (cognitiveNotesRoot?.path && cognitiveNotesRoot.path.trim())
+        )
+      : !!(rootFolderJson?.path && rootFolderJson.path.trim() !== "");
 
     if (!hasDirectoryHandle && !hasPath) {
       setSaveStatus("error");
@@ -281,16 +346,27 @@ export default function SmartPad({
       // Write file content
       if (hasDirectoryHandle) {
         await fileManager.writeTextFileFromHandle({
-          rootHandle: rootDirectoryHandle!,
+          rootHandle: isCognitiveNotes
+            ? cognitiveNotesDirectoryHandle!
+            : rootDirectoryHandle!,
           relPath: nodePath,
           content: currentContent,
         });
       } else {
-        await fileManager.writeTextFileFromPath(nodePath, currentContent);
+        const resolvePath = () => {
+          if (!isCognitiveNotes) return nodePath;
+          if (isAbsolutePath(nodePath)) return nodePath;
+          const basePath =
+            cognitiveNotesFolderPath ??
+            cognitiveNotesRoot?.path ??
+            "";
+          return basePath ? joinPath(basePath, nodePath) : nodePath;
+        };
+        await fileManager.writeTextFileFromPath(resolvePath(), currentContent);
       }
 
       // Update file node's updated_on timestamp in index
-      if (rootFolderJson) {
+      if (!isCognitiveNotes && rootFolderJson) {
         const updatedRoot = hasDirectoryHandle
           ? await fileManager.updateFileNodeTimestampFromHandle({
               dirHandle: rootDirectoryHandle!,

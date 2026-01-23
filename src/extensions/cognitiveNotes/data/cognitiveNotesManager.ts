@@ -988,7 +988,6 @@ export class CognitiveNotesManager {
       return { root: updated, created: false };
     }
     const createdRoot = await this.initializeIndexFromHandle(dirHandle);
-    await this.ensureMarkerFilesFromHandle(dirHandle, createdRoot.name);
     return { root: createdRoot, created: true };
   }
 
@@ -1004,7 +1003,6 @@ export class CognitiveNotesManager {
       return { root: updated, created: false };
     }
     const createdRoot = await this.initializeIndexFromPath(dirPath);
-    await this.ensureMarkerFilesFromPath(dirPath, createdRoot.name);
     return { root: createdRoot, created: true };
   }
 
