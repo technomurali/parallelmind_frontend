@@ -90,6 +90,7 @@ export default function MindMap() {
   const hasCustomLayout = activeTab?.hasCustomLayout ?? false;
   const shouldFitView = activeTab?.shouldFitView ?? false;
   const setShouldFitView = useMindMapStore((s) => s.setShouldFitView);
+  const setRightPanelMode = useMindMapStore((s) => s.setRightPanelMode);
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
@@ -2887,6 +2888,73 @@ export default function MindMap() {
                 padding: "6px",
               }}
             >
+              {/* Node Selector */}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setRightPanelMode("nodeSelector");
+                  closePaneMenu();
+                  // TODO: Implement Node Selector logic.
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-family)",
+                  whiteSpace: "normal",
+                  overflowWrap: "anywhere",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+              >
+                {uiText.contextMenus.canvas.nodeSelector}
+              </button>
+
+              {/* Node Details */}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setRightPanelMode("nodeDetails");
+                  closePaneMenu();
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-family)",
+                  whiteSpace: "normal",
+                  overflowWrap: "anywhere",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+              >
+                {uiText.contextMenus.canvas.nodeDetails}
+              </button>
+
               {/* New File */}
               <button
                 type="button"

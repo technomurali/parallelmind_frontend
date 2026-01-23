@@ -33,6 +33,15 @@ const openCognitiveNotes = async (): Promise<void> => {
         : await cognitiveNotesManager.loadOrCreateCognitiveNotesJson(selection);
 
     const store = useMindMapStore.getState();
+    const existingTab = store.tabs.find(
+      (tab) =>
+        tab.moduleType === "cognitiveNotes" &&
+        tab.cognitiveNotesRoot?.id === result.root.id
+    );
+    if (existingTab) {
+      store.setActiveTab(existingTab.id);
+      return;
+    }
     const activeTab = store.tabs.find((tab) => tab.id === store.activeTabId) ?? null;
     const firstEmptyTab = store.tabs.find((tab) => isEmptyTab(tab)) ?? null;
     const tabId =

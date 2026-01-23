@@ -33,6 +33,7 @@ import SmartPad from "../../components/SmartPad";
 export default function RightPanel() {
   const rightPanelWidth = useMindMapStore((s) => s.rightPanelWidth);
   const setRightPanelWidth = useMindMapStore((s) => s.setRightPanelWidth);
+  const rightPanelMode = useMindMapStore((s) => s.rightPanelMode);
   const activeTab = useMindMapStore(selectActiveTab);
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
   const selectedEdgeId = activeTab?.selectedEdgeId ?? null;
@@ -1568,7 +1569,11 @@ export default function RightPanel() {
   }, [setRightPanelWidth]);
 
   const panelTitle =
-    selectedEdgeId && !selectedNodeId ? uiText.panels.edge : uiText.panels.node;
+    rightPanelMode === "nodeSelector"
+      ? uiText.panels.nodeSelector
+      : selectedEdgeId && !selectedNodeId
+      ? uiText.panels.edge
+      : uiText.panels.node;
 
   return (
     <aside
@@ -1639,7 +1644,23 @@ export default function RightPanel() {
 
       {!isReduced ? (
         <div className="pm-panel__content">
-          {selectedEdgeId && !selectedNodeId ? (
+          {rightPanelMode === "nodeSelector" ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-2)",
+                padding: "var(--space-3)",
+                color: "var(--text)",
+                fontSize: "0.85rem",
+              }}
+            >
+              <div style={{ fontWeight: 600 }}>{uiText.panels.nodeSelector}</div>
+              <div style={{ opacity: 0.8 }}>
+                TODO: Implement Node Selector for Cognitive Notes and Parallelmind.
+              </div>
+            </div>
+          ) : selectedEdgeId && !selectedNodeId ? (
             <div
               aria-label={uiText.fields.edgeDetails.sectionTitle}
               style={{

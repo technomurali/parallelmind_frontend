@@ -267,6 +267,7 @@ export interface MindMapState {
   leftPanelWidth: number;
   rightPanelWidth: number;
   settingsOpen: boolean;
+  rightPanelMode: "nodeDetails" | "nodeSelector";
   tabs: CanvasTab[];
   activeTabId: string;
 }
@@ -302,6 +303,7 @@ export interface MindMapActions {
   updateRootFolderJson: (root: RootFolderJson) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   toggleSettings: () => void;
+  setRightPanelMode: (mode: "nodeDetails" | "nodeSelector") => void;
   setNodesCollapsed: (collapsed: boolean) => void;
   createTab: () => string;
   closeTab: (tabId: string) => void;
@@ -392,6 +394,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
   leftPanelWidth: 280,
   rightPanelWidth: 360,
   settingsOpen: false,
+  rightPanelMode: "nodeDetails",
   tabs: [initialTab],
   activeTabId: initialTab.id,
 
@@ -648,6 +651,10 @@ export const useMindMapStore = create<MindMapStore>((set) => {
     })),
   toggleSettings: () =>
     set((state) => ({ settingsOpen: !state.settingsOpen })),
+  setRightPanelMode: (mode) =>
+    set(() => ({
+      rightPanelMode: mode,
+    })),
   setNodesCollapsed: (collapsed) =>
     set((state) => ({
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({

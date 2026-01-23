@@ -29,6 +29,7 @@ export const uiText = {
     settings: 'Settings',
     mindMap: 'Mind Map',
     folderTree: 'Folder Tree',
+    nodeSelector: 'Node Selector',
   },
   settings: {
     appearance: {
@@ -302,6 +303,8 @@ export const uiText = {
       paste: 'Paste',
       selectAll: 'Select All',
       clearSelection: 'Clear Selection',
+      nodeSelector: 'Node Selector',
+      nodeDetails: 'Node Details',
       newFile: 'New File',
       newFolder: 'New Folder',
       newPolaroidImage: 'Image',
