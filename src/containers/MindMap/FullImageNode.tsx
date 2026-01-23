@@ -320,7 +320,6 @@ export default function FullImageNode({
         height: size.h,
         background: "#ffffff",
         borderRadius: 8,
-        padding: FRAME_PADDING,
         boxShadow: selected
           ? "0 10px 28px rgba(30, 111, 246, 0.35)"
           : "0 8px 20px rgba(0,0,0,0.25)",
@@ -335,46 +334,6 @@ export default function FullImageNode({
         position: "relative",
       }}
     >
-      <div
-        style={{
-          width: size.imageWidth,
-          height: imageAreaHeight,
-          borderRadius: 4,
-          background: imageSrc
-            ? "#000000"
-            : "linear-gradient(135deg, #f0f0f0, #e6e6e6)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          overflow: "hidden",
-        }}
-      >
-        {imageSrc ? (
-          <img
-            ref={imgRef}
-            src={imageSrc}
-            alt=""
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              display: "block",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              color: nodeTextColor,
-              opacity: 0.7,
-              fontSize: 12,
-              textAlign: "center",
-              padding: 8,
-            }}
-          >
-            Paste an image
-          </div>
-        )}
-      </div>
       <Handle
         type="target"
         position={Position.Top}
@@ -469,69 +428,123 @@ export default function FullImageNode({
       />
       <div
         style={{
-          width: size.imageWidth,
-          height: controlStripHeight,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 4,
-          paddingRight: 4,
+          width: "100%",
+          height: "100%",
+          padding: FRAME_PADDING,
           boxSizing: "border-box",
-          pointerEvents: "auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 0,
         }}
       >
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            applySizeDelta(stepSize);
-          }}
-          onMouseDown={(event) => event.stopPropagation()}
+        <div
           style={{
-            width: 18,
-            height: 18,
+            width: size.imageWidth,
+            height: imageAreaHeight,
             borderRadius: 4,
-            border: "none",
-            background: "transparent",
-            color: nodeTextColor,
-            cursor: "pointer",
-            display: "inline-flex",
+            background: imageSrc
+              ? "#000000"
+              : "linear-gradient(135deg, #f0f0f0, #e6e6e6)",
+            display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: 0,
-            fontSize: 12,
-            fontWeight: 700,
-            lineHeight: 1,
+            overflow: "hidden",
           }}
         >
-          +
-        </button>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            applySizeDelta(-stepSize);
-          }}
-          onMouseDown={(event) => event.stopPropagation()}
+          {imageSrc ? (
+            <img
+              ref={imgRef}
+              src={imageSrc}
+              alt=""
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                display: "block",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                color: nodeTextColor,
+                opacity: 0.7,
+                fontSize: 12,
+                textAlign: "center",
+                padding: 8,
+              }}
+            >
+              Paste an image
+            </div>
+          )}
+        </div>
+        <div
           style={{
-            width: 18,
-            height: 18,
-            borderRadius: 4,
-            border: "none",
-            background: "transparent",
-            color: nodeTextColor,
-            cursor: "pointer",
-            display: "inline-flex",
+            width: size.imageWidth,
+            height: controlStripHeight,
+            display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 12,
-            fontWeight: 700,
-            lineHeight: 1,
+            justifyContent: "flex-end",
+            gap: 4,
+            paddingRight: 4,
+            boxSizing: "border-box",
+            pointerEvents: "auto",
           }}
         >
-          −
-        </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              applySizeDelta(stepSize);
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 4,
+              border: "none",
+              background: "transparent",
+              color: nodeTextColor,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              fontSize: 12,
+              fontWeight: 700,
+              lineHeight: 1,
+            }}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              applySizeDelta(-stepSize);
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 4,
+              border: "none",
+              background: "transparent",
+              color: nodeTextColor,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              fontSize: 12,
+              fontWeight: 700,
+              lineHeight: 1,
+            }}
+          >
+            −
+          </button>
+        </div>
       </div>
     </div>
   );

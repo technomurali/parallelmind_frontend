@@ -1,9 +1,21 @@
 import type { ExtensionEntry } from "../extensionTypes";
 import { CognitiveNotesManager } from "./data/cognitiveNotesManager";
 import { composeCognitiveNotesGraph } from "./utils/composeCognitiveNotesGraph";
-import { useMindMapStore } from "../../store/mindMapStore";
+import { type CanvasTab, useMindMapStore } from "../../store/mindMapStore";
 
 const cognitiveNotesManager = new CognitiveNotesManager();
+
+const isEmptyTab = (tab: CanvasTab): boolean => {
+  const nodesEmpty = (tab.nodes ?? []).length === 0;
+  const edgesEmpty = (tab.edges ?? []).length === 0;
+  return (
+    tab.moduleType === null &&
+    nodesEmpty &&
+    edgesEmpty &&
+    tab.rootFolderJson == null &&
+    tab.cognitiveNotesRoot == null
+  );
+};
 
 const openCognitiveNotes = async (): Promise<void> => {
   let selection: FileSystemDirectoryHandle | string | null = null;
@@ -21,7 +33,14 @@ const openCognitiveNotes = async (): Promise<void> => {
         : await cognitiveNotesManager.loadOrCreateCognitiveNotesJson(selection);
 
     const store = useMindMapStore.getState();
-    const tabId = store.createTab();
+    const activeTab = store.tabs.find((tab) => tab.id === store.activeTabId) ?? null;
+    const firstEmptyTab = store.tabs.find((tab) => isEmptyTab(tab)) ?? null;
+    const tabId =
+      activeTab && isEmptyTab(activeTab)
+        ? activeTab.id
+        : firstEmptyTab
+          ? firstEmptyTab.id
+          : store.createTab();
     store.setActiveTab(tabId);
     store.setTabTitle(tabId, result.root.name ?? "Cognitive Notes");
     store.setTabModule(tabId, "cognitiveNotes");
