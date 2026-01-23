@@ -119,6 +119,8 @@ export default function MindMap() {
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const [cognitiveNotesDirty, setCognitiveNotesDirty] = useState(false);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const [colorDraft, setColorDraft] = useState("#64748b");
   const canvasSaveStatus = activeTab?.canvasSaveStatus ?? "idle";
   const [showParentPath, setShowParentPath] = useState(false);
   const [showChildrenPath, setShowChildrenPath] = useState(false);
@@ -215,6 +217,9 @@ export default function MindMap() {
     const nextPositions: Record<string, { x: number; y: number }> = {
       ...(cognitiveNotesRoot.node_positions ?? {}),
     };
+    const nextColors: Record<string, string> = {
+      ...(cognitiveNotesRoot.node_colors ?? {}),
+    };
     (nodes ?? []).forEach((node: any) => {
       if (!node?.id || !node.position) return;
       nextPositions[node.id] = {
@@ -272,6 +277,7 @@ export default function MindMap() {
       ...cognitiveNotesRoot,
       updated_on: new Date().toISOString(),
       node_positions: nextPositions,
+      node_colors: nextColors,
       child: nextChild,
     };
 
@@ -328,6 +334,56 @@ export default function MindMap() {
     setCognitiveNotesDirty(false);
   }, [activeTab?.id, cognitiveNotesRoot?.id]);
   const nodeTypes = NODE_TYPES;
+  const selectedNode = useMemo(
+    () => (nodes ?? []).find((node: any) => node?.id === selectedNodeId) ?? null,
+    [nodes, selectedNodeId]
+  );
+  const isValidHexColor = (value: string) =>
+    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value);
+  const selectedNodeColor =
+    typeof (selectedNode?.data as any)?.node_color === "string" &&
+    isValidHexColor((selectedNode?.data as any).node_color.trim())
+      ? (selectedNode?.data as any).node_color.trim()
+      : null;
+
+  useEffect(() => {
+    if (!isCognitiveNotes || !selectedNodeId) {
+      setColorPickerOpen(false);
+      return;
+    }
+    setColorDraft(selectedNodeColor ?? "#64748b");
+  }, [isCognitiveNotes, selectedNodeColor, selectedNodeId]);
+
+  const applySelectedNodeColor = (nextColor: string | null) => {
+    if (!isCognitiveNotes || !selectedNodeId || !cognitiveNotesRoot) return;
+    if (nextColor !== null && !isValidHexColor(nextColor)) return;
+    const nextColors = {
+      ...(cognitiveNotesRoot.node_colors ?? {}),
+    } as Record<string, string>;
+    if (nextColor === null) {
+      delete nextColors[selectedNodeId];
+    } else {
+      nextColors[selectedNodeId] = nextColor;
+    }
+    setNodes(
+      (nodes ?? []).map((node: any) =>
+        node?.id === selectedNodeId
+          ? {
+              ...node,
+              data: {
+                ...(node.data ?? {}),
+                node_color: nextColor ?? undefined,
+              },
+            }
+          : node
+      )
+    );
+    updateCognitiveNotesRoot({
+      ...cognitiveNotesRoot,
+      node_colors: nextColors,
+    });
+    setCognitiveNotesDirty(true);
+  };
   const parentPath = useMemo(() => {
     if (!showParentPath || !selectedNodeId) {
       return { nodeIds: new Set<string>(), edgeIds: new Set<string>() };
@@ -1814,76 +1870,213 @@ export default function MindMap() {
             }}
           >
             {isCognitiveNotes ? (
-              <button
-                type="button"
-                onClick={() => void saveCognitiveNotesCanvas()}
-                aria-label={uiText.buttons.save}
-                title={uiText.buttons.save}
-                disabled={!cognitiveNotesDirty || canvasSaveStatus === "saving"}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "var(--control-size-sm)",
-                  width: "var(--control-size-sm)",
-                  borderRadius: "var(--radius-md)",
-                  border: "none",
-                  background:
-                    !cognitiveNotesDirty || canvasSaveStatus === "saving"
-                      ? "transparent"
-                      : "var(--surface-1)",
-                  color: "var(--text)",
-                  cursor:
-                    !cognitiveNotesDirty || canvasSaveStatus === "saving"
-                      ? "default"
-                      : "pointer",
-                  opacity: !cognitiveNotesDirty || canvasSaveStatus === "saving" ? 0.5 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  if (!cognitiveNotesDirty || canvasSaveStatus === "saving") return;
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "var(--surface-2)";
-                }}
-                onMouseLeave={(e) => {
-                  if (!cognitiveNotesDirty || canvasSaveStatus === "saving") return;
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "var(--surface-1)";
-                }}
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  aria-hidden="true"
+              <>
+                <button
+                  type="button"
+                  onClick={() => void saveCognitiveNotesCanvas()}
+                  aria-label={uiText.buttons.save}
+                  title={uiText.buttons.save}
+                  disabled={!cognitiveNotesDirty || canvasSaveStatus === "saving"}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "var(--control-size-sm)",
+                    width: "var(--control-size-sm)",
+                    borderRadius: "var(--radius-md)",
+                    border: "none",
+                    background:
+                      !cognitiveNotesDirty || canvasSaveStatus === "saving"
+                        ? "transparent"
+                        : "var(--surface-1)",
+                    color: "var(--text)",
+                    cursor:
+                      !cognitiveNotesDirty || canvasSaveStatus === "saving"
+                        ? "default"
+                        : "pointer",
+                    opacity:
+                      !cognitiveNotesDirty || canvasSaveStatus === "saving" ? 0.5 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!cognitiveNotesDirty || canvasSaveStatus === "saving") return;
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "var(--surface-2)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!cognitiveNotesDirty || canvasSaveStatus === "saving") return;
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "var(--surface-1)";
+                  }}
                 >
-                  <path
-                    d="M5 3H16L20 7V21H5V3Z"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M8 3V8H16V3"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M8 14H16"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M8 17H14"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M5 3H16L20 7V21H5V3Z"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M8 3V8H16V3"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M8 14H16"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M8 17H14"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </button>
+                <div style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedNodeId) return;
+                      setColorPickerOpen((prev) => !prev);
+                    }}
+                    aria-label="Node color"
+                    title="Node color"
+                    disabled={!selectedNodeId}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: "var(--control-size-sm)",
+                      width: "var(--control-size-sm)",
+                      borderRadius: "var(--radius-md)",
+                      border: "none",
+                      background: "transparent",
+                      color: "var(--text)",
+                      cursor: selectedNodeId ? "pointer" : "not-allowed",
+                      opacity: selectedNodeId ? 1 : 0.5,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!selectedNodeId) return;
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!selectedNodeId) return;
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "transparent";
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: 999,
+                        border: "1px solid var(--border)",
+                        background: selectedNodeColor ?? "transparent",
+                        boxShadow: selectedNodeColor ? "0 0 0 1px rgba(0,0,0,0.1)" : "none",
+                      }}
+                    />
+                  </button>
+                  {colorPickerOpen && selectedNodeId ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 6px)",
+                        right: 0,
+                        zIndex: 60,
+                        padding: "10px",
+                        borderRadius: "var(--radius-md)",
+                        border: "var(--border-width) solid var(--border)",
+                        background: "var(--surface-2)",
+                        boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+                        display: "grid",
+                        gap: "8px",
+                        minWidth: 180,
+                      }}
+                    >
+                      <input
+                        type="color"
+                        value={isValidHexColor(colorDraft) ? colorDraft : "#64748b"}
+                        onChange={(e) => {
+                          const nextValue = e.target.value;
+                          setColorDraft(nextValue);
+                          applySelectedNodeColor(nextValue);
+                        }}
+                        style={{
+                          width: "100%",
+                          height: 36,
+                          padding: 0,
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                        }}
+                      />
+                      <input
+                        type="text"
+                        value={colorDraft}
+                        onChange={(e) => setColorDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          if (isValidHexColor(colorDraft)) {
+                            applySelectedNodeColor(colorDraft);
+                          } else {
+                            setColorDraft(selectedNodeColor ?? "#64748b");
+                          }
+                        }}
+                        onBlur={() => {
+                          if (isValidHexColor(colorDraft)) {
+                            applySelectedNodeColor(colorDraft);
+                          } else {
+                            setColorDraft(selectedNodeColor ?? "#64748b");
+                          }
+                        }}
+                        placeholder="#64748b"
+                        aria-label="Node color hex"
+                        style={{
+                          width: "100%",
+                          borderRadius: "var(--radius-md)",
+                          border: "var(--border-width) solid var(--border)",
+                          padding: "6px 8px",
+                          background: "var(--surface-1)",
+                          color: "var(--text)",
+                          fontFamily: "var(--font-family)",
+                          fontSize: "0.8rem",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          applySelectedNodeColor(null);
+                          setColorDraft("#64748b");
+                        }}
+                        style={{
+                          borderRadius: "999px",
+                          border: "var(--border-width) solid var(--border)",
+                          background: "var(--surface-1)",
+                          color: "var(--text)",
+                          padding: "4px 10px",
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </>
             ) : null}
             <button
               type="button"

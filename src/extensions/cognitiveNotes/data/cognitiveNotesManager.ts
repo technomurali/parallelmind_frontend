@@ -38,6 +38,7 @@ export type CognitiveNotesJson = {
   recommendations: string[];
   error_messages: string[];
   node_positions: Record<string, { x: number; y: number }>;
+  node_colors: Record<string, string>;
   node_size: Record<string, number>;
   child: CognitiveNotesFileNode[];
 };
@@ -163,6 +164,18 @@ export class CognitiveNotesManager {
       node_positions[key] = { x, y };
     });
 
+    const rawColors =
+      obj && typeof obj.node_colors === "object" && obj.node_colors
+        ? (obj.node_colors as Record<string, any>)
+        : {};
+    const node_colors: Record<string, string> = {};
+    const colorPattern = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+    Object.entries(rawColors).forEach(([key, value]) => {
+      if (typeof value !== "string") return;
+      if (!colorPattern.test(value.trim())) return;
+      node_colors[key] = value.trim();
+    });
+
     const rawSizes =
       obj && typeof obj.node_size === "object" && obj.node_size
         ? (obj.node_size as Record<string, any>)
@@ -196,6 +209,7 @@ export class CognitiveNotesManager {
       recommendations,
       error_messages,
       node_positions,
+      node_colors,
       node_size,
       child,
     };
@@ -219,6 +233,7 @@ export class CognitiveNotesManager {
       recommendations: [],
       error_messages: [],
       node_positions: {},
+      node_colors: {},
       node_size: {},
       child: [],
     };
@@ -386,6 +401,10 @@ export class CognitiveNotesManager {
       node_positions:
         existing && typeof existing.node_positions === "object"
           ? (existing.node_positions as Record<string, { x: number; y: number }>)
+          : {},
+      node_colors:
+        existing && typeof existing.node_colors === "object"
+          ? (existing.node_colors as Record<string, string>)
           : {},
       node_size:
         existing && typeof existing.node_size === "object"
@@ -734,6 +753,10 @@ export class CognitiveNotesManager {
         root && typeof root.node_positions === "object"
           ? (root.node_positions as Record<string, { x: number; y: number }>)
           : existing?.node_positions ?? {},
+      node_colors:
+        root && typeof root.node_colors === "object"
+          ? (root.node_colors as Record<string, string>)
+          : existing?.node_colors ?? {},
       node_size:
         root && typeof root.node_size === "object"
           ? (root.node_size as Record<string, number>)
@@ -807,6 +830,10 @@ export class CognitiveNotesManager {
         root && typeof root.node_positions === "object"
           ? (root.node_positions as Record<string, { x: number; y: number }>)
           : existing?.node_positions ?? {},
+      node_colors:
+        root && typeof root.node_colors === "object"
+          ? (root.node_colors as Record<string, string>)
+          : existing?.node_colors ?? {},
       node_size:
         root && typeof root.node_size === "object"
           ? (root.node_size as Record<string, number>)

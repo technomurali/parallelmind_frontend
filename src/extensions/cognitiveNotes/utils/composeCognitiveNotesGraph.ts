@@ -49,11 +49,16 @@ const buildRootNode = (
       ...root,
       name: typeof root.name === "string" ? root.name : "Cognitive Notes",
       level: 0,
+      node_color:
+        typeof root.node_colors?.[rootNodeId] === "string"
+          ? root.node_colors[rootNodeId]
+          : undefined,
     },
   };
 };
 
 const buildNoteNode = (
+  root: CognitiveNotesJson,
   note: CognitiveNotesFileNode,
   position: { x: number; y: number },
   renderType: "file" | "fullImageNode"
@@ -67,6 +72,10 @@ const buildNoteNode = (
       name: typeof note.name === "string" ? note.name : "",
       purpose: typeof note.purpose === "string" ? note.purpose : "",
       level: 1,
+      node_color:
+        typeof root.node_colors?.[note.id] === "string"
+          ? root.node_colors[note.id]
+          : undefined,
     },
   };
 };
@@ -212,7 +221,7 @@ export const composeCognitiveNotesGraph = (
       savedPosition && typeof savedPosition === "object"
         ? { x: savedPosition.x, y: savedPosition.y }
         : { x, y };
-    nodes.push(buildNoteNode(note, position, renderType));
+    nodes.push(buildNoteNode(root, note, position, renderType));
     nodeTypeById.set(note.id, renderType);
   });
 

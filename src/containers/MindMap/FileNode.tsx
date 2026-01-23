@@ -51,8 +51,13 @@ export default function FileNode({
   const strokeWidth = selected ? 6 : 4;
   const levelValue =
     typeof (data as any)?.level === "number" ? (data as any).level : 0;
+  const customNodeColor =
+    typeof (data as any)?.node_color === "string" &&
+    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test((data as any).node_color.trim())
+      ? (data as any).node_color.trim()
+      : null;
   const fillColor = isCognitiveNotes
-    ? "var(--surface-2)"
+    ? customNodeColor ?? "var(--surface-2)"
     : getNodeFillColor(settings, levelValue, "var(--surface-2)", {
         variant: "file",
       });
