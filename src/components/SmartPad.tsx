@@ -166,7 +166,7 @@ export default function SmartPad({
       normalizeExtension(nodePath.split(".").pop());
     const isMarkdown = isMarkdownExtension(extensionValue);
     const extensionEligible = isTextExtension(extensionValue) || isMarkdown;
-    const contentEligible = isCognitiveNotes ? true : extensionEligible;
+    const contentEligible = extensionEligible;
 
     if (!nodePath) {
       resetPreview("ineligible");
@@ -472,7 +472,7 @@ export default function SmartPad({
     dirty && (preview.status === "ready" || preview.status === "empty")
   );
 
-  if (preview.status === "idle" || preview.status === "ineligible") {
+  if (preview.status === "idle") {
     return null;
   }
 
@@ -547,6 +547,9 @@ export default function SmartPad({
         )}
         {preview.status === "error" && (
           <div>{uiText.placeholders.fileContentUnavailable}</div>
+        )}
+        {preview.status === "ineligible" && (
+          <div>{uiText.placeholders.fileContentNotText}</div>
         )}
         {(preview.status === "ready" || preview.status === "empty") && (
           <>

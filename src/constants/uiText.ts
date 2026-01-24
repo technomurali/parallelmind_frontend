@@ -370,6 +370,7 @@ export const uiText = {
     youtubeLink: 'Paste YouTube URL or video ID',
     fileContentEmpty: 'No content to display.',
     fileContentUnavailable: 'Unable to load file content.',
+    fileContentNotText: 'This file is not text-based. Please open it in the file editor. Right-click on file and select "Open File".',
     settingsContainer: 'Settings Container',
   },
 } as const;
