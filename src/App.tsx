@@ -19,6 +19,7 @@ import { uiText } from './constants/uiText'
 import { GlobalHeaderBar } from './components/GlobalHeaderBar'
 import Settings from './containers/Settings'
 import { selectActiveTab, useMindMapStore } from './store/mindMapStore'
+import { reconcileBookmarksOnStartup } from './utils/bookmarksManager'
 
 /**
  * Main App component
@@ -29,6 +30,7 @@ import { selectActiveTab, useMindMapStore } from './store/mindMapStore'
 function App() {
   const settingsOpen = useMindMapStore((s) => s.settingsOpen)
   const theme = useMindMapStore((s) => s.settings.theme)
+  const settings = useMindMapStore((s) => s.settings)
   const undo = useMindMapStore((s) => s.undo)
   const redo = useMindMapStore((s) => s.redo)
   const deleteSelectedEdge = useMindMapStore((s) => s.deleteSelectedEdge)
@@ -52,6 +54,16 @@ function App() {
       ? 'desktop'
       : 'browser'
   }, [isDesktopMode])
+
+  useEffect(() => {
+    if (!isDesktopMode) return
+    void (async () => {
+      const result = await reconcileBookmarksOnStartup({ settings })
+      if (result.updated) {
+        window.dispatchEvent(new CustomEvent('pm-bookmarks-updated'))
+      }
+    })()
+  }, [isDesktopMode, settings])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

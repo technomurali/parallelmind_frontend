@@ -2,14 +2,17 @@ import { loadAppDataDirectoryHandle } from "./appDataHandleStore";
 import type { AppSettings } from "../store/mindMapStore";
 
 export const BOOKMARKS_FILE_NAME = "parallelmind.json" as const;
-export const BOOKMARKS_SCHEMA_VERSION = "1.0.0" as const;
+export const BOOKMARKS_SCHEMA_VERSION = "1.1.0" as const;
 export const PARALLELMIND_ROOT_SUFFIX = "_rootIndex.json" as const;
 export const COGNITIVE_NOTES_SUFFIX = "_cognitiveNotes.json" as const;
+
+export type BookmarkIndexType = "rootIndex" | "cognitiveNotes";
 
 export type BookmarkEntry = {
   path: string;
   name: string;
   moduleType: "parallelmind" | "cognitiveNotes";
+  indexType: BookmarkIndexType;
   views: number;
   lastOpened: string;
 };
@@ -61,6 +64,14 @@ const normalizeBookmarks = (raw: any): BookmarkFile => {
       name: typeof entry?.name === "string" ? entry.name : "",
       moduleType:
         entry?.moduleType === "cognitiveNotes" ? "cognitiveNotes" : "parallelmind",
+      indexType:
+        entry?.indexType === "cognitiveNotes"
+          ? "cognitiveNotes"
+          : entry?.indexType === "rootIndex"
+            ? "rootIndex"
+            : entry?.moduleType === "cognitiveNotes"
+              ? "cognitiveNotes"
+              : "rootIndex",
       views: typeof entry?.views === "number" ? entry.views : 0,
       lastOpened: typeof entry?.lastOpened === "string" ? entry.lastOpened : "",
     }))
@@ -190,6 +201,104 @@ export const buildBookmarkEntry = (args: {
   path: args.path,
   name: args.name,
   moduleType: args.moduleType,
+  indexType: args.moduleType === "cognitiveNotes" ? "cognitiveNotes" : "rootIndex",
   views: 1,
   lastOpened: nowIso(),
 });
+
+const getIndexSuffix = (indexType: BookmarkIndexType): string =>
+  indexType === "cognitiveNotes" ? COGNITIVE_NOTES_SUFFIX : PARALLELMIND_ROOT_SUFFIX;
+
+const getDirPath = (filePath: string): string | null => {
+  if (!filePath) return null;
+  const trimmed = filePath.replace(/[\\/]+$/, "");
+  const parts = trimmed.split(/[\\/]/);
+  if (parts.length <= 1) return null;
+  parts.pop();
+  return parts.join(trimmed.includes("\\") ? "\\" : "/");
+};
+
+const getFileNameFromPath = (filePath: string): string => {
+  const trimmed = filePath.replace(/[\\/]+$/, "");
+  const parts = trimmed.split(/[\\/]/);
+  return parts[parts.length - 1] ?? trimmed;
+};
+
+export const reconcileBookmarksOnStartup = async (args: {
+  settings: AppSettings;
+}): Promise<{ updated: boolean }> => {
+  const isDesktopMode =
+    typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+  if (!isDesktopMode) return { updated: false };
+  const dirPath = args.settings?.storage?.appDataFolderPath ?? null;
+  if (!dirPath) return { updated: false };
+
+  const { exists, readDir } = await import("@tauri-apps/plugin-fs");
+  const data = await loadBookmarksFromPath(dirPath);
+  let changed = false;
+  const next: BookmarkEntry[] = [];
+
+  for (const entry of data.bookmarks) {
+    const indexType: BookmarkIndexType =
+      entry.indexType ??
+      (entry.moduleType === "cognitiveNotes" ? "cognitiveNotes" : "rootIndex");
+    const suffix = getIndexSuffix(indexType);
+    const entryPath = entry.path;
+
+    if (entryPath && (await exists(entryPath))) {
+      next.push(entry);
+      continue;
+    }
+
+    const parentDir = getDirPath(entryPath);
+    if (!parentDir || !(await exists(parentDir))) {
+      const remove = window.confirm(
+        `Bookmark path doesn't exist:\n${entryPath}\nDo you want to remove it?`
+      );
+      changed = true;
+      if (!remove) next.push(entry);
+      continue;
+    }
+
+    let replacementFile: string | null = null;
+    try {
+      const entries = await readDir(parentDir);
+      const candidates = entries
+        .filter((item: any) => item?.isFile && typeof item.name === "string")
+        .map((item: any) => item.name)
+        .filter((name: string) => name.endsWith(suffix))
+        .sort((a: string, b: string) => a.localeCompare(b));
+      replacementFile = candidates[0] ?? null;
+    } catch {
+      replacementFile = null;
+    }
+
+    if (!replacementFile) {
+      const remove = window.confirm(
+        `Bookmark path doesn't exist:\n${entryPath}\nDo you want to remove it?`
+      );
+      changed = true;
+      if (!remove) next.push(entry);
+      continue;
+    }
+
+    const nextPath = joinPath(parentDir, replacementFile);
+    const nextName = replacementFile.replace(suffix, "");
+    next.push({
+      ...entry,
+      path: nextPath,
+      name: nextName || entry.name,
+      indexType,
+      moduleType: indexType === "cognitiveNotes" ? "cognitiveNotes" : "parallelmind",
+    });
+    changed = true;
+  }
+
+  if (changed) {
+    await saveBookmarksToPath(dirPath, {
+      ...data,
+      bookmarks: next,
+    });
+  }
+  return { updated: changed };
+};
