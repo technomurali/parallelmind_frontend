@@ -11,7 +11,7 @@
  * - Provides accessibility labels for screen readers
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   addEdge,
   applyEdgeChanges,
@@ -106,6 +106,7 @@ export default function MindMap() {
   const setHasCustomLayout = useMindMapStore((s) => s.setHasCustomLayout);
   const hasCustomLayout = activeTab?.hasCustomLayout ?? false;
   const shouldFitView = activeTab?.shouldFitView ?? false;
+  const lastViewport = activeTab?.lastViewport ?? null;
   const setShouldFitView = useMindMapStore((s) => s.setShouldFitView);
   const setRightPanelMode = useMindMapStore((s) => s.setRightPanelMode);
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
@@ -121,6 +122,7 @@ export default function MindMap() {
   const setEdgeStyle = useMindMapStore((s) => s.setEdgeStyle);
   const setLastCanvasPosition = useMindMapStore((s) => s.setLastCanvasPosition);
   const setCanvasCenter = useMindMapStore((s) => s.setCanvasCenter);
+  const setLastViewport = useMindMapStore((s) => s.setLastViewport);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasBodyRef = useRef<HTMLDivElement | null>(null);
@@ -133,6 +135,14 @@ export default function MindMap() {
     offsetY: number;
   }>({ active: false, offsetX: 0, offsetY: 0 });
   const lastFitRootIdRef = useRef<string | null>(null);
+  const lastRestoredTabIdRef = useRef<string | null>(null);
+  const lastSavedViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(
+    null
+  );
+  const viewportSaveRafRef = useRef<number | null>(null);
+  const pendingViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(
+    null
+  );
   const [rf, setRf] = useState<ReactFlowInstance | null>(null);
   const fileManager = useMemo(() => new FileManager(), []);
   const cognitiveNotesManager = useMemo(() => new CognitiveNotesManager(), []);
@@ -922,6 +932,40 @@ export default function MindMap() {
     }
   };
 
+  const persistViewport = useCallback(
+    (viewport: { x: number; y: number; zoom: number } | null) => {
+      if (!viewport) return;
+      const { x, y, zoom } = viewport;
+      if (![x, y, zoom].every((v) => Number.isFinite(v))) return;
+      const last = lastSavedViewportRef.current;
+      if (
+        last &&
+        Math.abs(last.x - x) < 0.5 &&
+        Math.abs(last.y - y) < 0.5 &&
+        Math.abs(last.zoom - zoom) < 0.0001
+      ) {
+        return;
+      }
+      lastSavedViewportRef.current = { x, y, zoom };
+      setLastViewport({ x, y, zoom });
+    },
+    [setLastViewport]
+  );
+
+  const queueViewportSave = useCallback(
+    (viewport: { x: number; y: number; zoom: number } | null) => {
+      pendingViewportRef.current = viewport;
+      if (viewportSaveRafRef.current != null) return;
+      viewportSaveRafRef.current = window.requestAnimationFrame(() => {
+        const next = pendingViewportRef.current;
+        pendingViewportRef.current = null;
+        viewportSaveRafRef.current = null;
+        if (next) persistViewport(next);
+      });
+    },
+    [persistViewport]
+  );
+
   const showAllNodesInCanvas = () => {
     if (!rf) return;
     const rect = canvasBodyRef.current?.getBoundingClientRect();
@@ -934,6 +978,7 @@ export default function MindMap() {
       padding,
     });
     rf.setViewport(fitViewport);
+    persistViewport(fitViewport);
   };
 
   const applyGridViewLayout = () => {
@@ -1086,6 +1131,24 @@ export default function MindMap() {
     lastFitRootIdRef.current = rootId;
     if (shouldFitView) setShouldFitView(false);
   }, [rootFolderJson, rf, nodes.length, shouldFitView, setShouldFitView]);
+
+  useEffect(() => {
+    lastSavedViewportRef.current = lastViewport;
+  }, [activeTab?.id, lastViewport]);
+
+  useEffect(() => {
+    if (!rf) return;
+    const tabId = activeTab?.id ?? null;
+    if (!tabId) return;
+    if (shouldFitView) {
+      lastRestoredTabIdRef.current = tabId;
+      return;
+    }
+    if (!lastViewport) return;
+    if (lastRestoredTabIdRef.current === tabId) return;
+    rf.setViewport(lastViewport);
+    lastRestoredTabIdRef.current = tabId;
+  }, [rf, activeTab?.id, lastViewport, shouldFitView]);
 
   const getMaxDepthFromRoot = (root: RootFolderJson | null): number => {
     if (!root) return 0;
@@ -2121,6 +2184,8 @@ export default function MindMap() {
       });
     }
 
+    queueViewportSave(rf.getViewport());
+
     lastFocusedNodeIdRef.current = selectedNodeId;
   }, [
     nodes,
@@ -2128,7 +2193,15 @@ export default function MindMap() {
     selectedNodeId,
     settings.appearance.nodeSize,
     settings.interaction.autoCenterOnSelection,
+    queueViewportSave,
   ]);
+
+  const onViewportMove = useCallback(
+    (_: any, viewport: { x: number; y: number; zoom: number }) => {
+      queueViewportSave(viewport);
+    },
+    [queueViewportSave]
+  );
 
   return (
     <main className="pm-center" aria-label={uiText.ariaLabels.mindMapCanvas}>
@@ -3125,6 +3198,7 @@ export default function MindMap() {
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             onPaneContextMenu={onPaneContextMenu}
+            onMove={onViewportMove}
             onNodeDoubleClick={onNodeDoubleClick}
             onNodeContextMenu={onNodeContextMenu}
             onNodeMouseEnter={onNodeMouseEnter}

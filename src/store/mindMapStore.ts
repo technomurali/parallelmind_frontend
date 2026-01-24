@@ -86,6 +86,7 @@ export type CanvasTab = {
   moduleType: "parallelmind" | "cognitiveNotes" | null;
   canvasSaveStatus: "idle" | "saving" | "saved" | "error";
   edgeStyle: string;
+  lastViewport: { x: number; y: number; zoom: number } | null;
   history: {
     past: TabSnapshot[];
     future: TabSnapshot[];
@@ -132,6 +133,7 @@ function createEmptyTab(): CanvasTab {
     moduleType: null,
     canvasSaveStatus: "idle",
     edgeStyle: "default",
+    lastViewport: null,
     history: {
       past: [],
       future: [],
@@ -162,6 +164,7 @@ function resetTabCanvas(tab: CanvasTab): CanvasTab {
     moduleType: null,
     canvasSaveStatus: "idle",
     edgeStyle: "default",
+    lastViewport: null,
     history: {
       past: [],
       future: [],
@@ -306,6 +309,7 @@ export interface MindMapActions {
   ) => void;
   setLastCanvasPosition: (position: { x: number; y: number } | null) => void;
   setCanvasCenter: (position: { x: number; y: number } | null) => void;
+  setLastViewport: (viewport: { x: number; y: number; zoom: number } | null) => void;
   finalizePendingChildCreation: () => void;
   discardPendingChildCreationIfSelected: () => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
@@ -492,6 +496,13 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
         ...tab,
         canvasCenter: position,
+      })),
+    })),
+  setLastViewport: (viewport) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        lastViewport: viewport,
       })),
     })),
   finalizePendingChildCreation: () =>
