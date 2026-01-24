@@ -81,6 +81,14 @@ export const uiText = {
         smoothstep: 'Smoothstep',
       },
     },
+    storage: {
+      appDataFolderLabel: 'App data folder',
+      appDataFolderDesc:
+        'Used for bookmarks, reminders, and other app-managed files.',
+      notSet: 'Not set',
+      chooseFolder: 'Choose folder',
+      clear: 'Clear',
+    },
   },
 
   /**

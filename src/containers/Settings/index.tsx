@@ -1,7 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FiChevronDown, FiChevronRight } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import { useMindMapStore } from "../../store/mindMapStore";
+import {
+  clearAppDataDirectoryHandle,
+  loadAppDataDirectoryHandle,
+  saveAppDataDirectoryHandle,
+} from "../../utils/appDataHandleStore";
 
 type SettingsSection = "appearance";
 
@@ -9,6 +14,9 @@ export default function Settings() {
   const settings = useMindMapStore((s) => s.settings);
   const updateSettings = useMindMapStore((s) => s.updateSettings);
   const nodeFillEnabled = !!settings.appearance.enableNodeFillColors;
+  const setAppDataDirectoryHandle = useMindMapStore(
+    (s) => s.setAppDataDirectoryHandle
+  );
 
   const [section, setSection] = useState<SettingsSection>("appearance");
   const [openSections, setOpenSections] = useState({
@@ -17,6 +25,7 @@ export default function Settings() {
     connectionsLayout: false,
     canvasAids: false,
     nodeColoring: false,
+    appStorage: false,
   });
 
   const navItems = useMemo(
@@ -29,6 +38,90 @@ export default function Settings() {
       ] as const,
     []
   );
+
+  useEffect(() => {
+    const isDesktopMode =
+      typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+    if (isDesktopMode) return;
+    void (async () => {
+      const handle = await loadAppDataDirectoryHandle();
+      if (!handle) return;
+      setAppDataDirectoryHandle(handle);
+      if (!settings.storage?.appDataFolderName) {
+        updateSettings({
+          storage: {
+            ...settings.storage,
+            appDataFolderName: handle.name ?? null,
+            appDataFolderPath: null,
+          },
+        });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pickAppDataFolder = async () => {
+    const isDesktopMode =
+      typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+    if (isDesktopMode) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const selected = await open({ directory: true, multiple: false });
+        const dirPath = typeof selected === "string" ? selected : null;
+        if (!dirPath) return;
+        const trimmed = dirPath.replace(/[\\/]+$/, "");
+        const parts = trimmed.split(/[\\/]/);
+        const name = parts[parts.length - 1] || trimmed;
+        setAppDataDirectoryHandle(null);
+        updateSettings({
+          storage: {
+            ...settings.storage,
+            appDataFolderPath: dirPath,
+            appDataFolderName: name,
+          },
+        });
+      } catch {
+        return;
+      }
+      return;
+    }
+
+    const showDirectoryPicker = (window as any).showDirectoryPicker as
+      | (() => Promise<FileSystemDirectoryHandle>)
+      | undefined;
+    if (!showDirectoryPicker) return;
+    try {
+      const handle = await showDirectoryPicker();
+      if (!handle) return;
+      await saveAppDataDirectoryHandle(handle);
+      setAppDataDirectoryHandle(handle);
+      updateSettings({
+        storage: {
+          ...settings.storage,
+          appDataFolderPath: null,
+          appDataFolderName: handle.name ?? null,
+        },
+      });
+    } catch {
+      return;
+    }
+  };
+
+  const clearAppDataFolder = async () => {
+    const isDesktopMode =
+      typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+    if (!isDesktopMode) {
+      await clearAppDataDirectoryHandle();
+    }
+    setAppDataDirectoryHandle(null);
+    updateSettings({
+      storage: {
+        ...settings.storage,
+        appDataFolderPath: null,
+        appDataFolderName: null,
+      },
+    });
+  };
 
   return (
     <div className="pm-settings" aria-label={uiText.ariaLabels.settingsPanel}>
@@ -531,6 +624,58 @@ export default function Settings() {
                         aria-label="Show minimap"
                       />
                     </div>
+                  ),
+                },
+                {
+                  id: "appStorage",
+                  title: "Storage",
+                  desc: "Where app-managed files are stored.",
+                  content: (
+                    <>
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">
+                            {uiText.settings.storage.appDataFolderLabel}
+                          </div>
+                          <div className="pm-settings__rowDesc">
+                            {uiText.settings.storage.appDataFolderDesc}
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-end",
+                            gap: "6px",
+                            minWidth: 160,
+                          }}
+                        >
+                          <div style={{ fontSize: "0.75rem", opacity: 0.75 }}>
+                            {settings.storage.appDataFolderPath ||
+                              settings.storage.appDataFolderName ||
+                              uiText.settings.storage.notSet}
+                          </div>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              type="button"
+                              className="pm-settings__control"
+                              onClick={() => void pickAppDataFolder()}
+                              aria-label={uiText.settings.storage.chooseFolder}
+                            >
+                              {uiText.settings.storage.chooseFolder}
+                            </button>
+                            <button
+                              type="button"
+                              className="pm-settings__control"
+                              onClick={() => void clearAppDataFolder()}
+                              aria-label={uiText.settings.storage.clear}
+                            >
+                              {uiText.settings.storage.clear}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </>
                   ),
                 },
                 {

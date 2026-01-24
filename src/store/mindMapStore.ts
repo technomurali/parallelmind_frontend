@@ -238,6 +238,10 @@ export interface AppSettings {
   fontSize: number;
   llmModel: string;
   llmProvider: 'openai' | 'gemini' | 'chrome';
+  storage: {
+    appDataFolderPath: string | null;
+    appDataFolderName: string | null;
+  };
   appearance: {
     nodeSize: number;
     edgeStyle: string;
@@ -277,6 +281,7 @@ export interface AppSettings {
 export interface MindMapState {
   // Application settings
   settings: AppSettings;
+  appDataDirectoryHandle: FileSystemDirectoryHandle | null;
 
   // UI state
   leftPanelWidth: number;
@@ -304,6 +309,7 @@ export interface MindMapActions {
   finalizePendingChildCreation: () => void;
   discardPendingChildCreationIfSelected: () => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
+  setAppDataDirectoryHandle: (handle: FileSystemDirectoryHandle | null) => void;
   setLeftPanelWidth: (width: number) => void;
   setRightPanelWidth: (width: number) => void;
   // Root can be selected via browser directory handle or via desktop path (Tauri).
@@ -363,6 +369,10 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       fontSize: 14,
       llmModel: 'gpt-4',
       llmProvider: 'openai',
+      storage: {
+        appDataFolderPath: null,
+        appDataFolderName: null,
+      },
       appearance: {
         nodeSize: 200,
         edgeStyle: 'step',
@@ -403,6 +413,10 @@ export const useMindMapStore = create<MindMapStore>((set) => {
     return {
       ...defaults,
       ...persisted,
+      storage: {
+        ...defaults.storage,
+        ...(persisted as any).storage,
+      },
       appearance: {
         ...defaults.appearance,
         ...(persisted as any).appearance,
@@ -413,6 +427,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       },
     };
   })(),
+  appDataDirectoryHandle: null,
 
   // UI state
   leftPanelWidth: 280,
@@ -589,6 +604,10 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       const next: AppSettings = {
         ...state.settings,
         ...newSettings,
+        storage: {
+          ...state.settings.storage,
+          ...(newSettings.storage ?? {}),
+        },
         appearance: {
           ...state.settings.appearance,
           ...(newSettings.appearance ?? {}),
@@ -601,6 +620,8 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       persistSettings(next);
       return { settings: next };
     }),
+  setAppDataDirectoryHandle: (handle) =>
+    set(() => ({ appDataDirectoryHandle: handle })),
   setLeftPanelWidth: (width) => set({ leftPanelWidth: width }),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
   setRoot: (handle, root) =>
