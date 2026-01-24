@@ -19,6 +19,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import type { IndexNode, RootFolderJson } from "../../data/fileManager";
+import type { BookmarkEntry } from "../../utils/bookmarksManager";
+import {
+  getRootIndexFilePath,
+  incrementBookmarkViews,
+  loadBookmarksFromHandle,
+  loadBookmarksFromPath,
+  resolveAppDataLocation,
+  saveBookmarksToHandle,
+  saveBookmarksToPath,
+} from "../../utils/bookmarksManager";
+import { FileManager } from "../../data/fileManager";
+import { CognitiveNotesManager } from "../../extensions/cognitiveNotes/data/cognitiveNotesManager";
+import { composeCognitiveNotesGraph } from "../../extensions/cognitiveNotes/utils/composeCognitiveNotesGraph";
 
 /**
  * LeftPanel component
@@ -37,6 +50,16 @@ export default function LeftPanel() {
   const selectNode = useMindMapStore((s) => s.selectNode);
   const setNodes = useMindMapStore((s) => s.setNodes);
   const setShouldFitView = useMindMapStore((s) => s.setShouldFitView);
+  const setActiveTab = useMindMapStore((s) => s.setActiveTab);
+  const createTab = useMindMapStore((s) => s.createTab);
+  const setTabTitle = useMindMapStore((s) => s.setTabTitle);
+  const setTabModule = useMindMapStore((s) => s.setTabModule);
+  const setRoot = useMindMapStore((s) => s.setRoot);
+  const setCognitiveNotesRoot = useMindMapStore((s) => s.setCognitiveNotesRoot);
+  const setCognitiveNotesSource = useMindMapStore((s) => s.setCognitiveNotesSource);
+  const setEdges = useMindMapStore((s) => s.setEdges);
+  const settings = useMindMapStore((s) => s.settings);
+  const appDataDirectoryHandle = useMindMapStore((s) => s.appDataDirectoryHandle);
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<
     { id: string; label: string; name: string }[]
@@ -47,6 +70,10 @@ export default function LeftPanel() {
   const [recentSearches, setRecentSearches] = useState<
     { id: string; label: string }[]
   >([]);
+  const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>([]);
+  const [bookmarksRefreshKey, setBookmarksRefreshKey] = useState(0);
+  const fileManagerRef = useRef<FileManager | null>(null);
+  const cognitiveNotesManagerRef = useRef<CognitiveNotesManager | null>(null);
 
   const dragRef = useRef<{
     startX: number;
@@ -221,6 +248,159 @@ export default function LeftPanel() {
       window.removeEventListener("mouseup", onUp);
     };
   }, [setLeftPanelWidth]);
+
+  useEffect(() => {
+    if (leftPanelView !== "bookmarks") return;
+    const isDesktopMode =
+      typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+    const dirPath = settings.storage.appDataFolderPath ?? null;
+    const handle = appDataDirectoryHandle ?? null;
+    if (isDesktopMode && !dirPath) {
+      setBookmarks([]);
+      return;
+    }
+    if (!isDesktopMode && !handle) {
+      setBookmarks([]);
+      return;
+    }
+    void (async () => {
+      try {
+        const data = isDesktopMode && dirPath
+          ? await loadBookmarksFromPath(dirPath)
+          : handle
+            ? await loadBookmarksFromHandle(handle)
+            : null;
+        setBookmarks(data?.bookmarks ?? []);
+      } catch {
+        setBookmarks([]);
+      }
+    })();
+  }, [
+    leftPanelView,
+    settings.storage.appDataFolderPath,
+    appDataDirectoryHandle,
+    bookmarksRefreshKey,
+  ]);
+
+  useEffect(() => {
+    const onUpdate = () => setBookmarksRefreshKey((v) => v + 1);
+    window.addEventListener("pm-bookmarks-updated", onUpdate as EventListener);
+    return () =>
+      window.removeEventListener("pm-bookmarks-updated", onUpdate as EventListener);
+  }, []);
+
+  const bookmarkName = (entry: BookmarkEntry): string => {
+    const rawName = entry.name?.trim() || entry.path?.split(/[\\/]/).pop() || "";
+    return rawName.endsWith(".json") ? rawName.slice(0, -5) : rawName;
+  };
+
+  const isDesktopMode =
+    typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+
+  const getManagers = () => {
+    if (!fileManagerRef.current) {
+      fileManagerRef.current = new FileManager();
+    }
+    if (!cognitiveNotesManagerRef.current) {
+      cognitiveNotesManagerRef.current = new CognitiveNotesManager();
+    }
+    return {
+      fileManager: fileManagerRef.current,
+      cognitiveNotesManager: cognitiveNotesManagerRef.current,
+    };
+  };
+
+  const findOpenTabForBookmark = (entry: BookmarkEntry): string | null => {
+    const path = entry.path;
+    if (!path) return null;
+    for (const tab of useMindMapStore.getState().tabs) {
+      if (entry.moduleType === "parallelmind" && tab.rootFolderJson) {
+        const tabPath = getRootIndexFilePath(
+          "parallelmind",
+          tab.rootFolderJson.name ?? tab.title ?? "root",
+          tab.rootFolderJson.path ?? null
+        );
+        if (tabPath === path) return tab.id;
+      }
+      if (entry.moduleType === "cognitiveNotes" && tab.cognitiveNotesRoot) {
+        const tabPath = getRootIndexFilePath(
+          "cognitiveNotes",
+          tab.cognitiveNotesRoot.name ?? tab.title ?? "root",
+          tab.cognitiveNotesRoot.path ?? null
+        );
+        if (tabPath === path) return tab.id;
+      }
+    }
+    return null;
+  };
+
+  const incrementBookmarkViewsForEntry = async (entry: BookmarkEntry) => {
+    const location = await resolveAppDataLocation({
+      settings,
+      handle: appDataDirectoryHandle ?? null,
+    });
+    if (!location) return;
+    if (location.dirPath) {
+      const data = await loadBookmarksFromPath(location.dirPath);
+      const next = incrementBookmarkViews({ data, path: entry.path });
+      if (next) {
+        await saveBookmarksToPath(location.dirPath, next);
+        window.dispatchEvent(new CustomEvent("pm-bookmarks-updated"));
+      }
+      return;
+    }
+    if (location.dirHandle) {
+      const data = await loadBookmarksFromHandle(location.dirHandle);
+      const next = incrementBookmarkViews({ data, path: entry.path });
+      if (next) {
+        await saveBookmarksToHandle(location.dirHandle, next);
+        window.dispatchEvent(new CustomEvent("pm-bookmarks-updated"));
+      }
+    }
+  };
+
+  const openBookmark = async (entry: BookmarkEntry) => {
+    const existingId = findOpenTabForBookmark(entry);
+    if (existingId) return;
+    if (!entry.path || !isDesktopMode) return;
+    const dirPath = entry.path.replace(/[\\/][^\\/]+$/, "");
+    if (!dirPath || dirPath === entry.path) return;
+
+    const { fileManager, cognitiveNotesManager } = getManagers();
+    try {
+      if (entry.moduleType === "cognitiveNotes") {
+        const result =
+          await cognitiveNotesManager.loadOrCreateCognitiveNotesJsonFromPath(
+            dirPath
+          );
+        const tabId = createTab();
+        setActiveTab(tabId);
+        setTabTitle(tabId, result.root.name ?? "Cognitive Notes");
+        setTabModule(tabId, "cognitiveNotes");
+        setCognitiveNotesRoot(result.root);
+        setCognitiveNotesSource(null, dirPath);
+        const { nodes, edges, rootNodeId } = composeCognitiveNotesGraph(result.root, {
+          nodeSize: settings.appearance.nodeSize,
+          columns: settings.appearance.gridColumns,
+          columnGap: settings.appearance.gridColumnGap,
+          rowGap: settings.appearance.gridRowGap,
+        });
+        setNodes(nodes);
+        setEdges(edges);
+        setShouldFitView(true);
+        selectNode(rootNodeId);
+      } else {
+        const result = await fileManager.loadOrCreateRootFolderJsonFromPath(dirPath);
+        const tabId = createTab();
+        setActiveTab(tabId);
+        setRoot(null, result.root);
+        selectNode("00");
+      }
+      await incrementBookmarkViewsForEntry(entry);
+    } catch {
+      return;
+    }
+  };
 
   return (
     <aside
@@ -441,7 +621,50 @@ export default function LeftPanel() {
                 opacity: 0.8,
               }}
             >
-              {uiText.leftPanel.emptyBookmarks}
+              {bookmarks.length === 0 ? (
+                uiText.leftPanel.emptyBookmarks
+              ) : (
+                <div style={{ display: "grid", gap: "6px" }}>
+                  {bookmarks.map((entry) => (
+                    <div
+                      key={`${entry.path}-${entry.moduleType}`}
+                      title={entry.path}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "8px",
+                        padding: "4px 6px",
+                        borderRadius: "var(--radius-sm)",
+                        background: "var(--surface-1)",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => void openBookmark(entry)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "8px",
+                          width: "100%",
+                          border: "none",
+                          background: "transparent",
+                          color: "inherit",
+                          cursor: "pointer",
+                          padding: 0,
+                          fontFamily: "var(--font-family)",
+                        }}
+                      >
+                        <span>{bookmarkName(entry)}</span>
+                        <span style={{ fontSize: "7px", opacity: 0.75 }}>
+                          {entry.views ?? 0}
+                        </span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

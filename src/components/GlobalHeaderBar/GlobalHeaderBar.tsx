@@ -2,6 +2,15 @@ import { uiText } from "../../constants/uiText";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { FiSettings } from "react-icons/fi";
 import { FileManager } from "../../data/fileManager";
+import {
+  getRootIndexFilePath,
+  incrementBookmarkViews,
+  loadBookmarksFromHandle,
+  loadBookmarksFromPath,
+  resolveAppDataLocation,
+  saveBookmarksToHandle,
+  saveBookmarksToPath,
+} from "../../utils/bookmarksManager";
 import { runExtensionAction } from "../../extensions";
 import { isModuleEnabled } from "../../utils/moduleConfig";
 import { useMemo, useState, useRef, useEffect } from "react";
@@ -139,6 +148,32 @@ export function GlobalHeaderBar({ title: _title }: GlobalHeaderBarProps) {
           // when a <root>_rootIndex.json file already exists in the chosen folder.
         }
         setRoot(null, result.root);
+        const location = await resolveAppDataLocation({
+          settings: useMindMapStore.getState().settings,
+          handle: useMindMapStore.getState().appDataDirectoryHandle ?? null,
+        });
+        if (location) {
+          const bookmarkPath = getRootIndexFilePath(
+            "parallelmind",
+            result.root.name ?? "root",
+            result.root.path ?? null
+          );
+          if (location.dirPath) {
+            const data = await loadBookmarksFromPath(location.dirPath);
+            const next = incrementBookmarkViews({ data, path: bookmarkPath });
+            if (next) {
+              await saveBookmarksToPath(location.dirPath, next);
+              window.dispatchEvent(new CustomEvent("pm-bookmarks-updated"));
+            }
+          } else if (location.dirHandle) {
+            const data = await loadBookmarksFromHandle(location.dirHandle);
+            const next = incrementBookmarkViews({ data, path: bookmarkPath });
+            if (next) {
+              await saveBookmarksToHandle(location.dirHandle, next);
+              window.dispatchEvent(new CustomEvent("pm-bookmarks-updated"));
+            }
+          }
+        }
       } else {
         const result = await fileManager.loadOrCreateRootFolderJson(selection);
         if (!result.created) {
@@ -146,6 +181,32 @@ export function GlobalHeaderBar({ title: _title }: GlobalHeaderBarProps) {
           // when a <root>_rootIndex.json file already exists in the chosen folder.
         }
         setRoot(selection, result.root);
+        const location = await resolveAppDataLocation({
+          settings: useMindMapStore.getState().settings,
+          handle: useMindMapStore.getState().appDataDirectoryHandle ?? null,
+        });
+        if (location) {
+          const bookmarkPath = getRootIndexFilePath(
+            "parallelmind",
+            result.root.name ?? "root",
+            result.root.path ?? null
+          );
+          if (location.dirPath) {
+            const data = await loadBookmarksFromPath(location.dirPath);
+            const next = incrementBookmarkViews({ data, path: bookmarkPath });
+            if (next) {
+              await saveBookmarksToPath(location.dirPath, next);
+              window.dispatchEvent(new CustomEvent("pm-bookmarks-updated"));
+            }
+          } else if (location.dirHandle) {
+            const data = await loadBookmarksFromHandle(location.dirHandle);
+            const next = incrementBookmarkViews({ data, path: bookmarkPath });
+            if (next) {
+              await saveBookmarksToHandle(location.dirHandle, next);
+              window.dispatchEvent(new CustomEvent("pm-bookmarks-updated"));
+            }
+          }
+        }
       }
 
       // Immediately focus the new root in the UI so the details panel is usable right away.

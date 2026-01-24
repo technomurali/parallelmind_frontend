@@ -322,6 +322,9 @@ export const uiText = {
    * Context menu item labels
    */
   contextMenus: {
+    tabs: {
+      bookmark: 'Bookmark',
+    },
     node: {
       edit: 'Edit',
       delete: 'Delete',

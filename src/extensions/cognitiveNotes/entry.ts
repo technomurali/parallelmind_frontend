@@ -2,6 +2,15 @@ import type { ExtensionEntry } from "../extensionTypes";
 import { CognitiveNotesManager } from "./data/cognitiveNotesManager";
 import { composeCognitiveNotesGraph } from "./utils/composeCognitiveNotesGraph";
 import { type CanvasTab, useMindMapStore } from "../../store/mindMapStore";
+import {
+  getRootIndexFilePath,
+  incrementBookmarkViews,
+  loadBookmarksFromHandle,
+  loadBookmarksFromPath,
+  resolveAppDataLocation,
+  saveBookmarksToHandle,
+  saveBookmarksToPath,
+} from "../../utils/bookmarksManager";
 
 const cognitiveNotesManager = new CognitiveNotesManager();
 
@@ -58,6 +67,33 @@ const openCognitiveNotes = async (): Promise<void> => {
       typeof selection === "string" ? null : selection,
       typeof selection === "string" ? selection : null
     );
+
+    const location = await resolveAppDataLocation({
+      settings: store.settings,
+      handle: store.appDataDirectoryHandle ?? null,
+    });
+    if (location) {
+      const bookmarkPath = getRootIndexFilePath(
+        "cognitiveNotes",
+        result.root.name ?? "root",
+        result.root.path ?? null
+      );
+      if (location.dirPath) {
+        const data = await loadBookmarksFromPath(location.dirPath);
+        const next = incrementBookmarkViews({ data, path: bookmarkPath });
+        if (next) {
+          await saveBookmarksToPath(location.dirPath, next);
+          window.dispatchEvent(new CustomEvent("pm-bookmarks-updated"));
+        }
+      } else if (location.dirHandle) {
+        const data = await loadBookmarksFromHandle(location.dirHandle);
+        const next = incrementBookmarkViews({ data, path: bookmarkPath });
+        if (next) {
+          await saveBookmarksToHandle(location.dirHandle, next);
+          window.dispatchEvent(new CustomEvent("pm-bookmarks-updated"));
+        }
+      }
+    }
 
     const settings = store.settings;
     const { nodes, edges, rootNodeId } = composeCognitiveNotesGraph(result.root, {
