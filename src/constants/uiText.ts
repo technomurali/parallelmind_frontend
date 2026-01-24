@@ -31,6 +31,14 @@ export const uiText = {
     folderTree: 'Folder Tree',
     nodeSelector: 'Node Selector',
   },
+  leftPanel: {
+    viewLabel: 'View',
+    views: {
+      bookmarks: 'Bookmarks',
+      fileTree: 'File Tree',
+    },
+    emptyBookmarks: 'No bookmarks yet.',
+  },
   flowchartNodes: {
     roundRect: {
       name: 'Rounded Rectangle',

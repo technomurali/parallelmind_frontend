@@ -41,6 +41,9 @@ export default function LeftPanel() {
   const [matches, setMatches] = useState<
     { id: string; label: string; name: string }[]
   >([]);
+  const [leftPanelView, setLeftPanelView] = useState<"bookmarks" | "fileTree">(
+    "fileTree"
+  );
   const [recentSearches, setRecentSearches] = useState<
     { id: string; label: string }[]
   >([]);
@@ -394,7 +397,53 @@ export default function LeftPanel() {
               </div>
             )}
           </div>
-          <TreeView />
+          <div
+            style={{
+              padding: "var(--space-2)",
+              borderBottom: "var(--border-width) solid var(--border)",
+              display: "grid",
+              gap: "6px",
+            }}
+          >
+            <div style={{ fontSize: "0.8rem", opacity: 0.75 }}>
+              {uiText.leftPanel.viewLabel}
+            </div>
+            <select
+              value={leftPanelView}
+              onChange={(e) =>
+                setLeftPanelView(
+                  e.target.value === "bookmarks" ? "bookmarks" : "fileTree"
+                )
+              }
+              style={{
+                width: "100%",
+                borderRadius: "var(--radius-md)",
+                border: "var(--border-width) solid var(--border)",
+                padding: "6px 8px",
+                background: "var(--surface-2)",
+                color: "var(--text)",
+                fontFamily: "var(--font-family)",
+              }}
+              aria-label={uiText.leftPanel.viewLabel}
+            >
+              <option value="bookmarks">{uiText.leftPanel.views.bookmarks}</option>
+              <option value="fileTree">{uiText.leftPanel.views.fileTree}</option>
+            </select>
+          </div>
+
+          {leftPanelView === "fileTree" ? (
+            <TreeView />
+          ) : (
+            <div
+              style={{
+                padding: "var(--space-3)",
+                fontSize: "0.85rem",
+                opacity: 0.8,
+              }}
+            >
+              {uiText.leftPanel.emptyBookmarks}
+            </div>
+          )}
         </div>
       ) : (
         <div className="pm-panel__collapsed" aria-hidden="true" />
