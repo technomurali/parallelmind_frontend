@@ -2080,6 +2080,7 @@ export default function MindMap() {
 
   useEffect(() => {
     if (!rf) return;
+    if (!settings.interaction.autoCenterOnSelection) return;
     if (!selectedNodeId) {
       lastFocusedNodeIdRef.current = null;
       return;
@@ -2121,7 +2122,13 @@ export default function MindMap() {
     }
 
     lastFocusedNodeIdRef.current = selectedNodeId;
-  }, [nodes, rf, selectedNodeId, settings.appearance.nodeSize]);
+  }, [
+    nodes,
+    rf,
+    selectedNodeId,
+    settings.appearance.nodeSize,
+    settings.interaction.autoCenterOnSelection,
+  ]);
 
   return (
     <main className="pm-center" aria-label={uiText.ariaLabels.mindMapCanvas}>

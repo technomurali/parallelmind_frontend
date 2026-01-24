@@ -157,6 +157,8 @@ export const uiText = {
     redo: 'Redo',
     cut: 'Cut',
     copy: 'Copy',
+    on: 'On',
+    off: 'Off',
     paste: 'Paste',
     selectAll: 'Select All',
     clearSelection: 'Clear Selection',
@@ -214,6 +216,7 @@ export const uiText = {
     selectRootFolder: 'Select root folder',
     changeRootFolder: 'Change root folder',
     rootFolderNamePrefix: 'Root Folder:',
+    autoCenterSelection: 'Auto-center selected node',
   },
 
   /**

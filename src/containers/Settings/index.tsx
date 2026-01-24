@@ -336,6 +336,37 @@ export default function Settings() {
 
                       <div className="pm-settings__row">
                         <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">
+                            {uiText.tooltips.autoCenterSelection}
+                          </div>
+                          <div className="pm-settings__rowDesc">
+                            Keep the selected node centered in view.
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="pm-settings__control"
+                          onClick={() =>
+                            updateSettings({
+                              interaction: {
+                                ...settings.interaction,
+                                autoCenterOnSelection:
+                                  !settings.interaction.autoCenterOnSelection,
+                              },
+                            })
+                          }
+                          aria-label={uiText.tooltips.autoCenterSelection}
+                        >
+                          {settings.interaction.autoCenterOnSelection
+                            ? uiText.buttons.on
+                            : uiText.buttons.off}
+                        </button>
+                      </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
                           <div className="pm-settings__rowTitle">Grid columns</div>
                           <div className="pm-settings__rowDesc">
                             Number of columns for Grid view layout.

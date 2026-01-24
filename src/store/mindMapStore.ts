@@ -267,6 +267,7 @@ export interface AppSettings {
   };
   interaction: {
     lockNodePositions: boolean;
+    autoCenterOnSelection: boolean;
   };
 }
 
@@ -391,6 +392,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       },
       interaction: {
         lockNodePositions: false,
+        autoCenterOnSelection: false,
       },
     };
 
