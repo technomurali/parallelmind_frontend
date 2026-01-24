@@ -32,7 +32,10 @@ export default function LeftPanel() {
   const activeTab = useMindMapStore(selectActiveTab);
   const nodes = activeTab?.nodes ?? [];
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
+  const cognitiveNotesRoot = activeTab?.cognitiveNotesRoot ?? null;
+  const moduleType = activeTab?.moduleType ?? null;
   const selectNode = useMindMapStore((s) => s.selectNode);
+  const setNodes = useMindMapStore((s) => s.setNodes);
   const setShouldFitView = useMindMapStore((s) => s.setShouldFitView);
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<
@@ -72,8 +75,20 @@ export default function LeftPanel() {
   };
 
   const fileIndexEntries = useMemo(() => {
-    if (!rootFolderJson) return [];
     const entries: { id: string; name: string; label: string }[] = [];
+    if (moduleType === "cognitiveNotes") {
+      (cognitiveNotesRoot?.child ?? []).forEach((node: any) => {
+        const name =
+          typeof node?.name === "string" ? node.name.trim() : "";
+        if (!name) return;
+        const extension =
+          typeof node?.extension === "string" ? node.extension.trim() : "";
+        const label = extension ? `${name}.${extension}` : name;
+        entries.push({ id: node.id as string, name, label });
+      });
+      return entries;
+    }
+    if (!rootFolderJson) return [];
     const walk = (list: IndexNode[]) => {
       list.forEach((node) => {
         const hasChildren = Array.isArray((node as any).child);
@@ -94,7 +109,7 @@ export default function LeftPanel() {
     };
     walk((rootFolderJson as RootFolderJson).child ?? []);
     return entries;
-  }, [rootFolderJson]);
+  }, [rootFolderJson, cognitiveNotesRoot, moduleType]);
 
   const runSearch = (value: string) => {
     const trimmed = value.trim();
@@ -117,6 +132,12 @@ export default function LeftPanel() {
     const node = nodes.find((n: any) => n?.id === entry.id);
     if (!node) return;
     selectNode(node.id);
+    setNodes(
+      (nodes ?? []).map((item: any) => ({
+        ...item,
+        selected: item?.id === entry.id,
+      }))
+    );
     setShouldFitView(true);
     setRecentSearches((prev) => {
       const next = [{ id: entry.id, label: entry.label }].concat(
@@ -265,7 +286,11 @@ export default function LeftPanel() {
             }}
           >
             <label style={{ display: "grid", gap: "5px" }}>
-              <span style={{ fontSize: "0.8rem", opacity: 0.75 }}>Folder & File Search</span>
+              <span style={{ fontSize: "0.8rem", opacity: 0.75 }}>
+                {moduleType === "cognitiveNotes"
+                  ? "File Search"
+                  : "Folder & File Search"}
+              </span>
               <input
                 value={query}
                 onChange={(e) => {
