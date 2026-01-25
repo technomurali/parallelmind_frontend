@@ -16,6 +16,7 @@ import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
+import { DEFAULT_PURPOSE_TEMPLATE } from "../../constants/defaultPurposeTemplate";
 import { FileManager, type RootFolderJson } from "../../data/fileManager";
 import {
   FLOWCHART_NODE_DEFINITIONS,
@@ -2707,10 +2708,18 @@ export default function RightPanel() {
                               onChange={(e) =>
                                 onFieldChange("purpose")(e.target.value)
                               }
+                              onFocus={() => {
+                                if (!draft.purpose.trim()) {
+                                  setDraft((prev) => ({
+                                    ...prev,
+                                    purpose: DEFAULT_PURPOSE_TEMPLATE,
+                                  }));
+                                }
+                              }}
                               onBlur={() => {
                                 void commitSave();
                               }}
-                              placeholder={uiText.placeholders.nodePurpose}
+                              placeholder={DEFAULT_PURPOSE_TEMPLATE}
                               aria-label={uiText.fields.nodeDetails.purpose}
                               style={{
                                 width: "100%",
@@ -2731,10 +2740,18 @@ export default function RightPanel() {
                               onChange={(e) =>
                                 onFieldChange("purpose")(e.target.value)
                               }
+                              onFocus={() => {
+                                if (!draft.purpose.trim()) {
+                                  setDraft((prev) => ({
+                                    ...prev,
+                                    purpose: DEFAULT_PURPOSE_TEMPLATE,
+                                  }));
+                                }
+                              }}
                               onBlur={() => {
                                 void commitSave();
                               }}
-                              placeholder={uiText.placeholders.nodePurpose}
+                              placeholder={DEFAULT_PURPOSE_TEMPLATE}
                               aria-label={uiText.fields.nodeDetails.purpose}
                               rows={2}
                               style={{
