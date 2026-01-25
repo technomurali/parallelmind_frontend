@@ -33,6 +33,13 @@ import { FileManager } from "../../data/fileManager";
 import { CognitiveNotesManager } from "../../extensions/cognitiveNotes/data/cognitiveNotesManager";
 import { composeCognitiveNotesGraph } from "../../extensions/cognitiveNotes/utils/composeCognitiveNotesGraph";
 
+type FileSearchChip = {
+  id: string;
+  label: string;
+  views: number;
+  last_viewed_on: string;
+};
+
 const truncateChipLabel = (label: string, maxChars = 10): string => {
   const safe = (label ?? "").trim();
   if (!safe) return "";
@@ -149,7 +156,10 @@ export default function LeftPanel() {
 
   const recentSearchChips = useMemo(() => {
     if (recentSearches.length === 0) {
-      return { recentOpened: [], mostViewed: [] as typeof recentSearches };
+      return {
+        recentOpened: [] as FileSearchChip[],
+        mostViewed: [] as FileSearchChip[],
+      };
     }
     const recentLimitRaw = settings.fileSearch?.recentLimit;
     const recentLimit =
@@ -195,12 +205,12 @@ export default function LeftPanel() {
       };
       walk(rootFolderJson.child ?? []);
     }
-    const enriched = [...recentSearches]
-      .map((entry) => ({
-        ...entry,
-        views: viewMap.get(entry.id) ?? 0,
-        last_viewed_on: lastViewedMap.get(entry.id) ?? "",
-      }));
+    const enriched: FileSearchChip[] = [...recentSearches].map((entry) => ({
+      id: String(entry.id),
+      label: String(entry.label),
+      views: viewMap.get(entry.id) ?? 0,
+      last_viewed_on: lastViewedMap.get(entry.id) ?? "",
+    }));
 
     const recentOpened = [...enriched]
       .sort((a, b) => {
@@ -800,6 +810,7 @@ export default function LeftPanel() {
                   borderRadius: "var(--radius-md)",
                   border: "var(--border-width) solid var(--border)",
                   padding: "6px 8px",
+                  paddingRight: "3px",
                   background: "var(--surface-2)",
                   color: "var(--text)",
                   fontFamily: "var(--font-family)",
