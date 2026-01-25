@@ -1587,6 +1587,63 @@ export default function MindMap() {
     setIsNodeDragging(false);
   };
 
+  useEffect(() => {
+    if (!rf) return;
+
+    const onFocusNode = (ev: Event) => {
+      const detail = (ev as CustomEvent)?.detail as
+        | { tabId?: string; nodeId?: string; zoom?: number }
+        | undefined;
+      const nodeId = detail?.nodeId;
+      if (!nodeId) return;
+      const tabId = typeof detail?.tabId === "string" ? detail.tabId : null;
+      if (tabId && tabId !== (activeTab?.id ?? "")) return;
+
+      const target = (nodes ?? []).find((n: any) => n?.id === nodeId);
+      if (!target?.position) return;
+
+      const fallbackSize = settings.appearance.nodeSize;
+      const styleWidth = (target.style as any)?.width;
+      const styleHeight = (target.style as any)?.height;
+      const nodeWidth =
+        typeof target.width === "number"
+          ? target.width
+          : typeof styleWidth === "number"
+          ? styleWidth
+          : fallbackSize;
+      const nodeHeight =
+        typeof target.height === "number"
+          ? target.height
+          : typeof styleHeight === "number"
+          ? styleHeight
+          : fallbackSize;
+      const centerX = target.position.x + Math.max(1, nodeWidth) / 2;
+      const centerY = target.position.y + Math.max(1, nodeHeight) / 2;
+      const zoom =
+        typeof detail?.zoom === "number" && Number.isFinite(detail.zoom)
+          ? Math.max(0.1, Math.min(6, detail.zoom))
+          : rf.getZoom();
+
+      if (typeof (rf as any).setCenter === "function") {
+        (rf as any).setCenter(centerX, centerY, { zoom, duration: 250 });
+      } else {
+        const rect = wrapperRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        rf.setViewport({
+          x: rect.width / 2 - centerX * zoom,
+          y: rect.height / 2 - centerY * zoom,
+          zoom,
+        });
+      }
+      queueViewportSave(rf.getViewport());
+    };
+
+    window.addEventListener("pm-focus-node", onFocusNode as EventListener);
+    return () => {
+      window.removeEventListener("pm-focus-node", onFocusNode as EventListener);
+    };
+  }, [rf, activeTab?.id, nodes, settings.appearance.nodeSize, queueViewportSave]);
+
   const onCanvasMouseDown = (event: any) => {
     canvasBodyRef.current?.focus();
     if (!showDetailsActive) return;

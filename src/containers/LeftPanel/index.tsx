@@ -319,9 +319,26 @@ export default function LeftPanel() {
           selected: item?.id === chip.id,
         }))
       );
-      setShouldFitView(true);
+      window.setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent("pm-focus-node", {
+            detail: { tabId: chip.tabId, nodeId: chip.id },
+          })
+        );
+      }, 0);
     }, 0);
     setMatches([]);
+  };
+
+  const zoomToHistoryChip = (chip: FileSearchChip) => {
+    selectHistoryChip(chip);
+    window.setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("pm-focus-node", {
+          detail: { tabId: chip.tabId, nodeId: chip.id, zoom: 4 },
+        })
+      );
+    }, 60);
   };
 
   const fileIndexEntries = useMemo(() => {
@@ -390,7 +407,13 @@ export default function LeftPanel() {
         selected: item?.id === entry.id,
       }))
     );
-    setShouldFitView(true);
+    window.setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("pm-focus-node", {
+          detail: { tabId: activeTabId, nodeId: entry.id },
+        })
+      );
+    }, 0);
 
     const MAX_RECENTS = 20;
     const nextRecents = [{ id: entry.id, label: entry.label }].concat(
@@ -987,6 +1010,7 @@ export default function LeftPanel() {
                           <button
                             type="button"
                             onClick={() => selectHistoryChip(item)}
+                            onDoubleClick={() => zoomToHistoryChip(item)}
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -1085,6 +1109,7 @@ export default function LeftPanel() {
                           <button
                             type="button"
                             onClick={() => selectHistoryChip(item)}
+                            onDoubleClick={() => zoomToHistoryChip(item)}
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
