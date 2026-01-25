@@ -359,6 +359,8 @@ export const uiText = {
       hideParentPath: 'Hide Parent path',
       showChildren: 'Show children',
       hideChildren: 'Hide children',
+      moveNode: 'Move node',
+      moveWithChildren: 'Move with children',
     },
     folder: {
       openFolder: 'Open Folder',

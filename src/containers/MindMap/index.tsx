@@ -1244,9 +1244,9 @@ export default function MindMap() {
         .forEach((change) => {
           const moved = nodes.find((node) => node.id === change.id);
           if (!moved || !moved.position || !change.position) return;
-          if (!isFolderNode(moved) || moved.id === "00") return;
+          if (!isFolderNode(moved)) return;
           const moveChildrenOnDrag =
-            (moved.data as any)?.moveChildrenOnDrag !== false;
+            (moved.data as any)?.moveChildrenOnDrag === true;
           if (!moveChildrenOnDrag) return;
 
           const delta = {
@@ -1313,6 +1313,49 @@ export default function MindMap() {
       const nextPositions: Record<string, { x: number; y: number }> = {
         ...(cognitiveNotesRoot.node_positions ?? {}),
       };
+      const movedIds = new Set(
+        changes
+          .filter((change) => change.type === "position")
+          .map((change) => change.id)
+      );
+      const relatedDeltaMap = new Map<string, { x: number; y: number }>();
+
+      changes
+        .filter((change) => change.type === "position")
+        .forEach((change) => {
+          const moved = nodes.find((node) => node.id === change.id);
+          if (!moved || !moved.position || !change.position) return;
+          const moveChildrenOnDrag =
+            (moved.data as any)?.moveChildrenOnDrag === true;
+          if (!moveChildrenOnDrag) return;
+          const delta = {
+            x: change.position.x - moved.position.x,
+            y: change.position.y - moved.position.y,
+          };
+          if (delta.x === 0 && delta.y === 0) return;
+          const relatedIds = getRelatedDescendantIds(moved.id);
+          relatedIds.forEach((targetId) => {
+            if (!targetId || movedIds.has(targetId)) return;
+            if (!relatedDeltaMap.has(targetId)) {
+              relatedDeltaMap.set(targetId, delta);
+            }
+          });
+        });
+
+      if (relatedDeltaMap.size > 0) {
+        adjustedNodes = adjustedNodes.map((node) => {
+          const delta = relatedDeltaMap.get(node.id);
+          if (!delta || !node.position) return node;
+          return {
+            ...node,
+            position: {
+              x: node.position.x + delta.x,
+              y: node.position.y + delta.y,
+            },
+          };
+        });
+      }
+
       changes
         .filter((change) => change.type === "position")
         .forEach((change) => {
@@ -1323,6 +1366,14 @@ export default function MindMap() {
             y: moved.position.y,
           };
         });
+      relatedDeltaMap.forEach((_delta, relatedId) => {
+        const moved = adjustedNodes.find((node) => node.id === relatedId);
+        if (!moved || !moved.position) return;
+        nextPositions[moved.id] = {
+          x: moved.position.x,
+          y: moved.position.y,
+        };
+      });
       updateCognitiveNotesRoot({
         ...cognitiveNotesRoot,
         node_positions: nextPositions,
@@ -1608,6 +1659,43 @@ export default function MindMap() {
     const x = container ? e.clientX - container.left : e.clientX;
     const y = container ? e.clientY - container.top : e.clientY;
     setContextMenu({ open: true, x, y, node });
+  };
+
+  const getRelatedDescendantIds = (nodeId: string): string[] => {
+    if (!cognitiveNotesRoot || !nodeId) return [];
+    const relatedById = new Map<string, string[]>();
+    (cognitiveNotesRoot.child ?? []).forEach((node: any) => {
+      if (!node?.id) return;
+      const rels = Array.isArray(node.related_nodes) ? node.related_nodes : [];
+      const targets = rels
+        .map((rel: any) => rel?.target_id)
+        .filter((target: any) => typeof target === "string" && target);
+      relatedById.set(node.id, targets);
+    });
+    const visited = new Set<string>();
+    const queue: string[] = [];
+    (relatedById.get(nodeId) ?? []).forEach((target) => queue.push(target));
+    while (queue.length) {
+      const current = queue.shift();
+      if (!current || visited.has(current) || current === nodeId) continue;
+      visited.add(current);
+      (relatedById.get(current) ?? []).forEach((next) => {
+        if (!visited.has(next)) queue.push(next);
+      });
+    }
+    return Array.from(visited);
+  };
+
+  const hasMoveChildrenTargets = (node: Node | null): boolean => {
+    if (!node) return false;
+    if (isCognitiveNotes && cognitiveNotesRoot) {
+      return getRelatedDescendantIds(node.id).length > 0;
+    }
+    if (rootFolderJson && isFolderNode(node)) {
+      const descendants = getDescendantIds(rootFolderJson, node.id);
+      return descendants.length > 0;
+    }
+    return false;
   };
 
   const onNodeDoubleClick = (_: unknown, _node: Node) => {
@@ -3783,6 +3871,74 @@ export default function MindMap() {
                 type="button"
                 role="menuitem"
                 onClick={() => {
+                  const node = contextMenu.node;
+                  closeContextMenu();
+                  if (!node) return;
+                  updateNodeData(node.id, { moveChildrenOnDrag: false });
+                }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-family)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+              >
+                {uiText.contextMenus.node.moveNode}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const node = contextMenu.node;
+                  closeContextMenu();
+                  if (!node) return;
+                  if (!hasMoveChildrenTargets(node)) return;
+                  updateNodeData(node.id, { moveChildrenOnDrag: true });
+                }}
+                disabled={!hasMoveChildrenTargets(contextMenu.node)}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: hasMoveChildrenTargets(contextMenu.node)
+                    ? "pointer"
+                    : "not-allowed",
+                  fontFamily: "var(--font-family)",
+                  opacity: hasMoveChildrenTargets(contextMenu.node) ? 1 : 0.5,
+                }}
+                onMouseEnter={(e) => {
+                  if (!hasMoveChildrenTargets(contextMenu.node)) return;
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "var(--surface-1)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    "transparent";
+                }}
+              >
+                {uiText.contextMenus.node.moveWithChildren}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
                   setShowParentPath((prev) => !prev);
                   closeContextMenu();
                 }}
@@ -3843,47 +3999,6 @@ export default function MindMap() {
               </button>
               {contextMenu.node && isFolderNode(contextMenu.node) && (
                 <>
-                  {contextMenu.node.id !== "00" && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        const node = contextMenu.node;
-                        closeContextMenu();
-                        if (!node) return;
-                        if (!isFolderNode(node) || node.id === "00") return;
-                        const current =
-                          (node.data as any)?.moveChildrenOnDrag !== false;
-                        updateNodeData(node.id, {
-                          moveChildrenOnDrag: !current,
-                        });
-                      }}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "8px 10px",
-                        borderRadius: "var(--radius-sm)",
-                        border: "none",
-                        background: "transparent",
-                        color: "inherit",
-                        cursor: "pointer",
-                        fontFamily: "var(--font-family)",
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "var(--surface-1)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "transparent";
-                      }}
-                    >
-                      {(contextMenu.node.data as any)?.moveChildrenOnDrag ===
-                      false
-                        ? uiText.contextMenus.folder.moveFolderTree
-                        : uiText.contextMenus.folder.moveOnlyFolder}
-                    </button>
-                  )}
                   {contextMenu.node.id !== "00" && (
                     <button
                       type="button"
