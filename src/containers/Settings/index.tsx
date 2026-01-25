@@ -8,7 +8,7 @@ import {
   saveAppDataDirectoryHandle,
 } from "../../utils/appDataHandleStore";
 
-type SettingsSection = "appearance";
+type SettingsSection = "appearance" | "storage" | "bookmarks";
 
 export default function Settings() {
   const settings = useMindMapStore((s) => s.settings);
@@ -21,11 +21,10 @@ export default function Settings() {
   const [section, setSection] = useState<SettingsSection>("appearance");
   const [openSections, setOpenSections] = useState({
     themeDisplay: true,
-    nodeTypography: false,
-    connectionsLayout: false,
-    canvasAids: false,
-    nodeColoring: false,
-    appStorage: false,
+    nodeTypography: true,
+    connectionsLayout: true,
+    canvasAids: true,
+    nodeColoring: true,
   });
 
   const navItems = useMemo(
@@ -34,6 +33,14 @@ export default function Settings() {
         {
           id: "appearance" as const,
           label: "Appearance",
+        },
+        {
+          id: "storage" as const,
+          label: "Storage",
+        },
+        {
+          id: "bookmarks" as const,
+          label: uiText.settings.bookmarks.sectionTitle,
         },
       ] as const,
     []
@@ -627,58 +634,6 @@ export default function Settings() {
                   ),
                 },
                 {
-                  id: "appStorage",
-                  title: "Storage",
-                  desc: "Where app-managed files are stored.",
-                  content: (
-                    <>
-                      <div className="pm-settings__row">
-                        <div className="pm-settings__rowText">
-                          <div className="pm-settings__rowTitle">
-                            {uiText.settings.storage.appDataFolderLabel}
-                          </div>
-                          <div className="pm-settings__rowDesc">
-                            {uiText.settings.storage.appDataFolderDesc}
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "flex-end",
-                            gap: "6px",
-                            minWidth: 160,
-                          }}
-                        >
-                          <div style={{ fontSize: "0.75rem", opacity: 0.75 }}>
-                            {settings.storage.appDataFolderPath ||
-                              settings.storage.appDataFolderName ||
-                              uiText.settings.storage.notSet}
-                          </div>
-                          <div style={{ display: "flex", gap: "6px" }}>
-                            <button
-                              type="button"
-                              className="pm-settings__control"
-                              onClick={() => void pickAppDataFolder()}
-                              aria-label={uiText.settings.storage.chooseFolder}
-                            >
-                              {uiText.settings.storage.chooseFolder}
-                            </button>
-                            <button
-                              type="button"
-                              className="pm-settings__control"
-                              onClick={() => void clearAppDataFolder()}
-                              aria-label={uiText.settings.storage.clear}
-                            >
-                              {uiText.settings.storage.clear}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  ),
-                },
-                {
                   id: "nodeColoring",
                   title: "Node Coloring",
                   desc: "Color rules applied to nodes.",
@@ -956,6 +911,98 @@ export default function Settings() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+        {section === "storage" && (
+          <div className="pm-settings__page">
+            <div className="pm-settings__pageTitle">Storage</div>
+            <div className="pm-settings__card">
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
+                  <div className="pm-settings__rowTitle">
+                    {uiText.settings.storage.appDataFolderLabel}
+                  </div>
+                  <div className="pm-settings__rowDesc">
+                    {uiText.settings.storage.appDataFolderDesc}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-end",
+                    gap: "6px",
+                    minWidth: 160,
+                  }}
+                >
+                  <div style={{ fontSize: "0.75rem", opacity: 0.75 }}>
+                    {settings.storage.appDataFolderPath ||
+                      settings.storage.appDataFolderName ||
+                      uiText.settings.storage.notSet}
+                  </div>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button
+                      type="button"
+                      className="pm-settings__control"
+                      onClick={() => void pickAppDataFolder()}
+                      aria-label={uiText.settings.storage.chooseFolder}
+                    >
+                      {uiText.settings.storage.chooseFolder}
+                    </button>
+                    <button
+                      type="button"
+                      className="pm-settings__control"
+                      onClick={() => void clearAppDataFolder()}
+                      aria-label={uiText.settings.storage.clear}
+                    >
+                      {uiText.settings.storage.clear}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {section === "bookmarks" && (
+          <div className="pm-settings__page">
+            <div className="pm-settings__pageTitle">
+              {uiText.settings.bookmarks.sectionTitle}
+            </div>
+            <div className="pm-settings__card">
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
+                  <div className="pm-settings__rowTitle">
+                    {uiText.settings.bookmarks.sortOrderLabel}
+                  </div>
+                  <div className="pm-settings__rowDesc">
+                    {uiText.settings.bookmarks.sortOrderDesc}
+                  </div>
+                </div>
+                <select
+                  className="pm-settings__control"
+                  value={settings.bookmarks.sortOrder}
+                  onChange={(e) =>
+                    updateSettings({
+                      bookmarks: {
+                        ...settings.bookmarks,
+                        sortOrder:
+                          e.target.value === "views_asc"
+                            ? "views_asc"
+                            : "views_desc",
+                      },
+                    })
+                  }
+                  aria-label={uiText.settings.bookmarks.sortOrderLabel}
+                >
+                  <option value="views_desc">
+                    {uiText.settings.bookmarks.sortOrders.viewsDesc}
+                  </option>
+                  <option value="views_asc">
+                    {uiText.settings.bookmarks.sortOrders.viewsAsc}
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
         )}

@@ -65,7 +65,7 @@ export default function LeftPanel() {
     { id: string; label: string; name: string }[]
   >([]);
   const [leftPanelView, setLeftPanelView] = useState<"bookmarks" | "fileTree">(
-    "fileTree"
+    "bookmarks"
   );
   const [recentSearches, setRecentSearches] = useState<
     { id: string; label: string }[]
@@ -294,6 +294,18 @@ export default function LeftPanel() {
     return rawName.endsWith(".json") ? rawName.slice(0, -5) : rawName;
   };
 
+  const sortedBookmarks = useMemo(() => {
+    const order = settings.bookmarks?.sortOrder ?? "views_desc";
+    return [...bookmarks].sort((a, b) => {
+      const aViews = typeof a.views === "number" ? a.views : 0;
+      const bViews = typeof b.views === "number" ? b.views : 0;
+      if (aViews === bViews) {
+        return (a.name ?? "").localeCompare(b.name ?? "");
+      }
+      return order === "views_asc" ? aViews - bViews : bViews - aViews;
+    });
+  }, [bookmarks, settings.bookmarks?.sortOrder]);
+
   const isDesktopMode =
     typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
 
@@ -361,7 +373,10 @@ export default function LeftPanel() {
 
   const openBookmark = async (entry: BookmarkEntry) => {
     const existingId = findOpenTabForBookmark(entry);
-    if (existingId) return;
+    if (existingId) {
+      setActiveTab(existingId);
+      return;
+    }
     if (!entry.path || !isDesktopMode) return;
     const dirPath = entry.path.replace(/[\\/][^\\/]+$/, "");
     if (!dirPath || dirPath === entry.path) return;
@@ -621,11 +636,11 @@ export default function LeftPanel() {
                 opacity: 0.8,
               }}
             >
-              {bookmarks.length === 0 ? (
+              {sortedBookmarks.length === 0 ? (
                 uiText.leftPanel.emptyBookmarks
               ) : (
                 <div style={{ display: "grid", gap: "6px" }}>
-                  {bookmarks.map((entry) => (
+                  {sortedBookmarks.map((entry) => (
                     <div
                       key={`${entry.path}-${entry.moduleType}`}
                       title={entry.path}

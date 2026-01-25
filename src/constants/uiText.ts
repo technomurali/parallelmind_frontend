@@ -89,6 +89,16 @@ export const uiText = {
       chooseFolder: 'Choose folder',
       clear: 'Clear',
     },
+    bookmarks: {
+      sectionTitle: 'Bookmarks',
+      sectionDesc: 'Sorting preferences for bookmarks.',
+      sortOrderLabel: 'Sorting order',
+      sortOrderDesc: 'Choose how bookmarks are ordered.',
+      sortOrders: {
+        viewsDesc: 'Most viewed',
+        viewsAsc: 'Least viewed',
+      },
+    },
   },
 
   /**

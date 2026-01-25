@@ -245,6 +245,9 @@ export interface AppSettings {
     appDataFolderPath: string | null;
     appDataFolderName: string | null;
   };
+  bookmarks: {
+    sortOrder: "views_desc" | "views_asc";
+  };
   appearance: {
     nodeSize: number;
     edgeStyle: string;
@@ -377,6 +380,9 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         appDataFolderPath: null,
         appDataFolderName: null,
       },
+      bookmarks: {
+        sortOrder: "views_desc",
+      },
       appearance: {
         nodeSize: 200,
         edgeStyle: 'step',
@@ -420,6 +426,10 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       storage: {
         ...defaults.storage,
         ...(persisted as any).storage,
+      },
+      bookmarks: {
+        ...defaults.bookmarks,
+        ...(persisted as any).bookmarks,
       },
       appearance: {
         ...defaults.appearance,
@@ -618,6 +628,10 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         storage: {
           ...state.settings.storage,
           ...(newSettings.storage ?? {}),
+        },
+        bookmarks: {
+          ...state.settings.bookmarks,
+          ...(newSettings.bookmarks ?? {}),
         },
         appearance: {
           ...state.settings.appearance,
