@@ -636,8 +636,10 @@ export default function RightPanel() {
   }, [isImageNode, selectedNode, rootDirectoryHandle, fileManager]);
 
   useEffect(() => {
-    setFileDetailsExpanded(true);
-  }, [selectedNodeId]);
+    const shouldOpen =
+      !!selectedNodeId && isDraftNode && (isFileNode || isImageNode);
+    setFileDetailsExpanded(shouldOpen);
+  }, [selectedNodeId, isDraftNode, isFileNode, isImageNode]);
 
   // Save callback: updates in-memory state and persists only when we already have a persistence mechanism.
   const commitSave = async () => {
@@ -1913,6 +1915,11 @@ export default function RightPanel() {
       ? !!cognitiveNotesRoot
       : !!rootFolderJson);
 
+  const fileDetailsTitle =
+    isFileNode || isImageNode
+      ? `File: ${draft.name.trim() || "(no name)"}`
+      : uiText.fields.nodeDetails.sectionTitle;
+
   const onDeleteItem = async () => {
     if (!canDeleteItem || !selectedNodeId) return;
     setActionError(null);
@@ -2557,7 +2564,7 @@ export default function RightPanel() {
                         textAlign: "left",
                       }}
                     >
-                      <span>{uiText.fields.nodeDetails.sectionTitle}</span>
+                      <span>{fileDetailsTitle}</span>
                       <span aria-hidden="true">
                         {fileDetailsExpanded ? "−" : "+"}
                       </span>
@@ -2772,6 +2779,101 @@ export default function RightPanel() {
                             />
                           )}
                         </label>
+                        {(isDraftNode || canRenameItem || canDeleteItem || actionError) && (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "var(--space-2)",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            {isDraftNode && (
+                              <button
+                                type="button"
+                                onClick={() => void onCreateDraft()}
+                                disabled={!canCreateDraft}
+                                style={{
+                                  borderRadius: "999px",
+                                  border: "var(--border-width) solid var(--border)",
+                                  background: canCreateDraft
+                                    ? "var(--surface-1)"
+                                    : "var(--surface-2)",
+                                  color: "var(--text)",
+                                  padding: "4px 12px",
+                                  fontSize: "0.8rem",
+                                  fontWeight: 600,
+                                  cursor: canCreateDraft ? "pointer" : "not-allowed",
+                                  opacity: canCreateDraft ? 1 : 0.6,
+                                }}
+                              >
+                                {uiText.buttons.create}
+                              </button>
+                            )}
+                            {canRenameItem && (
+                              <button
+                                type="button"
+                                onClick={() => void onRenameItem()}
+                                style={{
+                                  borderRadius: "999px",
+                                  border: "var(--border-width) solid var(--border)",
+                                  background: renameActive
+                                    ? "var(--surface-1)"
+                                    : "var(--surface-2)",
+                                  color: "var(--text)",
+                                  padding: "4px 12px",
+                                  fontSize: "0.8rem",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {renameActive ? uiText.buttons.save : uiText.buttons.rename}
+                              </button>
+                            )}
+                            {canDeleteItem && (
+                              <button
+                                type="button"
+                                onClick={() => void onDeleteItem()}
+                                disabled={deleteInProgress}
+                                style={{
+                                  borderRadius: "999px",
+                                  border: "var(--border-width) solid var(--border)",
+                                  background: "var(--surface-2)",
+                                  color: "var(--danger, #e5484d)",
+                                  padding: "4px 12px",
+                                  fontSize: "0.8rem",
+                                  fontWeight: 600,
+                                  cursor: deleteInProgress ? "not-allowed" : "pointer",
+                                  opacity: deleteInProgress ? 0.6 : 1,
+                                }}
+                              >
+                                {uiText.buttons.delete}
+                              </button>
+                            )}
+                            {createError && isDraftNode && (
+                              <div
+                                style={{
+                                  fontSize: "0.8em",
+                                  color: "var(--danger, #e5484d)",
+                                  opacity: 0.95,
+                                }}
+                              >
+                                {createError}
+                              </div>
+                            )}
+                            {actionError && (
+                              <div
+                                style={{
+                                  fontSize: "0.8em",
+                                  color: "var(--danger, #e5484d)",
+                                  opacity: 0.95,
+                                }}
+                              >
+                                {actionError}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {isYoutubeNode && (
                           <div
                             style={{
@@ -3101,112 +3203,6 @@ export default function RightPanel() {
                   selectedNode={selectedNode}
                   rootDirectoryHandle={rootDirectoryHandle}
                 />
-
-                {isDraftNode && (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "var(--space-2)",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => void onCreateDraft()}
-                      disabled={!canCreateDraft}
-                      style={{
-                        borderRadius: "999px",
-                        border: "var(--border-width) solid var(--border)",
-                        background: canCreateDraft
-                          ? "var(--surface-1)"
-                          : "var(--surface-2)",
-                        color: "var(--text)",
-                        padding: "4px 12px",
-                        fontSize: "0.8rem",
-                        fontWeight: 600,
-                        cursor: canCreateDraft ? "pointer" : "not-allowed",
-                        opacity: canCreateDraft ? 1 : 0.6,
-                      }}
-                    >
-                      {uiText.buttons.create}
-                    </button>
-                    {createError && (
-                      <div
-                        style={{
-                          fontSize: "0.8em",
-                          color: "var(--danger, #e5484d)",
-                          opacity: 0.95,
-                        }}
-                      >
-                        {createError}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {canRenameItem || canDeleteItem ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "var(--space-2)",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {canRenameItem && (
-                      <button
-                        type="button"
-                        onClick={() => void onRenameItem()}
-                        style={{
-                          borderRadius: "999px",
-                          border: "var(--border-width) solid var(--border)",
-                          background: renameActive
-                            ? "var(--surface-1)"
-                            : "var(--surface-2)",
-                          color: "var(--text)",
-                          padding: "4px 12px",
-                          fontSize: "0.8rem",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {renameActive ? uiText.buttons.save : uiText.buttons.rename}
-                      </button>
-                    )}
-                    {canDeleteItem && (
-                      <button
-                        type="button"
-                        onClick={() => void onDeleteItem()}
-                        disabled={deleteInProgress}
-                        style={{
-                          borderRadius: "999px",
-                          border: "var(--border-width) solid var(--border)",
-                          background: "var(--surface-2)",
-                          color: "var(--danger, #e5484d)",
-                          padding: "4px 12px",
-                          fontSize: "0.8rem",
-                          fontWeight: 600,
-                          cursor: deleteInProgress ? "not-allowed" : "pointer",
-                          opacity: deleteInProgress ? 0.6 : 1,
-                        }}
-                      >
-                        {uiText.buttons.delete}
-                      </button>
-                    )}
-                    {actionError && (
-                      <div
-                        style={{
-                          fontSize: "0.8em",
-                          color: "var(--danger, #e5484d)",
-                          opacity: 0.95,
-                        }}
-                      >
-                        {actionError}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
 
                 {/* Read-only timestamps (root only). Kept small and easy to scan. */}
                 {selectedNodeId === "00" && (
