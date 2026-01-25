@@ -4,6 +4,7 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
 import { marked } from "marked";
 import { uiText } from "../constants/uiText";
 import { FileManager } from "../data/fileManager";
+import { CognitiveNotesManager } from "../extensions/cognitiveNotes/data/cognitiveNotesManager";
 import { useAutoSave } from "../hooks/useAutoSave";
 import { selectActiveTab, useMindMapStore } from "../store/mindMapStore";
 import { htmlToMarkdownPreserveSpacing } from "../utils/clipboardToMarkdown";
@@ -114,7 +115,11 @@ export default function SmartPad({
     activeTab?.cognitiveNotesDirectoryHandle ?? null;
   const cognitiveNotesFolderPath = activeTab?.cognitiveNotesFolderPath ?? null;
   const setRoot = useMindMapStore((s) => s.setRoot);
+  const updateRootFolderJson = useMindMapStore((s) => s.updateRootFolderJson);
+  const updateCognitiveNotesRoot = useMindMapStore((s) => s.updateCognitiveNotesRoot);
   const filePreviewRequestRef = useRef(0);
+  const lastViewedNodeIdRef = useRef<string | null>(null);
+  const cognitiveNotesManager = useMemo(() => new CognitiveNotesManager(), []);
   const contentEditableRef = useRef<HTMLDivElement | null>(null);
   const previewEditableRef = useRef<HTMLDivElement | null>(null);
   const [preview, setPreview] = useState<PreviewState>({
@@ -143,6 +148,84 @@ export default function SmartPad({
       setContentVersion((prev) => prev + 1);
     }
   };
+
+  useEffect(() => {
+    if (!selectedNode || !isFileNode(selectedNode)) {
+      lastViewedNodeIdRef.current = null;
+      return;
+    }
+    const nodeId = typeof selectedNode.id === "string" ? selectedNode.id : null;
+    if (!nodeId) return;
+    if (lastViewedNodeIdRef.current === nodeId) return;
+    lastViewedNodeIdRef.current = nodeId;
+
+    const nodePath =
+      typeof (selectedNode?.data as any)?.path === "string"
+        ? ((selectedNode?.data as any)?.path as string).trim()
+        : null;
+
+    void (async () => {
+      try {
+        if (activeTab?.moduleType === "cognitiveNotes") {
+          if (!cognitiveNotesRoot) return;
+          if (cognitiveNotesDirectoryHandle) {
+            const updated = await cognitiveNotesManager.updateFileNodeViewsFromHandle({
+              dirHandle: cognitiveNotesDirectoryHandle,
+              existing: cognitiveNotesRoot,
+              nodeId,
+              nodePath,
+            });
+            updateCognitiveNotesRoot(updated);
+            return;
+          }
+          const dirPath = cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "";
+          if (!dirPath) return;
+          const updated = await cognitiveNotesManager.updateFileNodeViewsFromPath({
+            dirPath,
+            existing: cognitiveNotesRoot,
+            nodeId,
+            nodePath,
+          });
+          updateCognitiveNotesRoot(updated);
+          return;
+        }
+
+        if (!rootFolderJson) return;
+        if (rootDirectoryHandle) {
+          const updated = await fileManager.updateFileNodeViewsFromHandle({
+            dirHandle: rootDirectoryHandle,
+            existing: rootFolderJson,
+            nodeId,
+            nodePath,
+          });
+          updateRootFolderJson(updated);
+          return;
+        }
+        if (!rootFolderJson.path) return;
+        const updated = await fileManager.updateFileNodeViewsFromPath({
+          dirPath: rootFolderJson.path,
+          existing: rootFolderJson,
+          nodeId,
+          nodePath,
+        });
+        updateRootFolderJson(updated);
+      } catch {
+        // Silent: view tracking should not block file viewing.
+      }
+    })();
+  }, [
+    selectedNode,
+    activeTab?.moduleType,
+    cognitiveNotesRoot,
+    cognitiveNotesDirectoryHandle,
+    cognitiveNotesFolderPath,
+    rootFolderJson,
+    rootDirectoryHandle,
+    fileManager,
+    cognitiveNotesManager,
+    updateCognitiveNotesRoot,
+    updateRootFolderJson,
+  ]);
 
   useEffect(() => {
     const requestId = ++filePreviewRequestRef.current;

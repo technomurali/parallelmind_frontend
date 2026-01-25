@@ -37,6 +37,7 @@ export type CognitiveNotesJson = {
   notifications: string[];
   recommendations: string[];
   error_messages: string[];
+  recent_searches: { id: string; label: string }[];
   node_positions: Record<string, { x: number; y: number }>;
   node_colors: Record<string, string>;
   node_size: Record<string, number>;
@@ -175,6 +176,16 @@ export class CognitiveNotesManager {
       ? obj.error_messages.filter((x: any) => typeof x === "string")
       : [];
 
+    const recent_searches = Array.isArray(obj.recent_searches)
+      ? (obj.recent_searches as any[])
+          .filter((x) => x && typeof x === "object")
+          .map((x) => ({
+            id: typeof (x as any).id === "string" ? (x as any).id : "",
+            label: typeof (x as any).label === "string" ? (x as any).label : "",
+          }))
+          .filter((x) => x.id && x.label)
+      : [];
+
     const rawPositions =
       obj && typeof obj.node_positions === "object" && obj.node_positions
         ? (obj.node_positions as Record<string, any>)
@@ -282,6 +293,7 @@ export class CognitiveNotesManager {
       notifications,
       recommendations,
       error_messages,
+      recent_searches,
       node_positions,
       node_colors,
       node_size,
@@ -308,6 +320,7 @@ export class CognitiveNotesManager {
       notifications: [],
       recommendations: [],
       error_messages: [],
+      recent_searches: [],
       node_positions: {},
       node_colors: {},
       node_size: {},
@@ -476,6 +489,15 @@ export class CognitiveNotesManager {
         ? existing.recommendations
         : [],
       error_messages: Array.isArray(existing.error_messages) ? existing.error_messages : [],
+      recent_searches: Array.isArray((existing as any).recent_searches)
+        ? ((existing as any).recent_searches as any[])
+            .filter((x: any) => x && typeof x === "object")
+            .map((x: any) => ({
+              id: typeof x.id === "string" ? x.id : "",
+              label: typeof x.label === "string" ? x.label : "",
+            }))
+            .filter((x: any) => x.id && x.label)
+        : [],
       node_positions:
         existing && typeof existing.node_positions === "object"
           ? (existing.node_positions as Record<string, { x: number; y: number }>)
@@ -784,6 +806,88 @@ export class CognitiveNotesManager {
     return null;
   }
 
+  private updateNodeViewsInList(args: {
+    nodes: CognitiveNotesFileNode[];
+    nodeId: string | null;
+    nodePath: string | null;
+    now: string;
+  }): { nodes: CognitiveNotesFileNode[]; updated: boolean } {
+    const { nodes, nodeId, nodePath, now } = args;
+    let updated = false;
+    const nextNodes = (nodes ?? []).map((node) => {
+      const matchesId = !!nodeId && node.id === nodeId;
+      const matchesPath =
+        !!nodePath && typeof node.path === "string" && node.path === nodePath;
+      if (!matchesId && !matchesPath) {
+        return node;
+      }
+      const nextViews =
+        typeof node.views === "number" && Number.isFinite(node.views)
+          ? node.views + 1
+          : 1;
+      updated = true;
+      return {
+        ...node,
+        views: nextViews,
+        last_viewed_on: now,
+      };
+    });
+    return { nodes: nextNodes, updated };
+  }
+
+  async updateFileNodeViewsFromHandle(args: {
+    dirHandle: FileSystemDirectoryHandle;
+    existing: CognitiveNotesJson;
+    nodeId: string | null;
+    nodePath: string | null;
+  }): Promise<CognitiveNotesJson> {
+    const { dirHandle, existing, nodeId, nodePath } = args;
+    const now = this.nowIso();
+    const result = this.updateNodeViewsInList({
+      nodes: existing.child ?? [],
+      nodeId,
+      nodePath,
+      now,
+    });
+    if (!result.updated) {
+      return existing;
+    }
+    const updatedRoot: CognitiveNotesJson = {
+      ...existing,
+      child: result.nodes,
+      updated_on: now,
+    };
+    await this.writeCognitiveNotesJson(dirHandle, updatedRoot);
+    return updatedRoot;
+  }
+
+  async updateFileNodeViewsFromPath(args: {
+    dirPath: string;
+    existing: CognitiveNotesJson;
+    nodeId: string | null;
+    nodePath: string | null;
+  }): Promise<CognitiveNotesJson> {
+    const { dirPath, existing, nodeId, nodePath } = args;
+    const now = this.nowIso();
+    const result = this.updateNodeViewsInList({
+      nodes: existing.child ?? [],
+      nodeId,
+      nodePath,
+      now,
+    });
+    if (!result.updated) {
+      return existing;
+    }
+    const updatedRoot: CognitiveNotesJson = {
+      ...existing,
+      child: result.nodes,
+      path: dirPath,
+      updated_on: now,
+    };
+    await this.writeCognitiveNotesJsonFromPath(dirPath, updatedRoot);
+    return updatedRoot;
+  }
+
   async writeCognitiveNotesJson(
     dirHandle: FileSystemDirectoryHandle,
     root: CognitiveNotesJson
@@ -833,6 +937,15 @@ export class CognitiveNotesManager {
       error_messages: Array.isArray(root.error_messages)
         ? root.error_messages
         : existing?.error_messages ?? [],
+      recent_searches: Array.isArray((root as any).recent_searches)
+        ? ((root as any).recent_searches as any[])
+            .filter((x: any) => x && typeof x === "object")
+            .map((x: any) => ({
+              id: typeof x.id === "string" ? x.id : "",
+              label: typeof x.label === "string" ? x.label : "",
+            }))
+            .filter((x: any) => x.id && x.label)
+        : existing?.recent_searches ?? [],
       node_positions:
         root && typeof root.node_positions === "object"
           ? (root.node_positions as Record<string, { x: number; y: number }>)
@@ -916,6 +1029,15 @@ export class CognitiveNotesManager {
       error_messages: Array.isArray(root.error_messages)
         ? root.error_messages
         : existing?.error_messages ?? [],
+      recent_searches: Array.isArray((root as any).recent_searches)
+        ? ((root as any).recent_searches as any[])
+            .filter((x: any) => x && typeof x === "object")
+            .map((x: any) => ({
+              id: typeof x.id === "string" ? x.id : "",
+              label: typeof x.label === "string" ? x.label : "",
+            }))
+            .filter((x: any) => x.id && x.label)
+        : existing?.recent_searches ?? [],
       node_positions:
         root && typeof root.node_positions === "object"
           ? (root.node_positions as Record<string, { x: number; y: number }>)

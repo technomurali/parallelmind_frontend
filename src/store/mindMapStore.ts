@@ -248,6 +248,9 @@ export interface AppSettings {
   bookmarks: {
     sortOrder: "views_desc" | "views_asc";
   };
+  fileSearch: {
+    recentLimit: number;
+  };
   appearance: {
     nodeSize: number;
     edgeStyle: string;
@@ -383,6 +386,9 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       bookmarks: {
         sortOrder: "views_desc",
       },
+      fileSearch: {
+        recentLimit: 5,
+      },
       appearance: {
         nodeSize: 200,
         edgeStyle: 'step',
@@ -430,6 +436,10 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       bookmarks: {
         ...defaults.bookmarks,
         ...(persisted as any).bookmarks,
+      },
+      fileSearch: {
+        ...defaults.fileSearch,
+        ...(persisted as any).fileSearch,
       },
       appearance: {
         ...defaults.appearance,
@@ -632,6 +642,10 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         bookmarks: {
           ...state.settings.bookmarks,
           ...(newSettings.bookmarks ?? {}),
+        },
+        fileSearch: {
+          ...state.settings.fileSearch,
+          ...(newSettings.fileSearch ?? {}),
         },
         appearance: {
           ...state.settings.appearance,

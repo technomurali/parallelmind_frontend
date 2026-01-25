@@ -474,8 +474,7 @@ export default function FileNode({
                   overflowWrap: "break-word",
                   whiteSpace: "pre-wrap",
                   opacity: 0.95,
-                  position: "relative",
-                top: `${Math.max(1, Math.round(3 * sizeScale))}px`,
+                  marginTop: `${Math.max(1, Math.round(3 * sizeScale))}px`,
                 }}
               >
                 {displayPurpose ?? ""}

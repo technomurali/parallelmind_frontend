@@ -81,6 +81,14 @@ export const uiText = {
         smoothstep: 'Smoothstep',
       },
     },
+    fileManager: {
+      sectionTitle: "File Manager",
+      fileSearch: {
+        sectionTitle: "File Search",
+        recentLimitLabel: "Recent items limit",
+        recentLimitDesc: "Maximum number of items shown under Recent.",
+      },
+    },
     storage: {
       appDataFolderLabel: 'App data folder',
       appDataFolderDesc:
@@ -274,6 +282,8 @@ export const uiText = {
     successDeleted: 'Item deleted successfully.',
     successCreated: 'Item created successfully.',
     confirmReplaceRootFolder: 'Replace the current root folder?',
+    fileSearchUnavailable:
+      'File Search is unavailable because no workspace or tab is currently active.',
   },
 
   /**

@@ -93,6 +93,7 @@ export type RootFolderJson = {
   notifications: string[];
   recommendations: string[];
   error_messages: string[];
+  recent_searches: { id: string; label: string }[];
   node_positions: Record<string, { x: number; y: number }>;
   node_size: Record<string, number>;
   flowchart_nodes: FlowchartNode[];
@@ -558,6 +559,16 @@ export class FileManager {
       ? obj.error_messages.filter((x: any) => typeof x === "string")
       : [];
 
+    const recent_searches = Array.isArray(obj.recent_searches)
+      ? (obj.recent_searches as any[])
+          .filter((x) => x && typeof x === "object")
+          .map((x) => ({
+            id: typeof (x as any).id === "string" ? (x as any).id : "",
+            label: typeof (x as any).label === "string" ? (x as any).label : "",
+          }))
+          .filter((x) => x.id && x.label)
+      : [];
+
     const rawPositions =
       obj && typeof obj.node_positions === "object" && obj.node_positions
         ? (obj.node_positions as Record<string, any>)
@@ -648,6 +659,7 @@ export class FileManager {
       notifications,
       recommendations,
       error_messages,
+      recent_searches,
       node_positions,
       node_size,
       flowchart_nodes,
@@ -920,6 +932,15 @@ export class FileManager {
         ? existing.recommendations
         : [],
       error_messages: Array.isArray(existing.error_messages) ? existing.error_messages : [],
+      recent_searches: Array.isArray((existing as any).recent_searches)
+        ? ((existing as any).recent_searches as any[])
+            .filter((x: any) => x && typeof x === "object")
+            .map((x: any) => ({
+              id: typeof x.id === "string" ? x.id : "",
+              label: typeof x.label === "string" ? x.label : "",
+            }))
+            .filter((x: any) => x.id && x.label)
+        : [],
       node_positions:
         existing && typeof existing.node_positions === "object"
           ? (existing.node_positions as Record<string, { x: number; y: number }>)
@@ -1027,6 +1048,49 @@ export class FileManager {
     return { nodes: walk(nodes ?? []), updated };
   }
 
+  private updateNodeViewsInTree(args: {
+    nodes: IndexNode[];
+    nodeId: string | null;
+    nodePath: string | null;
+    now: string;
+  }): { nodes: IndexNode[]; updated: boolean } {
+    const { nodes, nodeId, nodePath, now } = args;
+    let updated = false;
+
+    const walk = (list: IndexNode[]): IndexNode[] => {
+      return list.map((node) => {
+        const matchesId = !!nodeId && node.id === nodeId;
+        const matchesPath =
+          !!nodePath && typeof node.path === "string" && node.path === nodePath;
+        if (matchesId || matchesPath) {
+          if (this.isFileNode(node)) {
+            const nextViews =
+              typeof node.views === "number" && Number.isFinite(node.views)
+                ? node.views + 1
+                : 1;
+            updated = true;
+            return {
+              ...node,
+              views: nextViews,
+              last_viewed_on: now,
+            };
+          }
+          return node;
+        }
+
+        if (this.isFolderNode(node)) {
+          const nextChildren = walk(node.child ?? []);
+          if (nextChildren !== node.child) {
+            return { ...node, child: nextChildren };
+          }
+        }
+        return node;
+      });
+    };
+
+    return { nodes: walk(nodes ?? []), updated };
+  }
+
   async updateFileNodeTimestampFromHandle(args: {
     dirHandle: FileSystemDirectoryHandle;
     existing: RootFolderJson;
@@ -1036,6 +1100,32 @@ export class FileManager {
     const { dirHandle, existing, nodeId, nodePath } = args;
     const now = this.nowIso();
     const result = this.updateNodeTimestampInTree({
+      nodes: existing.child ?? [],
+      nodeId,
+      nodePath,
+      now,
+    });
+    if (!result.updated) {
+      return existing;
+    }
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      child: result.nodes,
+      updated_on: now,
+    };
+    await this.writeRootFolderJson(dirHandle, updatedRoot);
+    return updatedRoot;
+  }
+
+  async updateFileNodeViewsFromHandle(args: {
+    dirHandle: FileSystemDirectoryHandle;
+    existing: RootFolderJson;
+    nodeId: string | null;
+    nodePath: string | null;
+  }): Promise<RootFolderJson> {
+    const { dirHandle, existing, nodeId, nodePath } = args;
+    const now = this.nowIso();
+    const result = this.updateNodeViewsInTree({
       nodes: existing.child ?? [],
       nodeId,
       nodePath,
@@ -1081,6 +1171,34 @@ export class FileManager {
     return updatedRoot;
   }
 
+  async updateFileNodeViewsFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson;
+    nodeId: string | null;
+    nodePath: string | null;
+  }): Promise<RootFolderJson> {
+    const { dirPath, existing, nodeId, nodePath } = args;
+    const now = this.nowIso();
+    const result = this.updateNodeViewsInTree({
+      nodes: existing.child ?? [],
+      nodeId,
+      nodePath,
+      now,
+    });
+    if (!result.updated) {
+      return existing;
+    }
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      child: result.nodes,
+      path: dirPath,
+      updated_on: now,
+    };
+    const indexFileName = this.getIndexFileNameFromPath(dirPath);
+    await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, indexFileName);
+    return updatedRoot;
+  }
+
   private buildNewRootFolderJson(args: {
     name: string;
     path: string;
@@ -1102,6 +1220,7 @@ export class FileManager {
       notifications: [],
       recommendations: [],
       error_messages: [],
+      recent_searches: [],
       node_positions: {},
       node_size: {},
       flowchart_nodes: [],
@@ -1704,6 +1823,15 @@ export class FileManager {
         error_messages: Array.isArray(root.error_messages)
           ? root.error_messages
           : existing?.error_messages ?? [],
+        recent_searches: Array.isArray((root as any).recent_searches)
+          ? ((root as any).recent_searches as any[])
+              .filter((x: any) => x && typeof x === "object")
+              .map((x: any) => ({
+                id: typeof x.id === "string" ? x.id : "",
+                label: typeof x.label === "string" ? x.label : "",
+              }))
+              .filter((x: any) => x.id && x.label)
+          : existing?.recent_searches ?? [],
       node_positions:
         root && typeof root.node_positions === "object"
           ? (root.node_positions as Record<string, { x: number; y: number }>)
@@ -1824,6 +1952,15 @@ export class FileManager {
       error_messages: Array.isArray(root.error_messages)
         ? root.error_messages
         : existing?.error_messages ?? [],
+      recent_searches: Array.isArray((root as any).recent_searches)
+        ? ((root as any).recent_searches as any[])
+            .filter((x: any) => x && typeof x === "object")
+            .map((x: any) => ({
+              id: typeof x.id === "string" ? x.id : "",
+              label: typeof x.label === "string" ? x.label : "",
+            }))
+            .filter((x: any) => x.id && x.label)
+        : existing?.recent_searches ?? [],
       node_positions:
         root && typeof root.node_positions === "object"
           ? (root.node_positions as Record<string, { x: number; y: number }>)

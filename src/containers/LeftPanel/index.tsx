@@ -16,7 +16,7 @@
 import { TreeView } from "../../components/TreeView";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiX } from "react-icons/fi";
 import { uiText } from "../../constants/uiText";
 import type { IndexNode, RootFolderJson } from "../../data/fileManager";
 import type { BookmarkEntry } from "../../utils/bookmarksManager";
@@ -33,6 +33,13 @@ import { FileManager } from "../../data/fileManager";
 import { CognitiveNotesManager } from "../../extensions/cognitiveNotes/data/cognitiveNotesManager";
 import { composeCognitiveNotesGraph } from "../../extensions/cognitiveNotes/utils/composeCognitiveNotesGraph";
 
+const truncateChipLabel = (label: string, maxChars = 10): string => {
+  const safe = (label ?? "").trim();
+  if (!safe) return "";
+  if (safe.length <= maxChars) return safe;
+  return `${safe.slice(0, maxChars)}…`;
+};
+
 /**
  * LeftPanel component
  *
@@ -44,12 +51,18 @@ export default function LeftPanel() {
   const setLeftPanelWidth = useMindMapStore((s) => s.setLeftPanelWidth);
   const activeTab = useMindMapStore(selectActiveTab);
   const nodes = activeTab?.nodes ?? [];
+  const edges = activeTab?.edges ?? [];
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
   const cognitiveNotesRoot = activeTab?.cognitiveNotesRoot ?? null;
+  const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
+  const cognitiveNotesDirectoryHandle = activeTab?.cognitiveNotesDirectoryHandle ?? null;
+  const cognitiveNotesFolderPath = activeTab?.cognitiveNotesFolderPath ?? null;
   const moduleType = activeTab?.moduleType ?? null;
   const selectNode = useMindMapStore((s) => s.selectNode);
   const setNodes = useMindMapStore((s) => s.setNodes);
   const setShouldFitView = useMindMapStore((s) => s.setShouldFitView);
+  const updateRootFolderJson = useMindMapStore((s) => s.updateRootFolderJson);
+  const updateCognitiveNotesRoot = useMindMapStore((s) => s.updateCognitiveNotesRoot);
   const setActiveTab = useMindMapStore((s) => s.setActiveTab);
   const createTab = useMindMapStore((s) => s.createTab);
   const setTabTitle = useMindMapStore((s) => s.setTabTitle);
@@ -61,15 +74,13 @@ export default function LeftPanel() {
   const settings = useMindMapStore((s) => s.settings);
   const appDataDirectoryHandle = useMindMapStore((s) => s.appDataDirectoryHandle);
   const [query, setQuery] = useState("");
+  const [fileSearchInfo, setFileSearchInfo] = useState<string | null>(null);
   const [matches, setMatches] = useState<
     { id: string; label: string; name: string }[]
   >([]);
   const [leftPanelView, setLeftPanelView] = useState<"bookmarks" | "fileTree">(
     "bookmarks"
   );
-  const [recentSearches, setRecentSearches] = useState<
-    { id: string; label: string }[]
-  >([]);
   const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>([]);
   const [bookmarksRefreshKey, setBookmarksRefreshKey] = useState(0);
   const fileManagerRef = useRef<FileManager | null>(null);
@@ -103,6 +114,107 @@ export default function LeftPanel() {
     lastExpandedWidthRef.current = leftPanelWidth;
     setLeftPanelWidth(MIN_WIDTH);
   };
+
+  const fileSearchDisabled =
+    moduleType == null &&
+    !rootFolderJson &&
+    !cognitiveNotesRoot &&
+    (nodes ?? []).length === 0 &&
+    (edges ?? []).length === 0;
+
+  useEffect(() => {
+    if (!fileSearchDisabled) {
+      setFileSearchInfo(null);
+    } else {
+      setMatches([]);
+      setQuery("");
+    }
+  }, [fileSearchDisabled]);
+
+  const recentSearches = useMemo(() => {
+    if (fileSearchDisabled) return [];
+    const fromRoot =
+      moduleType === "cognitiveNotes"
+        ? (cognitiveNotesRoot as any)?.recent_searches
+        : (rootFolderJson as any)?.recent_searches;
+    if (!Array.isArray(fromRoot)) return [];
+    return fromRoot
+      .filter((x: any) => x && typeof x === "object")
+      .map((x: any) => ({
+        id: typeof x.id === "string" ? x.id : "",
+        label: typeof x.label === "string" ? x.label : "",
+      }))
+      .filter((x: any) => x.id && x.label);
+  }, [fileSearchDisabled, moduleType, cognitiveNotesRoot, rootFolderJson]);
+
+  const recentSearchChips = useMemo(() => {
+    if (recentSearches.length === 0) {
+      return { recentOpened: [], mostViewed: [] as typeof recentSearches };
+    }
+    const recentLimitRaw = settings.fileSearch?.recentLimit;
+    const recentLimit =
+      typeof recentLimitRaw === "number" && Number.isFinite(recentLimitRaw)
+        ? Math.max(1, Math.min(50, Math.round(recentLimitRaw)))
+        : 5;
+    const viewMap = new Map<string, number>();
+    const lastViewedMap = new Map<string, string>();
+    if (moduleType === "cognitiveNotes") {
+      (cognitiveNotesRoot?.child ?? []).forEach((node: any) => {
+        if (!node?.id) return;
+        const count =
+          typeof node.views === "number" && Number.isFinite(node.views)
+            ? node.views
+            : 0;
+        viewMap.set(String(node.id), count);
+        const lastViewed =
+          typeof node.last_viewed_on === "string" ? node.last_viewed_on : "";
+        lastViewedMap.set(String(node.id), lastViewed);
+      });
+    } else if (rootFolderJson) {
+      const walk = (list: IndexNode[]) => {
+        list.forEach((node) => {
+          if (!node) return;
+          const isFileNode = typeof (node as any)?.extension === "string";
+          if (isFileNode && (node as any)?.id) {
+            const count =
+              typeof (node as any).views === "number" &&
+              Number.isFinite((node as any).views)
+                ? (node as any).views
+                : 0;
+            viewMap.set(String((node as any).id), count);
+            const lastViewed =
+              typeof (node as any).last_viewed_on === "string"
+                ? (node as any).last_viewed_on
+                : "";
+            lastViewedMap.set(String((node as any).id), lastViewed);
+          }
+          if (Array.isArray((node as any)?.child)) {
+            walk((node as any).child as IndexNode[]);
+          }
+        });
+      };
+      walk(rootFolderJson.child ?? []);
+    }
+    const enriched = [...recentSearches]
+      .map((entry) => ({
+        ...entry,
+        views: viewMap.get(entry.id) ?? 0,
+        last_viewed_on: lastViewedMap.get(entry.id) ?? "",
+      }));
+
+    const mostViewed = [...enriched].sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
+    const recentOpened = [...enriched]
+      .sort((a, b) => {
+        const aKey = typeof a.last_viewed_on === "string" ? a.last_viewed_on : "";
+        const bKey = typeof b.last_viewed_on === "string" ? b.last_viewed_on : "";
+        if (aKey === bKey) return (b.views ?? 0) - (a.views ?? 0);
+        // ISO timestamps: lexical compare matches chronological order
+        return bKey.localeCompare(aKey);
+      })
+      .slice(0, recentLimit);
+
+    return { recentOpened, mostViewed };
+  }, [recentSearches, moduleType, cognitiveNotesRoot, rootFolderJson, settings.fileSearch?.recentLimit]);
 
   const fileIndexEntries = useMemo(() => {
     const entries: { id: string; name: string; label: string }[] = [];
@@ -142,6 +254,7 @@ export default function LeftPanel() {
   }, [rootFolderJson, cognitiveNotesRoot, moduleType]);
 
   const runSearch = (value: string) => {
+    if (fileSearchDisabled) return;
     const trimmed = value.trim();
     if (!trimmed) {
       setMatches([]);
@@ -159,6 +272,7 @@ export default function LeftPanel() {
   };
 
   const selectMatchedNode = (entry: { id: string; label: string }) => {
+    if (fileSearchDisabled) return;
     const node = nodes.find((n: any) => n?.id === entry.id);
     if (!node) return;
     selectNode(node.id);
@@ -169,13 +283,119 @@ export default function LeftPanel() {
       }))
     );
     setShouldFitView(true);
-    setRecentSearches((prev) => {
-      const next = [{ id: entry.id, label: entry.label }].concat(
-        prev.filter((item) => item.id !== entry.id)
-      );
-      return next;
-    });
+
+    const MAX_RECENTS = 20;
+    const nextRecents = [{ id: entry.id, label: entry.label }].concat(
+      recentSearches.filter((item) => item.id !== entry.id)
+    ).slice(0, MAX_RECENTS);
+
+    void (async () => {
+      const { fileManager, cognitiveNotesManager } = getManagers();
+      try {
+        if (moduleType === "parallelmind" && rootFolderJson) {
+          const latestRoot = useMindMapStore.getState().tabs
+            .find((tab) => tab.id === useMindMapStore.getState().activeTabId)
+            ?.rootFolderJson;
+          const baseRoot = latestRoot ?? rootFolderJson;
+          const nextRoot = {
+            ...baseRoot,
+            recent_searches: nextRecents,
+          } as any;
+          updateRootFolderJson(nextRoot);
+          if (rootDirectoryHandle) {
+            await fileManager.writeRootFolderJson(rootDirectoryHandle, nextRoot);
+          } else if (baseRoot?.path) {
+            await fileManager.writeRootFolderJsonFromPath(baseRoot.path, nextRoot);
+          }
+        }
+        if (moduleType === "cognitiveNotes" && cognitiveNotesRoot) {
+          const latestRoot = useMindMapStore.getState().tabs
+            .find((tab) => tab.id === useMindMapStore.getState().activeTabId)
+            ?.cognitiveNotesRoot;
+          const baseRoot = latestRoot ?? cognitiveNotesRoot;
+          const nextRoot = {
+            ...baseRoot,
+            recent_searches: nextRecents,
+          } as any;
+          updateCognitiveNotesRoot(nextRoot);
+          if (cognitiveNotesDirectoryHandle) {
+            await cognitiveNotesManager.writeCognitiveNotesJson(
+              cognitiveNotesDirectoryHandle,
+              nextRoot
+            );
+          } else {
+            const dirPath = cognitiveNotesFolderPath ?? baseRoot?.path;
+            if (dirPath) {
+              await cognitiveNotesManager.writeCognitiveNotesJsonFromPath(dirPath, nextRoot);
+            }
+          }
+        }
+      } catch {
+        // Silent: search UI should not break if persistence fails.
+      }
+    })();
+
     setMatches([]);
+  };
+
+  const removeRecentSearchChip = (entryId: string) => {
+    if (fileSearchDisabled) return;
+    if (!entryId) return;
+
+    void (async () => {
+      const { fileManager, cognitiveNotesManager } = getManagers();
+      try {
+        if (moduleType === "parallelmind") {
+          const latestRoot = useMindMapStore.getState().tabs
+            .find((tab) => tab.id === useMindMapStore.getState().activeTabId)
+            ?.rootFolderJson;
+          const baseRoot = latestRoot ?? rootFolderJson;
+          if (!baseRoot) return;
+          const nextRecents = (Array.isArray((baseRoot as any).recent_searches)
+            ? ((baseRoot as any).recent_searches as any[])
+            : []
+          ).filter((item: any) => item?.id !== entryId);
+          const nextRoot = { ...baseRoot, recent_searches: nextRecents } as any;
+          updateRootFolderJson(nextRoot);
+          if (rootDirectoryHandle) {
+            await fileManager.writeRootFolderJson(rootDirectoryHandle, nextRoot);
+          } else if (baseRoot.path) {
+            await fileManager.writeRootFolderJsonFromPath(baseRoot.path, nextRoot);
+          }
+          return;
+        }
+
+        if (moduleType === "cognitiveNotes") {
+          const latestRoot = useMindMapStore.getState().tabs
+            .find((tab) => tab.id === useMindMapStore.getState().activeTabId)
+            ?.cognitiveNotesRoot;
+          const baseRoot = latestRoot ?? cognitiveNotesRoot;
+          if (!baseRoot) return;
+          const nextRecents = (Array.isArray((baseRoot as any).recent_searches)
+            ? ((baseRoot as any).recent_searches as any[])
+            : []
+          ).filter((item: any) => item?.id !== entryId);
+          const nextRoot = { ...baseRoot, recent_searches: nextRecents } as any;
+          updateCognitiveNotesRoot(nextRoot);
+          if (cognitiveNotesDirectoryHandle) {
+            await cognitiveNotesManager.writeCognitiveNotesJson(
+              cognitiveNotesDirectoryHandle,
+              nextRoot
+            );
+          } else {
+            const dirPath = cognitiveNotesFolderPath ?? baseRoot.path;
+            if (dirPath) {
+              await cognitiveNotesManager.writeCognitiveNotesJsonFromPath(
+                dirPath,
+                nextRoot
+              );
+            }
+          }
+        }
+      } catch {
+        // Silent: removing a chip should never break the search UI.
+      }
+    })();
   };
 
   /**
@@ -371,6 +591,40 @@ export default function LeftPanel() {
     }
   };
 
+  const removeBookmarkForEntry = async (entry: BookmarkEntry) => {
+    const location = await resolveAppDataLocation({
+      settings,
+      handle: appDataDirectoryHandle ?? null,
+    });
+    if (!location) return;
+
+    try {
+      if (location.dirPath) {
+        const data = await loadBookmarksFromPath(location.dirPath);
+        const next = {
+          ...data,
+          bookmarks: (data.bookmarks ?? []).filter((b) => b.path !== entry.path),
+        };
+        await saveBookmarksToPath(location.dirPath, next);
+        setBookmarks(next.bookmarks ?? []);
+        window.dispatchEvent(new CustomEvent("pm-bookmarks-updated"));
+        return;
+      }
+      if (location.dirHandle) {
+        const data = await loadBookmarksFromHandle(location.dirHandle);
+        const next = {
+          ...data,
+          bookmarks: (data.bookmarks ?? []).filter((b) => b.path !== entry.path),
+        };
+        await saveBookmarksToHandle(location.dirHandle, next);
+        setBookmarks(next.bookmarks ?? []);
+        window.dispatchEvent(new CustomEvent("pm-bookmarks-updated"));
+      }
+    } catch {
+      // Silent: removing bookmarks should not break UI.
+    }
+  };
+
   const openBookmark = async (entry: BookmarkEntry) => {
     const existingId = findOpenTabForBookmark(entry);
     if (existingId) {
@@ -383,13 +637,35 @@ export default function LeftPanel() {
 
     const { fileManager, cognitiveNotesManager } = getManagers();
     try {
+      const store = useMindMapStore.getState();
+      const isEmptyTab = (tab: any): boolean => {
+        const nodesEmpty = (tab?.nodes ?? []).length === 0;
+        const edgesEmpty = (tab?.edges ?? []).length === 0;
+        return (
+          tab?.moduleType == null &&
+          nodesEmpty &&
+          edgesEmpty &&
+          tab?.rootFolderJson == null &&
+          tab?.cognitiveNotesRoot == null
+        );
+      };
+      const activeTabFromStore =
+        store.tabs.find((t: any) => t?.id === store.activeTabId) ?? null;
+      const firstEmptyTab =
+        store.tabs.find((t: any) => isEmptyTab(t)) ?? null;
+      const tabId = isEmptyTab(activeTabFromStore)
+        ? store.activeTabId
+        : firstEmptyTab?.id
+          ? firstEmptyTab.id
+          : createTab();
+
+      setActiveTab(tabId);
+
       if (entry.moduleType === "cognitiveNotes") {
         const result =
           await cognitiveNotesManager.loadOrCreateCognitiveNotesJsonFromPath(
             dirPath
           );
-        const tabId = createTab();
-        setActiveTab(tabId);
         setTabTitle(tabId, result.root.name ?? "Cognitive Notes");
         setTabModule(tabId, "cognitiveNotes");
         setCognitiveNotesRoot(result.root);
@@ -406,8 +682,6 @@ export default function LeftPanel() {
         selectNode(rootNodeId);
       } else {
         const result = await fileManager.loadOrCreateRootFolderJsonFromPath(dirPath);
-        const tabId = createTab();
-        setActiveTab(tabId);
         setRoot(null, result.root);
         selectNode("00");
       }
@@ -491,12 +765,21 @@ export default function LeftPanel() {
               </span>
               <input
                 value={query}
+                disabled={fileSearchDisabled}
+                onMouseDown={(e) => {
+                  if (!fileSearchDisabled) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setFileSearchInfo(uiText.alerts.fileSearchUnavailable);
+                }}
                 onChange={(e) => {
+                  if (fileSearchDisabled) return;
                   const next = e.target.value;
                   setQuery(next);
                   runSearch(next);
                 }}
                 onKeyDown={(e) => {
+                  if (fileSearchDisabled) return;
                   if (e.key === "Enter") {
                     e.preventDefault();
                     if (matches[0]) {
@@ -513,12 +796,20 @@ export default function LeftPanel() {
                   background: "var(--surface-2)",
                   color: "var(--text)",
                   fontFamily: "var(--font-family)",
+                  opacity: fileSearchDisabled ? 0.6 : 1,
+                  cursor: fileSearchDisabled ? "not-allowed" : "text",
                 }}
                 aria-label="Search files"
               />
             </label>
 
-            {matches.length > 0 && (
+            {fileSearchDisabled && fileSearchInfo && (
+              <div style={{ fontSize: "0.8rem", opacity: 0.75 }}>
+                {fileSearchInfo}
+              </div>
+            )}
+
+            {!fileSearchDisabled && matches.length > 0 && (
               <div
                 role="listbox"
                 aria-label="Search results"
@@ -564,31 +855,204 @@ export default function LeftPanel() {
               </div>
             )}
 
-            {recentSearches.length > 0 && (
+            {(recentSearchChips.recentOpened.length > 0 ||
+              recentSearchChips.mostViewed.length > 0) && (
               <div style={{ display: "grid", gap: "var(--space-1)" }}>
-                <div style={{ fontSize: "0.75rem", opacity: 0.6 }}>
-                  Recent searches
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {recentSearches.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => selectMatchedNode(item)}
-                      style={{
-                        padding: "4px 8px",
-                        borderRadius: "999px",
-                        border: "var(--border-width) solid var(--border)",
-                        background: "var(--surface-1)",
-                        color: "inherit",
-                        cursor: "pointer",
-                        fontSize: "0.75rem",
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
+                {recentSearchChips.recentOpened.length > 0 && (
+                  <div style={{ display: "grid", gap: "6px" }}>
+                    <div style={{ fontSize: "0.75rem", opacity: 0.6 }}>
+                      Recent (last opened)
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      {recentSearchChips.recentOpened.map((item) => (
+                        <div
+                          key={`recent-${item.id}`}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "4px 8px",
+                            borderRadius: "999px",
+                            border: "var(--border-width) solid var(--border)",
+                            background: "var(--surface-1)",
+                            color: "inherit",
+                            fontSize: "0.75rem",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => selectMatchedNode(item)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: "12px",
+                              border: "none",
+                              background: "transparent",
+                              color: "inherit",
+                              cursor: "pointer",
+                              padding: 0,
+                              fontSize: "inherit",
+                              fontFamily: "var(--font-family)",
+                            }}
+                          >
+                            <span title={item.label}>
+                              {truncateChipLabel(item.label, 10)}
+                            </span>
+                            <span style={{ fontSize: "0.7em", opacity: 0.7 }}>
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  padding: "1px 6px",
+                                  borderRadius: "999px",
+                                  border: "var(--border-width) solid var(--border)",
+                                  background: "var(--surface-2)",
+                                  fontSize: "0.7rem",
+                                  lineHeight: 1.2,
+                                  opacity: 0.85,
+                                  minWidth: 18,
+                                }}
+                              >
+                                {item.views ?? 0}
+                              </span>
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Remove from search history"
+                            title="Remove"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              removeRecentSearchChip(item.id);
+                            }}
+                            style={{
+                              width: 16,
+                              height: 16,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              border: "none",
+                              background: "transparent",
+                              color: "inherit",
+                              cursor: "pointer",
+                              opacity: 0.7,
+                              padding: 0,
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.opacity = "1";
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.opacity = "0.7";
+                            }}
+                          >
+                            <FiX aria-hidden="true" size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {recentSearchChips.mostViewed.length > 0 && (
+                  <div style={{ display: "grid", gap: "6px" }}>
+                    <div style={{ fontSize: "0.75rem", opacity: 0.6 }}>
+                      Most viewed
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      {recentSearchChips.mostViewed.map((item) => (
+                        <div
+                          key={`views-${item.id}`}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "4px 8px",
+                            borderRadius: "999px",
+                            border: "var(--border-width) solid var(--border)",
+                            background: "var(--surface-1)",
+                            color: "inherit",
+                            fontSize: "0.75rem",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => selectMatchedNode(item)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: "12px",
+                              border: "none",
+                              background: "transparent",
+                              color: "inherit",
+                              cursor: "pointer",
+                              padding: 0,
+                              fontSize: "inherit",
+                              fontFamily: "var(--font-family)",
+                            }}
+                          >
+                            <span title={item.label}>
+                              {truncateChipLabel(item.label, 10)}
+                            </span>
+                            <span style={{ fontSize: "0.7em", opacity: 0.7 }}>
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  padding: "1px 6px",
+                                  borderRadius: "999px",
+                                  border: "var(--border-width) solid var(--border)",
+                                  background: "var(--surface-2)",
+                                  fontSize: "0.7rem",
+                                  lineHeight: 1.2,
+                                  opacity: 0.85,
+                                  minWidth: 18,
+                                }}
+                              >
+                                {item.views ?? 0}
+                              </span>
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Remove from search history"
+                            title="Remove"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              removeRecentSearchChip(item.id);
+                            }}
+                            style={{
+                              width: 16,
+                              height: 16,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              border: "none",
+                              background: "transparent",
+                              color: "inherit",
+                              cursor: "pointer",
+                              opacity: 0.7,
+                              padding: 0,
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.opacity = "1";
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.opacity = "0.7";
+                            }}
+                          >
+                            <FiX aria-hidden="true" size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -639,42 +1103,91 @@ export default function LeftPanel() {
               {sortedBookmarks.length === 0 ? (
                 uiText.leftPanel.emptyBookmarks
               ) : (
-                <div style={{ display: "grid", gap: "6px" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                   {sortedBookmarks.map((entry) => (
                     <div
                       key={`${entry.path}-${entry.moduleType}`}
                       title={entry.path}
                       style={{
-                        display: "flex",
+                        display: "inline-flex",
                         alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "8px",
-                        padding: "4px 6px",
-                        borderRadius: "var(--radius-sm)",
+                        gap: "6px",
+                        padding: "4px 8px",
+                        borderRadius: "999px",
+                        border: "var(--border-width) solid var(--border)",
                         background: "var(--surface-1)",
+                        color: "inherit",
+                        fontSize: "0.75rem",
                       }}
                     >
                       <button
                         type="button"
                         onClick={() => void openBookmark(entry)}
                         style={{
-                          display: "flex",
+                          display: "inline-flex",
                           alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: "8px",
-                          width: "100%",
+                          justifyContent: "center",
+                          gap: "12px",
                           border: "none",
                           background: "transparent",
                           color: "inherit",
                           cursor: "pointer",
                           padding: 0,
+                          fontSize: "inherit",
                           fontFamily: "var(--font-family)",
                         }}
                       >
                         <span>{bookmarkName(entry)}</span>
-                        <span style={{ fontSize: "7px", opacity: 0.75 }}>
-                          {entry.views ?? 0}
+                        <span style={{ fontSize: "0.7em", opacity: 0.7 }}>
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: "1px 6px",
+                              borderRadius: "999px",
+                              border: "var(--border-width) solid var(--border)",
+                              background: "var(--surface-2)",
+                              fontSize: "0.7rem",
+                              lineHeight: 1.2,
+                              opacity: 0.85,
+                              minWidth: 18,
+                            }}
+                          >
+                            {entry.views ?? 0}
+                          </span>
                         </span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Remove bookmark"
+                        title="Remove"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void removeBookmarkForEntry(entry);
+                        }}
+                        style={{
+                          width: 16,
+                          height: 16,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "none",
+                          background: "transparent",
+                          color: "inherit",
+                          cursor: "pointer",
+                          opacity: 0.7,
+                          padding: 0,
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.opacity = "1";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.opacity = "0.7";
+                        }}
+                      >
+                        <FiX aria-hidden="true" size={12} />
                       </button>
                     </div>
                   ))}

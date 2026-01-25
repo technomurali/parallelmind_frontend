@@ -8,7 +8,7 @@ import {
   saveAppDataDirectoryHandle,
 } from "../../utils/appDataHandleStore";
 
-type SettingsSection = "appearance" | "storage" | "bookmarks";
+type SettingsSection = "appearance" | "fileManager" | "storage" | "bookmarks";
 
 export default function Settings() {
   const settings = useMindMapStore((s) => s.settings);
@@ -33,6 +33,10 @@ export default function Settings() {
         {
           id: "appearance" as const,
           label: "Appearance",
+        },
+        {
+          id: "fileManager" as const,
+          label: uiText.settings.fileManager.sectionTitle,
         },
         {
           id: "storage" as const,
@@ -1002,6 +1006,50 @@ export default function Settings() {
                     {uiText.settings.bookmarks.sortOrders.viewsAsc}
                   </option>
                 </select>
+              </div>
+            </div>
+          </div>
+        )}
+        {section === "fileManager" && (
+          <div className="pm-settings__page">
+            <div className="pm-settings__pageTitle">
+              {uiText.settings.fileManager.sectionTitle}
+            </div>
+            <div className="pm-settings__card">
+              <div className="pm-settings__row">
+                <div className="pm-settings__rowText">
+                  <div className="pm-settings__rowTitle">
+                    {uiText.settings.fileManager.fileSearch.sectionTitle}
+                  </div>
+                  <div className="pm-settings__rowDesc">
+                    {uiText.settings.fileManager.fileSearch.recentLimitDesc}
+                  </div>
+                </div>
+                <input
+                  className="pm-settings__control"
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={
+                    typeof settings.fileSearch?.recentLimit === "number" &&
+                    Number.isFinite(settings.fileSearch.recentLimit)
+                      ? settings.fileSearch.recentLimit
+                      : 5
+                  }
+                  onChange={(e) => {
+                    const raw = Number(e.target.value);
+                    const next = Number.isFinite(raw) ? raw : 5;
+                    const clamped = Math.max(1, Math.min(50, Math.round(next)));
+                    updateSettings({
+                      fileSearch: {
+                        ...settings.fileSearch,
+                        recentLimit: clamped,
+                      },
+                    });
+                  }}
+                  aria-label={uiText.settings.fileManager.fileSearch.recentLimitLabel}
+                  style={{ width: 120 }}
+                />
               </div>
             </div>
           </div>
