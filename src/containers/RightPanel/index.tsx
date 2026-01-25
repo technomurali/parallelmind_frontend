@@ -185,6 +185,18 @@ export default function RightPanel() {
     { id: string; title: string; contentHtml: string }[]
   >([]);
   const [notesFeedLoading, setNotesFeedLoading] = useState(false);
+  const [notesFeedHiddenIds, setNotesFeedHiddenIds] = useState<Set<string>>(
+    () => new Set()
+  );
+
+  const hideNotesFeedItem = (id: string) => {
+    if (!id) return;
+    setNotesFeedHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!selectedNodeId) return;
@@ -2308,6 +2320,7 @@ export default function RightPanel() {
       if (!tabId || !nodeId) return;
       if (activeTab?.id && tabId !== activeTab.id) return;
       if (!cognitiveNotesRoot) return;
+      setNotesFeedHiddenIds(new Set());
       setNotesFeedSourceId(nodeId);
       setRightPanelMode("notesFeed");
     };
@@ -2577,11 +2590,15 @@ export default function RightPanel() {
               {notesFeedLoading && (
                 <div style={{ opacity: 0.7 }}>Loading notes...</div>
               )}
-              {!notesFeedLoading && notesFeedItems.length === 0 && (
+              {!notesFeedLoading &&
+                notesFeedItems.filter((item) => !notesFeedHiddenIds.has(item.id))
+                  .length === 0 && (
                 <div style={{ opacity: 0.7 }}>No notes found.</div>
               )}
               {!notesFeedLoading &&
-                notesFeedItems.map((item) => (
+                notesFeedItems
+                  .filter((item) => !notesFeedHiddenIds.has(item.id))
+                  .map((item) => (
                   <div
                     key={item.id}
                     style={{
@@ -2593,7 +2610,46 @@ export default function RightPanel() {
                       gap: "var(--space-2)",
                     }}
                   >
-                    <div style={{ fontWeight: 700 }}>{item.title}</div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "var(--space-2)",
+                      }}
+                    >
+                      <div style={{ fontWeight: 700 }}>{item.title}</div>
+                      <button
+                        type="button"
+                        aria-label="Hide note"
+                        title="Hide note"
+                        onClick={() => hideNotesFeedItem(item.id)}
+                        style={{
+                          height: "var(--control-size-sm)",
+                          width: "var(--control-size-sm)",
+                          borderRadius: "var(--radius-sm)",
+                          border: "none",
+                          background: "transparent",
+                          color: "inherit",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "0.95rem",
+                          lineHeight: 1,
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.background =
+                            "var(--surface-1)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.background =
+                            "transparent";
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
                     {item.contentHtml ? (
                       <div
                         style={{ fontSize: "0.85rem", lineHeight: 1.5 }}
