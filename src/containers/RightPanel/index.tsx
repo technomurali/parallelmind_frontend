@@ -15,6 +15,7 @@
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import { marked } from "marked";
 import { uiText } from "../../constants/uiText";
 import { DEFAULT_PURPOSE_TEMPLATE } from "../../constants/defaultPurposeTemplate";
 import { FileManager, type RootFolderJson } from "../../data/fileManager";
@@ -136,11 +137,6 @@ export default function RightPanel() {
     }
   }, [rightPanelWidth, isReduced]);
 
-  useEffect(() => {
-    if (!selectedNodeId) return;
-    setRightPanelMode("nodeDetails");
-  }, [selectedNodeId, setRightPanelMode]);
-
   const togglePanel = () => {
     if (isReduced) {
       setRightPanelWidth(Math.max(MIN_WIDTH, lastExpandedWidthRef.current));
@@ -184,6 +180,19 @@ export default function RightPanel() {
   const [sortIndexSaveStatus, setSortIndexSaveStatus] = useState<
     "idle" | "saving" | "saved"
   >("idle");
+  const [notesFeedSourceId, setNotesFeedSourceId] = useState<string | null>(null);
+  const [notesFeedItems, setNotesFeedItems] = useState<
+    { id: string; title: string; contentHtml: string }[]
+  >([]);
+  const [notesFeedLoading, setNotesFeedLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedNodeId) return;
+    if (rightPanelMode === "notesFeed" && selectedNodeId === notesFeedSourceId) {
+      return;
+    }
+    setRightPanelMode("nodeDetails");
+  }, [selectedNodeId, setRightPanelMode, rightPanelMode, notesFeedSourceId]);
 
   // Used to auto-focus and visually guide the user when name is mandatory.
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -1155,7 +1164,8 @@ export default function RightPanel() {
   };
 
   const joinPath = (dirPath: string, fileName: string): string => {
-    const trimmed = dirPath.replace(/[\\/]+$/, "");
+    const trimmed = (dirPath ?? "").replace(/[\\/]+$/, "");
+    if (!trimmed) return fileName;
     const sep = trimmed.includes("\\") ? "\\" : "/";
     return `${trimmed}${sep}${fileName}`;
   };
@@ -2231,9 +2241,194 @@ export default function RightPanel() {
   const panelTitle =
     rightPanelMode === "nodeSelector"
       ? uiText.panels.nodeSelector
+      : rightPanelMode === "notesFeed"
+      ? uiText.panels.notesFeed
       : selectedEdgeId && !selectedNodeId
       ? uiText.panels.edge
       : uiText.panels.node;
+
+  const isAbsolutePath = (value: string): boolean => {
+    if (!value) return false;
+    if (value.startsWith("/") || value.startsWith("\\")) return true;
+    return /^[A-Za-z]:[\\/]/.test(value);
+  };
+
+  const TEXT_EXTENSIONS = new Set([
+    "txt",
+    "md",
+    "markdown",
+    "mdx",
+    "json",
+    "csv",
+    "tsv",
+    "yaml",
+    "yml",
+    "xml",
+    "html",
+    "css",
+    "js",
+    "jsx",
+    "ts",
+    "tsx",
+    "log",
+    "ini",
+    "conf",
+    "toml",
+    "env",
+    "py",
+    "java",
+    "go",
+    "rs",
+    "c",
+    "cpp",
+    "h",
+    "hpp",
+    "cs",
+    "php",
+    "rb",
+    "sh",
+    "bat",
+    "ps1",
+    "sql",
+  ]);
+
+  const getExtensionFromPath = (value: string): string => {
+    const parts = (value ?? "").split(".");
+    if (parts.length <= 1) return "";
+    return (parts.pop() ?? "").toLowerCase();
+  };
+
+  useEffect(() => {
+    const onOpenNotesFeed = (ev: Event) => {
+      const detail = (ev as CustomEvent)?.detail as
+        | { tabId?: string; nodeId?: string }
+        | undefined;
+      const tabId = typeof detail?.tabId === "string" ? detail.tabId : null;
+      const nodeId = typeof detail?.nodeId === "string" ? detail.nodeId : null;
+      if (!tabId || !nodeId) return;
+      if (activeTab?.id && tabId !== activeTab.id) return;
+      if (!cognitiveNotesRoot) return;
+      setNotesFeedSourceId(nodeId);
+      setRightPanelMode("notesFeed");
+    };
+    window.addEventListener("pm-open-notes-feed", onOpenNotesFeed as EventListener);
+    return () => {
+      window.removeEventListener("pm-open-notes-feed", onOpenNotesFeed as EventListener);
+    };
+  }, [activeTab?.id, cognitiveNotesRoot, setRightPanelMode]);
+
+  useEffect(() => {
+    if (rightPanelMode !== "notesFeed") return;
+    if (!cognitiveNotesRoot || !notesFeedSourceId) return;
+
+    const nodes = cognitiveNotesRoot.child ?? [];
+    if (!nodes.length) {
+      setNotesFeedItems([]);
+      return;
+    }
+
+    const byId = new Map(nodes.map((node: any) => [node.id, node]));
+    if (!byId.has(notesFeedSourceId)) {
+      setNotesFeedItems([]);
+      return;
+    }
+    const adjacency = new Map<string, string[]>();
+    nodes.forEach((node: any) => {
+      if (!node?.id) return;
+      const rels = Array.isArray(node.related_nodes) ? node.related_nodes : [];
+      const targets = rels
+        .map((rel: any) => rel?.target_id)
+        .filter((target: any) => typeof target === "string" && target);
+      adjacency.set(node.id, targets);
+    });
+
+    let currentLevel = [notesFeedSourceId];
+
+    const orderedIds: string[] = [];
+    const visited = new Set<string>();
+    const compareCreatedOn = (aId: string, bId: string) => {
+      const a = byId.get(aId);
+      const b = byId.get(bId);
+      const aKey = typeof a?.created_on === "string" ? a.created_on : "";
+      const bKey = typeof b?.created_on === "string" ? b.created_on : "";
+      return bKey.localeCompare(aKey);
+    };
+
+    while (currentLevel.length) {
+      const levelSorted = Array.from(new Set(currentLevel))
+        .filter((id) => !visited.has(id) && byId.has(id))
+        .sort(compareCreatedOn);
+      levelSorted.forEach((id) => {
+        visited.add(id);
+        orderedIds.push(id);
+      });
+      const nextSet = new Set<string>();
+      levelSorted.forEach((id) => {
+        (adjacency.get(id) ?? []).forEach((childId) => {
+          if (!visited.has(childId)) nextSet.add(childId);
+        });
+      });
+      currentLevel = Array.from(nextSet);
+    }
+
+    let isActive = true;
+    setNotesFeedLoading(true);
+    const load = async () => {
+      const items: { id: string; title: string; contentHtml: string }[] = [];
+      for (const id of orderedIds) {
+        const node = byId.get(id);
+        if (!node) continue;
+        const name = typeof node.name === "string" ? node.name : "";
+        const ext = typeof node.extension === "string" ? node.extension : "";
+        const title = ext ? `${name}.${ext}` : name || "Untitled";
+        const rawPath = typeof node.path === "string" ? node.path : "";
+        const basePath =
+          typeof cognitiveNotesFolderPath === "string" && cognitiveNotesFolderPath
+            ? cognitiveNotesFolderPath
+            : cognitiveNotesRoot.path;
+        const absPath =
+          rawPath && !isAbsolutePath(rawPath) && basePath
+            ? joinPath(basePath, rawPath)
+            : rawPath;
+        const extension = ext || getExtensionFromPath(rawPath);
+        let contentHtml = "";
+        if (TEXT_EXTENSIONS.has(extension)) {
+          try {
+            let content = "";
+            if (rawPath && !isAbsolutePath(rawPath) && cognitiveNotesDirectoryHandle) {
+              const result = await fileManager.readTextFileFromHandle({
+                rootHandle: cognitiveNotesDirectoryHandle,
+                relPath: rawPath,
+              });
+              content = result.content ?? "";
+            } else if (absPath) {
+              content = await fileManager.readTextFileFromPath(absPath);
+            }
+            if (content) {
+              contentHtml = marked.parse(content) as string;
+            }
+          } catch {
+            contentHtml = "";
+          }
+        }
+        items.push({ id, title, contentHtml });
+      }
+      if (!isActive) return;
+      setNotesFeedItems(items);
+      setNotesFeedLoading(false);
+    };
+    void load();
+    return () => {
+      isActive = false;
+    };
+  }, [
+    rightPanelMode,
+    notesFeedSourceId,
+    cognitiveNotesRoot,
+    cognitiveNotesDirectoryHandle,
+    cognitiveNotesFolderPath,
+    fileManager,
+  ]);
 
   return (
     <aside
@@ -2365,6 +2560,48 @@ export default function RightPanel() {
                   </button>
                 ))}
               </div>
+            </div>
+          ) : rightPanelMode === "notesFeed" ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-2)",
+                padding: "var(--space-3)",
+                color: "var(--text)",
+                fontSize: "0.85rem",
+                height: "100%",
+                overflow: "auto",
+              }}
+            >
+              {notesFeedLoading && (
+                <div style={{ opacity: 0.7 }}>Loading notes...</div>
+              )}
+              {!notesFeedLoading && notesFeedItems.length === 0 && (
+                <div style={{ opacity: 0.7 }}>No notes found.</div>
+              )}
+              {!notesFeedLoading &&
+                notesFeedItems.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      borderRadius: "var(--radius-md)",
+                      border: "var(--border-width) solid var(--border)",
+                      background: "var(--surface-2)",
+                      padding: "var(--space-2)",
+                      display: "grid",
+                      gap: "var(--space-2)",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700 }}>{item.title}</div>
+                    {item.contentHtml ? (
+                      <div
+                        style={{ fontSize: "0.85rem", lineHeight: 1.5 }}
+                        dangerouslySetInnerHTML={{ __html: item.contentHtml }}
+                      />
+                    ) : null}
+                  </div>
+                ))}
             </div>
           ) : selectedEdgeId && !selectedNodeId ? (
             <div

@@ -296,7 +296,7 @@ export interface MindMapState {
   leftPanelWidth: number;
   rightPanelWidth: number;
   settingsOpen: boolean;
-  rightPanelMode: "nodeDetails" | "nodeSelector";
+  rightPanelMode: "nodeDetails" | "nodeSelector" | "notesFeed";
   tabs: CanvasTab[];
   activeTabId: string;
 }
@@ -336,7 +336,7 @@ export interface MindMapActions {
   updateRootFolderJson: (root: RootFolderJson) => void;
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void;
   toggleSettings: () => void;
-  setRightPanelMode: (mode: "nodeDetails" | "nodeSelector") => void;
+  setRightPanelMode: (mode: "nodeDetails" | "nodeSelector" | "notesFeed") => void;
   setNodesCollapsed: (collapsed: boolean) => void;
   setEdgeStyle: (style: string) => void;
   createTab: () => string;

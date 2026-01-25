@@ -30,6 +30,7 @@ export const uiText = {
     mindMap: 'Mind Map',
     folderTree: 'Folder Tree',
     nodeSelector: 'Node Selector',
+    notesFeed: 'Notes Feed',
   },
   leftPanel: {
     viewLabel: 'View',
@@ -361,6 +362,7 @@ export const uiText = {
       hideChildren: 'Hide children',
       moveNode: 'Move node',
       moveWithChildren: 'Move with children',
+      showSubtreeNotes: 'Show subtree notes',
     },
     folder: {
       openFolder: 'Open Folder',

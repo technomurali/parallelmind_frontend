@@ -1755,6 +1755,12 @@ export default function MindMap() {
     return false;
   };
 
+  const canShowSubtreeNotes = (node: Node | null): boolean => {
+    if (!isCognitiveNotes || !node) return false;
+    if (node.type !== "file" && node.type !== "fullImageNode") return false;
+    return hasMoveChildrenTargets(node);
+  };
+
   const onNodeDoubleClick = (_: unknown, _node: Node) => {
     // Intentionally disabled: folder open is now only via context menu.
     return;
@@ -3924,6 +3930,43 @@ export default function MindMap() {
                 padding: "6px",
               }}
             >
+              {canShowSubtreeNotes(contextMenu.node) && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      const node = contextMenu.node;
+                      closeContextMenu();
+                      if (!node || !activeTab?.id) return;
+                      window.dispatchEvent(
+                        new CustomEvent("pm-open-notes-feed", {
+                          detail: { tabId: activeTab.id, nodeId: node.id },
+                        })
+                      );
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "none",
+                      background: "transparent",
+                      color: "inherit",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-family)",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "transparent";
+                    }}
+                  >
+                    {uiText.contextMenus.node.showSubtreeNotes}
+                  </button>
+                )}
               <button
                 type="button"
                 role="menuitem"
