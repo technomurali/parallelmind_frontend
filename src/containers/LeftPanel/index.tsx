@@ -34,17 +34,33 @@ import { CognitiveNotesManager } from "../../extensions/cognitiveNotes/data/cogn
 import { composeCognitiveNotesGraph } from "../../extensions/cognitiveNotes/utils/composeCognitiveNotesGraph";
 
 type FileSearchChip = {
+  tabId: string;
+  moduleType: "parallelmind" | "cognitiveNotes";
   id: string;
   label: string;
   views: number;
   last_viewed_on: string;
+  path: string;
 };
 
-const truncateChipLabel = (label: string, maxChars = 10): string => {
+const truncateChipLabel = (label: string, maxChars = 20): string => {
   const safe = (label ?? "").trim();
   if (!safe) return "";
   if (safe.length <= maxChars) return safe;
   return `${safe.slice(0, maxChars)}…`;
+};
+
+const isAbsolutePath = (value: string): boolean => {
+  if (!value) return false;
+  if (value.startsWith("/") || value.startsWith("\\")) return true;
+  return /^[A-Za-z]:[\\/]/.test(value);
+};
+
+const joinPath = (dirPath: string, fileName: string): string => {
+  const trimmed = (dirPath ?? "").replace(/[\\/]+$/, "");
+  if (!trimmed) return fileName;
+  const sep = trimmed.includes("\\") ? "\\" : "/";
+  return `${trimmed}${sep}${fileName}`;
 };
 
 /**
@@ -57,6 +73,8 @@ export default function LeftPanel() {
   const leftPanelWidth = useMindMapStore((s) => s.leftPanelWidth);
   const setLeftPanelWidth = useMindMapStore((s) => s.setLeftPanelWidth);
   const activeTab = useMindMapStore(selectActiveTab);
+  const tabs = useMindMapStore((s) => s.tabs);
+  const activeTabId = useMindMapStore((s) => s.activeTabId);
   const nodes = activeTab?.nodes ?? [];
   const edges = activeTab?.edges ?? [];
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
@@ -155,7 +173,7 @@ export default function LeftPanel() {
   }, [fileSearchDisabled, moduleType, cognitiveNotesRoot, rootFolderJson]);
 
   const recentSearchChips = useMemo(() => {
-    if (recentSearches.length === 0) {
+    if (tabs.length === 0) {
       return {
         recentOpened: [] as FileSearchChip[],
         mostViewed: [] as FileSearchChip[],
@@ -166,72 +184,145 @@ export default function LeftPanel() {
       typeof recentLimitRaw === "number" && Number.isFinite(recentLimitRaw)
         ? Math.max(1, Math.min(50, Math.round(recentLimitRaw)))
         : 5;
-    const viewMap = new Map<string, number>();
-    const lastViewedMap = new Map<string, string>();
-    if (moduleType === "cognitiveNotes") {
-      (cognitiveNotesRoot?.child ?? []).forEach((node: any) => {
-        if (!node?.id) return;
-        const count =
-          typeof node.views === "number" && Number.isFinite(node.views)
-            ? node.views
-            : 0;
-        viewMap.set(String(node.id), count);
-        const lastViewed =
-          typeof node.last_viewed_on === "string" ? node.last_viewed_on : "";
-        lastViewedMap.set(String(node.id), lastViewed);
-      });
-    } else if (rootFolderJson) {
-      const walk = (list: IndexNode[]) => {
-        list.forEach((node) => {
-          if (!node) return;
-          const isFileNode = typeof (node as any)?.extension === "string";
-          if (isFileNode && (node as any)?.id) {
-            const count =
-              typeof (node as any).views === "number" &&
-              Number.isFinite((node as any).views)
-                ? (node as any).views
-                : 0;
-            viewMap.set(String((node as any).id), count);
-            const lastViewed =
-              typeof (node as any).last_viewed_on === "string"
-                ? (node as any).last_viewed_on
-                : "";
-            lastViewedMap.set(String((node as any).id), lastViewed);
-          }
-          if (Array.isArray((node as any)?.child)) {
-            walk((node as any).child as IndexNode[]);
-          }
-        });
-      };
-      walk(rootFolderJson.child ?? []);
-    }
-    const enriched: FileSearchChip[] = [...recentSearches].map((entry) => ({
-      id: String(entry.id),
-      label: String(entry.label),
-      views: viewMap.get(entry.id) ?? 0,
-      last_viewed_on: lastViewedMap.get(entry.id) ?? "",
-    }));
+    const allChips: FileSearchChip[] = [];
 
-    const recentOpened = [...enriched]
+    tabs.forEach((tab) => {
+      const tabModule = tab.moduleType ?? null;
+      const tabRoot = tab.rootFolderJson ?? null;
+      const tabNotes = tab.cognitiveNotesRoot ?? null;
+      const tabRecents =
+        tabModule === "cognitiveNotes"
+          ? (tabNotes as any)?.recent_searches
+          : (tabRoot as any)?.recent_searches;
+      if (!Array.isArray(tabRecents) || tabRecents.length === 0) return;
+
+      const viewMap = new Map<string, number>();
+      const lastViewedMap = new Map<string, string>();
+      const pathMap = new Map<string, string>();
+
+      if (tabModule === "cognitiveNotes" && tabNotes) {
+        (tabNotes.child ?? []).forEach((node: any) => {
+          if (!node?.id) return;
+          const count =
+            typeof node.views === "number" && Number.isFinite(node.views)
+              ? node.views
+              : 0;
+          viewMap.set(String(node.id), count);
+          const lastViewed =
+            typeof node.last_viewed_on === "string" ? node.last_viewed_on : "";
+          lastViewedMap.set(String(node.id), lastViewed);
+          const rawPath = typeof node.path === "string" ? node.path : "";
+          const absPath =
+            rawPath && !isAbsolutePath(rawPath) && tabNotes.path
+              ? joinPath(tabNotes.path, rawPath)
+              : rawPath;
+          pathMap.set(String(node.id), absPath);
+        });
+      }
+
+      if (tabModule !== "cognitiveNotes" && tabRoot) {
+        const walk = (list: IndexNode[]) => {
+          list.forEach((node) => {
+            if (!node) return;
+            const isFileNode = typeof (node as any)?.extension === "string";
+            if (isFileNode && (node as any)?.id) {
+              const count =
+                typeof (node as any).views === "number" &&
+                Number.isFinite((node as any).views)
+                  ? (node as any).views
+                  : 0;
+              viewMap.set(String((node as any).id), count);
+              const lastViewed =
+                typeof (node as any).last_viewed_on === "string"
+                  ? (node as any).last_viewed_on
+                  : "";
+              lastViewedMap.set(String((node as any).id), lastViewed);
+              const rawPath = typeof (node as any).path === "string" ? (node as any).path : "";
+              const absPath =
+                rawPath && !isAbsolutePath(rawPath) && tabRoot.path
+                  ? joinPath(tabRoot.path, rawPath)
+                  : rawPath;
+              pathMap.set(String((node as any).id), absPath);
+            }
+            if (Array.isArray((node as any)?.child)) {
+              walk((node as any).child as IndexNode[]);
+            }
+          });
+        };
+        walk(tabRoot.child ?? []);
+      }
+
+      tabRecents
+        .filter((x: any) => x && typeof x === "object")
+        .map((x: any) => ({
+          id: typeof x.id === "string" ? x.id : "",
+          label: typeof x.label === "string" ? x.label : "",
+        }))
+        .filter((x: any) => x.id && x.label)
+        .forEach((entry: { id: string; label: string }) => {
+          allChips.push({
+            tabId: tab.id,
+            moduleType: tabModule === "cognitiveNotes" ? "cognitiveNotes" : "parallelmind",
+            id: entry.id,
+            label: entry.label,
+            views: viewMap.get(entry.id) ?? 0,
+            last_viewed_on: lastViewedMap.get(entry.id) ?? "",
+            path: pathMap.get(entry.id) ?? "",
+          });
+        });
+    });
+
+    if (allChips.length === 0) {
+      return {
+        recentOpened: [] as FileSearchChip[],
+        mostViewed: [] as FileSearchChip[],
+      };
+    }
+
+    const recentOpened = [...allChips]
       .sort((a, b) => {
         const aKey = typeof a.last_viewed_on === "string" ? a.last_viewed_on : "";
         const bKey = typeof b.last_viewed_on === "string" ? b.last_viewed_on : "";
         if (aKey === bKey) return (b.views ?? 0) - (a.views ?? 0);
-        // ISO timestamps: lexical compare matches chronological order
         return bKey.localeCompare(aKey);
       })
       .slice(0, recentLimit);
 
-    const recentIds = new Set(recentOpened.map((item) => item.id));
-    const mostViewed = [...enriched]
+    const recentKeys = new Set(recentOpened.map((item) => `${item.tabId}:${item.id}`));
+    const mostViewed = [...allChips]
       .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
-      .filter((item) => !recentIds.has(item.id));
+      .filter((item) => !recentKeys.has(`${item.tabId}:${item.id}`));
 
     return { recentOpened, mostViewed };
-  }, [recentSearches, moduleType, cognitiveNotesRoot, rootFolderJson, settings.fileSearch?.recentLimit]);
+  }, [tabs, settings.fileSearch?.recentLimit]);
 
   const recentOpenedChips = recentSearchChips?.recentOpened ?? [];
   const mostViewedChips = recentSearchChips?.mostViewed ?? [];
+
+  const selectHistoryChip = (chip: FileSearchChip) => {
+    if (!chip?.id || !chip?.tabId) return;
+    if (chip.tabId === activeTabId) {
+      selectMatchedNode({ id: chip.id, label: chip.label });
+      return;
+    }
+    setActiveTab(chip.tabId);
+    window.setTimeout(() => {
+      const latest = useMindMapStore.getState();
+      const tab = latest.tabs.find((t) => t.id === chip.tabId);
+      if (!tab) return;
+      const node = (tab.nodes ?? []).find((n: any) => n?.id === chip.id);
+      if (!node) return;
+      selectNode(node.id);
+      setNodes(
+        (tab.nodes ?? []).map((item: any) => ({
+          ...item,
+          selected: item?.id === chip.id,
+        }))
+      );
+      setShouldFitView(true);
+    }, 0);
+    setMatches([]);
+  };
 
   const fileIndexEntries = useMemo(() => {
     const entries: { id: string; name: string; label: string }[] = [];
@@ -355,52 +446,54 @@ export default function LeftPanel() {
     setMatches([]);
   };
 
-  const removeRecentSearchChip = (entryId: string) => {
+  const removeRecentSearchChip = (chip: FileSearchChip) => {
     if (fileSearchDisabled) return;
-    if (!entryId) return;
+    if (!chip?.id || !chip?.tabId) return;
 
     void (async () => {
       const { fileManager, cognitiveNotesManager } = getManagers();
       try {
-        if (moduleType === "parallelmind") {
-          const latestRoot = useMindMapStore.getState().tabs
-            .find((tab) => tab.id === useMindMapStore.getState().activeTabId)
-            ?.rootFolderJson;
-          const baseRoot = latestRoot ?? rootFolderJson;
+        const latestTabs = useMindMapStore.getState().tabs;
+        const targetTab = latestTabs.find((tab) => tab.id === chip.tabId) ?? null;
+        if (!targetTab) return;
+
+        if (chip.moduleType === "parallelmind") {
+          const baseRoot = targetTab.rootFolderJson ?? null;
           if (!baseRoot) return;
           const nextRecents = (Array.isArray((baseRoot as any).recent_searches)
             ? ((baseRoot as any).recent_searches as any[])
             : []
-          ).filter((item: any) => item?.id !== entryId);
+          ).filter((item: any) => item?.id !== chip.id);
           const nextRoot = { ...baseRoot, recent_searches: nextRecents } as any;
-          updateRootFolderJson(nextRoot);
-          if (rootDirectoryHandle) {
-            await fileManager.writeRootFolderJson(rootDirectoryHandle, nextRoot);
+          if (targetTab.id === activeTabId) {
+            updateRootFolderJson(nextRoot);
+          }
+          if (targetTab.rootDirectoryHandle) {
+            await fileManager.writeRootFolderJson(targetTab.rootDirectoryHandle, nextRoot);
           } else if (baseRoot.path) {
             await fileManager.writeRootFolderJsonFromPath(baseRoot.path, nextRoot);
           }
           return;
         }
 
-        if (moduleType === "cognitiveNotes") {
-          const latestRoot = useMindMapStore.getState().tabs
-            .find((tab) => tab.id === useMindMapStore.getState().activeTabId)
-            ?.cognitiveNotesRoot;
-          const baseRoot = latestRoot ?? cognitiveNotesRoot;
+        if (chip.moduleType === "cognitiveNotes") {
+          const baseRoot = targetTab.cognitiveNotesRoot ?? null;
           if (!baseRoot) return;
           const nextRecents = (Array.isArray((baseRoot as any).recent_searches)
             ? ((baseRoot as any).recent_searches as any[])
             : []
-          ).filter((item: any) => item?.id !== entryId);
+          ).filter((item: any) => item?.id !== chip.id);
           const nextRoot = { ...baseRoot, recent_searches: nextRecents } as any;
-          updateCognitiveNotesRoot(nextRoot);
-          if (cognitiveNotesDirectoryHandle) {
+          if (targetTab.id === activeTabId) {
+            updateCognitiveNotesRoot(nextRoot);
+          }
+          if (targetTab.cognitiveNotesDirectoryHandle) {
             await cognitiveNotesManager.writeCognitiveNotesJson(
-              cognitiveNotesDirectoryHandle,
+              targetTab.cognitiveNotesDirectoryHandle,
               nextRoot
             );
           } else {
-            const dirPath = cognitiveNotesFolderPath ?? baseRoot.path;
+            const dirPath = targetTab.cognitiveNotesFolderPath ?? baseRoot.path;
             if (dirPath) {
               await cognitiveNotesManager.writeCognitiveNotesJsonFromPath(
                 dirPath,
@@ -775,11 +868,6 @@ export default function LeftPanel() {
             }}
           >
             <label style={{ display: "grid", gap: "5px" }}>
-              <span style={{ fontSize: "0.8rem", opacity: 0.75 }}>
-                {moduleType === "cognitiveNotes"
-                  ? "File Search"
-                  : "Folder & File Search"}
-              </span>
               <input
                 value={query}
                 disabled={fileSearchDisabled}
@@ -898,7 +986,7 @@ export default function LeftPanel() {
                         >
                           <button
                             type="button"
-                            onClick={() => selectMatchedNode(item)}
+                            onClick={() => selectHistoryChip(item)}
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -913,8 +1001,8 @@ export default function LeftPanel() {
                               fontFamily: "var(--font-family)",
                             }}
                           >
-                            <span title={item.label}>
-                              {truncateChipLabel(item.label, 10)}
+                            <span title={item.path || item.label}>
+                              {truncateChipLabel(item.label, 20)}
                             </span>
                             <span style={{ fontSize: "0.7em", opacity: 0.7 }}>
                               <span
@@ -943,7 +1031,7 @@ export default function LeftPanel() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              removeRecentSearchChip(item.id);
+                              removeRecentSearchChip(item);
                             }}
                             style={{
                               width: 16,
@@ -996,7 +1084,7 @@ export default function LeftPanel() {
                         >
                           <button
                             type="button"
-                            onClick={() => selectMatchedNode(item)}
+                            onClick={() => selectHistoryChip(item)}
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -1011,8 +1099,8 @@ export default function LeftPanel() {
                               fontFamily: "var(--font-family)",
                             }}
                           >
-                            <span title={item.label}>
-                              {truncateChipLabel(item.label, 10)}
+                            <span title={item.path || item.label}>
+                              {truncateChipLabel(item.label, 20)}
                             </span>
                             <span style={{ fontSize: "0.7em", opacity: 0.7 }}>
                               <span
@@ -1041,7 +1129,7 @@ export default function LeftPanel() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              removeRecentSearchChip(item.id);
+                              removeRecentSearchChip(item);
                             }}
                             style={{
                               width: 16,
@@ -1076,14 +1164,10 @@ export default function LeftPanel() {
           <div
             style={{
               padding: "var(--space-2)",
-              borderBottom: "var(--border-width) solid var(--border)",
               display: "grid",
               gap: "6px",
             }}
           >
-            <div style={{ fontSize: "0.8rem", opacity: 0.75 }}>
-              {uiText.leftPanel.viewLabel}
-            </div>
             <select
               value={leftPanelView}
               onChange={(e) =>
