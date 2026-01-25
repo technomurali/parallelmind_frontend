@@ -220,6 +220,9 @@ export default function LeftPanel() {
     return { recentOpened, mostViewed };
   }, [recentSearches, moduleType, cognitiveNotesRoot, rootFolderJson, settings.fileSearch?.recentLimit]);
 
+  const recentOpenedChips = recentSearchChips?.recentOpened ?? [];
+  const mostViewedChips = recentSearchChips?.mostViewed ?? [];
+
   const fileIndexEntries = useMemo(() => {
     const entries: { id: string; name: string; label: string }[] = [];
     if (moduleType === "cognitiveNotes") {
@@ -859,16 +862,15 @@ export default function LeftPanel() {
               </div>
             )}
 
-            {(recentSearchChips.recentOpened.length > 0 ||
-              recentSearchChips.mostViewed.length > 0) && (
+            {(recentOpenedChips.length > 0 || mostViewedChips.length > 0) && (
               <div style={{ display: "grid", gap: "var(--space-1)" }}>
-                {recentSearchChips.recentOpened.length > 0 && (
+                {recentOpenedChips.length > 0 && (
                   <div style={{ display: "grid", gap: "6px" }}>
                     <div style={{ fontSize: "0.75rem", opacity: 0.6 }}>
                       Recent (last opened)
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                      {recentSearchChips.recentOpened.map((item) => (
+                      {recentOpenedChips.map((item) => (
                         <div
                           key={`recent-${item.id}`}
                           style={{
@@ -960,13 +962,13 @@ export default function LeftPanel() {
                   </div>
                 )}
 
-                {recentSearchChips.mostViewed.length > 0 && (
+                {mostViewedChips.length > 0 && (
                   <div style={{ display: "grid", gap: "6px" }}>
                     <div style={{ fontSize: "0.75rem", opacity: 0.6 }}>
                       Most viewed
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                      {recentSearchChips.mostViewed.map((item) => (
+                      {mostViewedChips.map((item) => (
                         <div
                           key={`views-${item.id}`}
                           style={{
