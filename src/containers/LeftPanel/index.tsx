@@ -202,7 +202,6 @@ export default function LeftPanel() {
         last_viewed_on: lastViewedMap.get(entry.id) ?? "",
       }));
 
-    const mostViewed = [...enriched].sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
     const recentOpened = [...enriched]
       .sort((a, b) => {
         const aKey = typeof a.last_viewed_on === "string" ? a.last_viewed_on : "";
@@ -212,6 +211,11 @@ export default function LeftPanel() {
         return bKey.localeCompare(aKey);
       })
       .slice(0, recentLimit);
+
+    const recentIds = new Set(recentOpened.map((item) => item.id));
+    const mostViewed = [...enriched]
+      .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
+      .filter((item) => !recentIds.has(item.id));
 
     return { recentOpened, mostViewed };
   }, [recentSearches, moduleType, cognitiveNotesRoot, rootFolderJson, settings.fileSearch?.recentLimit]);
