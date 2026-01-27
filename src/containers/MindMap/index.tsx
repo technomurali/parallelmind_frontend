@@ -1783,6 +1783,9 @@ export default function MindMap() {
         requestAnimationFrame(() => {
           (rf as any).updateNodeInternals(group.nodeIds);
         });
+        window.setTimeout(() => {
+          (rf as any).updateNodeInternals(group.nodeIds);
+        }, 0);
       }
       updateGroupData(groupId, {
         scale: nextScale,
