@@ -29,6 +29,7 @@ import {
   CognitiveNotesManager,
   type CognitiveNotesJson,
 } from "../../extensions/cognitiveNotes/data/cognitiveNotesManager";
+import { composeCognitiveNotesGraph } from "../../extensions/cognitiveNotes/utils/composeCognitiveNotesGraph";
 import { useAutoSave } from "../../hooks/useAutoSave";
 import SmartPad from "../../components/SmartPad";
 import { parseYouTubeVideoId } from "../../utils/youtube";
@@ -2040,88 +2041,68 @@ export default function RightPanel() {
           }
 
           const nextFlowNodes = [...(cognitiveNotesRoot.flowchart_nodes ?? []), nextRecord];
-          const nextFlowEdges =
-            edgeId && parentIdForDraft
-              ? (cognitiveNotesRoot.flowchart_edges ?? []).some((e: any) => e?.id === edgeId)
-                ? cognitiveNotesRoot.flowchart_edges ?? []
-                : [
-                    ...(cognitiveNotesRoot.flowchart_edges ?? []),
-                    { id: edgeId, source: parentIdForDraft, target: draftNodeId },
-                  ]
-              : cognitiveNotesRoot.flowchart_edges ?? [];
-
-          // Fade out draft node + edge (if any), then remove after persist.
-          setNodes(
-            (nodes ?? []).map((node: any) => {
-              if (node?.id !== draftNodeId) return node;
-              return {
-                ...node,
-                data: {
-                  ...(node.data ?? {}),
-                  name: trimmedName,
-                  purpose: draft.purpose,
-                  node_color:
-                    (node.data as any)?.node_color ??
-                    nextNodeColors[draftNodeId] ??
-                    undefined,
-                  imageSrc: isImageNode
-                    ? imageDataUrl || (node.data as any)?.imageSrc
-                    : (node.data as any)?.imageSrc,
-                  caption: isImageNode ? trimmedCaption : (node.data as any)?.caption,
-                  extension: isImageNode ? ext : (node.data as any)?.extension,
-                  isDraft: false,
-                  nonPersistent: false,
-                  isDraftClosing: true,
-                },
-                style: {
-                  ...(node.style ?? {}),
-                  opacity: 0,
-                  transition: "opacity 180ms ease",
-                },
-              };
-            })
+          const existingFlowEdges = cognitiveNotesRoot.flowchart_edges ?? [];
+          const edgesTouchingDraft = (edges ?? []).filter(
+            (e: any) => e && (e.source === draftNodeId || e.target === draftNodeId)
           );
-          if (edgeId) {
-            setEdges(
-              (edges ?? []).map((edge: any) => {
-                if (edge?.id !== edgeId) return edge;
-                return {
-                  ...edge,
-                  data: { ...(edge.data ?? {}), isDraftClosing: true },
-                  style: {
-                    ...(edge.style ?? {}),
-                    opacity: 0,
-                    transition: "opacity 180ms ease",
-                  },
-                };
-              })
-            );
-          }
+          const draftEdgeById = new Map(
+            edgesTouchingDraft.map((e: any) => [
+              e.id,
+              {
+                id: e.id,
+                source: e.source,
+                target: e.target,
+                source_handle: e.sourceHandle ?? undefined,
+                target_handle: e.targetHandle ?? undefined,
+                purpose: (e.data as any)?.purpose,
+              },
+            ])
+          );
+          existingFlowEdges.forEach((e: any) => {
+            if (e && e.id && !draftEdgeById.has(e.id))
+              draftEdgeById.set(e.id, {
+                id: e.id,
+                source: e.source,
+                target: e.target,
+                source_handle: e.source_handle,
+                target_handle: e.target_handle,
+                purpose: e.purpose,
+              });
+          });
+          const nextFlowEdges = Array.from(draftEdgeById.values());
 
-          await persistCognitiveNotesRoot({
+          const newRoot: CognitiveNotesJson = {
             ...cognitiveNotesRoot,
             updated_on: nowIso,
             flowchart_nodes: nextFlowNodes,
             flowchart_edges: nextFlowEdges,
             node_positions: nextPositions,
             node_colors: nextNodeColors,
-          });
+          };
+
+          await persistCognitiveNotesRoot(newRoot);
+          updateCognitiveNotesRoot(newRoot);
+
+          const { nodes: composedNodes, edges: composedEdges } = composeCognitiveNotesGraph(
+            newRoot,
+            {
+              nodeSize: settings.appearance.nodeSize,
+              columns: settings.appearance.gridColumns,
+              columnGap: settings.appearance.gridColumnGap,
+              rowGap: settings.appearance.gridRowGap,
+              inputFileNodeColor: settings.appearance.cognitiveNotesInputFileNodeColor,
+              fileNodeColor: settings.appearance.cognitiveNotesFileNodeColor,
+              outputNodeColor: settings.appearance.cognitiveNotesOutputNodeColor,
+            }
+          );
+          setNodes(composedNodes);
+          setEdges(composedEdges);
 
           setPendingChildCreation(null);
           selectNode(draftNodeId);
           setDirty(false);
           setSaveStatus("saved");
           setFileDetailsExpanded(false);
-          window.setTimeout(() => {
-            const latest = useMindMapStore.getState();
-            const latestTab = selectActiveTab(latest);
-            const latestNodes = latestTab?.nodes ?? [];
-            const latestEdges = latestTab?.edges ?? [];
-            setNodes(latestNodes.filter((node: any) => node?.id !== draftNodeId));
-            if (edgeId) {
-              setEdges(latestEdges.filter((edge: any) => edge?.id !== edgeId));
-            }
-          }, 200);
           return;
         }
         if (isImageNode) {
