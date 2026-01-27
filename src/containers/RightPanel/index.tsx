@@ -87,6 +87,7 @@ export default function RightPanel() {
   const settings = useMindMapStore((s) => s.settings);
   const activeTab = useMindMapStore(selectActiveTab);
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
+  const selectedNodeIds = activeTab?.selectedNodeIds ?? [];
   const selectedEdgeId = activeTab?.selectedEdgeId ?? null;
   const nodes = activeTab?.nodes ?? [];
   const edges = activeTab?.edges ?? [];
@@ -117,6 +118,8 @@ export default function RightPanel() {
   const updateRootFolderJson = useMindMapStore((s) => s.updateRootFolderJson);
   const selectNode = useMindMapStore((s) => s.selectNode);
   const selectEdge = useMindMapStore((s) => s.selectEdge);
+  const setSelectedNodeIds = useMindMapStore((s) => s.setSelectedNodeIds);
+  const removeNodeFromGroup = useMindMapStore((s) => s.removeNodeFromGroup);
 
   const dragRef = useRef<{
     startX: number;
@@ -193,6 +196,22 @@ export default function RightPanel() {
   const [notesFeedHiddenIds, setNotesFeedHiddenIds] = useState<Set<string>>(
     () => new Set()
   );
+
+  const hasMultiSelection = selectedNodeIds.length > 1;
+  const selectedNodes = useMemo(
+    () =>
+      (selectedNodeIds ?? [])
+        .map((id) => (nodes ?? []).find((node: any) => node?.id === id))
+        .filter(Boolean),
+    [nodes, selectedNodeIds]
+  );
+
+  const removeSelectedNodeChip = (nodeId: string) => {
+    if (!nodeId) return;
+    removeNodeFromGroup(nodeId);
+    const nextIds = selectedNodeIds.filter((id) => id !== nodeId);
+    setSelectedNodeIds(nextIds);
+  };
 
   const hideNotesFeedItem = (id: string) => {
     if (!id) return;
@@ -3583,6 +3602,97 @@ export default function RightPanel() {
                     ) : null}
                   </div>
                 ))}
+            </div>
+          ) : hasMultiSelection ? (
+            <div
+              aria-label={uiText.grouping.selectedNodes}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-3)",
+                height: "100%",
+                width: "100%",
+                minWidth: 0,
+                boxSizing: "border-box",
+                padding: "var(--space-3)",
+                color: "var(--text)",
+                fontSize: "0.85rem",
+              }}
+            >
+              <div style={{ fontWeight: 700 }}>{uiText.grouping.selectedNodes}</div>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "var(--space-2)",
+                }}
+              >
+                {selectedNodes.map((node: any) => {
+                  const label =
+                    (node?.data as any)?.name ||
+                    (node?.data as any)?.label ||
+                    node?.id ||
+                    "";
+                  return (
+                    <div
+                      key={node.id}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "6px 8px",
+                        borderRadius: "999px",
+                        border: "var(--border-width) solid var(--border)",
+                        background: "var(--surface-2)",
+                        fontSize: "0.8rem",
+                        maxWidth: "100%",
+                      }}
+                    >
+                      <span
+                        style={{
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          maxWidth: 180,
+                        }}
+                        title={label}
+                      >
+                        {label}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={uiText.grouping.removeSelectedNode}
+                        title={uiText.grouping.removeSelectedNode}
+                        onClick={() => removeSelectedNodeChip(node.id)}
+                        style={{
+                          height: 18,
+                          width: 18,
+                          borderRadius: "999px",
+                          border: "none",
+                          background: "transparent",
+                          color: "inherit",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "0.85rem",
+                          lineHeight: 1,
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.background =
+                            "var(--surface-1)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.background =
+                            "transparent";
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : selectedEdgeId && !selectedNodeId ? (
             <div

@@ -275,6 +275,13 @@ export const uiText = {
     changeRootFolder: 'Change root folder',
     rootFolderNamePrefix: 'Root Folder:',
     autoCenterSelection: 'Auto-center selected node',
+    ungroupNodes: 'Ungroup nodes',
+  },
+
+  grouping: {
+    groupedNodes: 'Grouped nodes',
+    selectedNodes: 'Selected nodes',
+    removeSelectedNode: 'Remove from selection',
   },
 
   /**
@@ -386,6 +393,7 @@ export const uiText = {
       moveNode: 'Move node',
       moveWithChildren: 'Move with children',
       showSubtreeNotes: 'Show subtree notes',
+      groupNodes: 'Group nodes',
     },
     folder: {
       openFolder: 'Open Folder',

@@ -11,7 +11,7 @@
  * - Provides accessibility labels for screen readers
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   addEdge,
   applyEdgeChanges,
@@ -102,6 +102,12 @@ export default function MindMap() {
   const updateSettings = useMindMapStore((s) => s.updateSettings);
   const setInlineEditNodeId = useMindMapStore((s) => s.setInlineEditNodeId);
   const selectNode = useMindMapStore((s) => s.selectNode);
+  const setSelectedNodeIds = useMindMapStore((s) => s.setSelectedNodeIds);
+  const toggleSelectedNode = useMindMapStore((s) => s.toggleSelectedNode);
+  const clearSelectedNodes = useMindMapStore((s) => s.clearSelectedNodes);
+  const createGroup = useMindMapStore((s) => s.createGroup);
+  const removeGroup = useMindMapStore((s) => s.removeGroup);
+  const removeNodeFromGroup = useMindMapStore((s) => s.removeNodeFromGroup);
   const tabs = useMindMapStore((s) => s.tabs);
   const createTab = useMindMapStore((s) => s.createTab);
   const setActiveTab = useMindMapStore((s) => s.setActiveTab);
@@ -115,6 +121,8 @@ export default function MindMap() {
   const setRightPanelMode = useMindMapStore((s) => s.setRightPanelMode);
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
+  const selectedNodeIds = activeTab?.selectedNodeIds ?? (selectedNodeId ? [selectedNodeId] : []);
+  const nodeGroups = activeTab?.groups ?? [];
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
   const setNodesCollapsed = useMindMapStore((s) => s.setNodesCollapsed);
   const setPendingChildCreation = useMindMapStore(
@@ -138,6 +146,15 @@ export default function MindMap() {
     offsetX: number;
     offsetY: number;
   }>({ active: false, offsetX: 0, offsetY: 0 });
+  const groupDragRef = useRef<{
+    groupId: string;
+    lastClient: { x: number; y: number };
+  } | null>(null);
+  const nodeGroupDragRef = useRef<{
+    groupId: string;
+    lastPos: { x: number; y: number };
+    nodeId: string;
+  } | null>(null);
   const lastFitRootIdRef = useRef<string | null>(null);
   const lastRestoredTabIdRef = useRef<string | null>(null);
   const lastSavedViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(
@@ -148,6 +165,21 @@ export default function MindMap() {
     null
   );
   const [rf, setRf] = useState<ReactFlowInstance | null>(null);
+  const [viewport, setViewport] = useState<{ x: number; y: number; zoom: number }>({
+    x: 0,
+    y: 0,
+    zoom: 1,
+  });
+  const nodesRef = useRef<any[]>([]);
+
+  useEffect(() => {
+    nodesRef.current = nodes ?? [];
+  }, [nodes]);
+
+  useEffect(() => {
+    if (!rf) return;
+    setViewport(rf.getViewport());
+  }, [rf]);
   const fileManager = useMemo(() => new FileManager(), []);
   const cognitiveNotesManager = useMemo(() => new CognitiveNotesManager(), []);
   const defaultCognitiveNodeColor =
@@ -1497,7 +1529,7 @@ export default function MindMap() {
   };
 
   const onEdgeClick = (_: unknown, edge: Edge) => {
-    selectNode(null);
+    clearSelectedNodes();
     selectEdge(edge.id);
   };
 
@@ -1505,7 +1537,13 @@ export default function MindMap() {
    * Keep selected node id in the global store so the right panel can show details.
    */
   const onNodeClick = (_: unknown, node: Node) => {
+    const event = _ as MouseEvent | undefined;
+    const isMultiSelect = !!event?.ctrlKey || !!event?.metaKey;
     selectEdge(null);
+    if (isMultiSelect) {
+      toggleSelectedNode(node.id);
+      return;
+    }
     selectNode(node.id);
   };
 
@@ -1517,7 +1555,7 @@ export default function MindMap() {
     // naming/saving, discard the temporary node (reversible-before-save behavior).
     discardPendingChildCreationIfSelected();
     selectEdge(null);
-    selectNode(null);
+    clearSelectedNodes();
   };
 
   const onEdgesDelete = (deleted: Edge[]) => {
@@ -1558,6 +1596,77 @@ export default function MindMap() {
   const isDetailsPreviewNode = (node: Node | null): boolean =>
     !!node && (node.type === "rootFolder" || node.type === "file");
 
+  const selectedNodeIdSet = useMemo(
+    () => new Set(selectedNodeIds ?? []),
+    [selectedNodeIds]
+  );
+  const isMultiSelect = selectedNodeIds.length > 1;
+
+  const findGroupIdForNode = useCallback(
+    (nodeId: string): string | null => {
+      if (!nodeId) return null;
+      const match = (nodeGroups ?? []).find((group) =>
+        group.nodeIds.includes(nodeId)
+      );
+      return match?.id ?? null;
+    },
+    [nodeGroups]
+  );
+
+  const getNodeBounds = useCallback(
+    (node: any) => {
+      const position = node?.positionAbsolute ?? node?.position ?? { x: 0, y: 0 };
+      const width =
+        typeof node?.width === "number"
+          ? node.width
+          : typeof node?.data?.nodeWidth === "number"
+          ? node.data.nodeWidth
+          : typeof node?.style?.width === "number"
+          ? node.style.width
+          : settings.appearance.nodeSize ?? 200;
+      const height =
+        typeof node?.height === "number"
+          ? node.height
+          : typeof node?.data?.nodeHeight === "number"
+          ? node.data.nodeHeight
+          : typeof node?.style?.height === "number"
+          ? node.style.height
+          : settings.appearance.nodeSize ?? 200;
+      return {
+        x: position.x,
+        y: position.y,
+        width,
+        height,
+      };
+    },
+    [settings.appearance.nodeSize]
+  );
+
+  const getGroupBounds = useCallback(
+    (group: { nodeIds: string[] }) => {
+      const members = (nodesRef.current ?? []).filter((node: any) =>
+        group.nodeIds.includes(node?.id)
+      );
+      if (!members.length) return null;
+      const bounds = members.map(getNodeBounds);
+      const minX = Math.min(...bounds.map((b) => b.x));
+      const minY = Math.min(...bounds.map((b) => b.y));
+      const maxX = Math.max(...bounds.map((b) => b.x + b.width));
+      const maxY = Math.max(...bounds.map((b) => b.y + b.height));
+      const padding = 18;
+      const headerHeight = 28;
+      return {
+        x: minX - padding,
+        y: minY - padding - headerHeight,
+        width: maxX - minX + padding * 2,
+        height: maxY - minY + padding * 2 + headerHeight,
+        headerHeight,
+        padding,
+      };
+    },
+    [getNodeBounds]
+  );
+
   const getPreviewPosition = (clientX: number, clientY: number) => {
     const rect = canvasBodyRef.current?.getBoundingClientRect();
     if (!rect) return { x: clientX, y: clientY };
@@ -1581,15 +1690,97 @@ export default function MindMap() {
     setDetailsPreview(null);
   };
 
-  const onNodeDragStart = () => {
+  const onNodeDragStart = (_: unknown, node: Node) => {
     if (!showDetailsActive) return;
     setIsNodeDragging(true);
     setDetailsPreview(null);
+    const groupId = findGroupIdForNode(node.id);
+    if (groupId) {
+      nodeGroupDragRef.current = {
+        groupId,
+        lastPos: { x: node.position.x, y: node.position.y },
+        nodeId: node.id,
+      };
+    }
+  };
+
+  const onNodeDrag = (_: unknown, node: Node) => {
+    const active = nodeGroupDragRef.current;
+    if (!active || active.nodeId !== node.id) return;
+    const group = (nodeGroups ?? []).find((g) => g.id === active.groupId);
+    if (!group) return;
+    const deltaX = node.position.x - active.lastPos.x;
+    const deltaY = node.position.y - active.lastPos.y;
+    if (deltaX === 0 && deltaY === 0) return;
+    active.lastPos = { x: node.position.x, y: node.position.y };
+    const nextNodes = (nodesRef.current ?? []).map((n: any) => {
+      if (!group.nodeIds.includes(n.id) || n.id === node.id) return n;
+      const position = n.position ?? { x: 0, y: 0 };
+      return {
+        ...n,
+        position: {
+          x: position.x + deltaX,
+          y: position.y + deltaY,
+        },
+      };
+    });
+    setNodes(nextNodes);
   };
 
   const onNodeDragStop = () => {
     setIsNodeDragging(false);
+    nodeGroupDragRef.current = null;
   };
+
+  const onGroupMouseDown = useCallback(
+    (event: React.MouseEvent, groupId: string) => {
+      event.preventDefault();
+      event.stopPropagation();
+      groupDragRef.current = {
+        groupId,
+        lastClient: { x: event.clientX, y: event.clientY },
+      };
+      setIsNodeDragging(true);
+    },
+    []
+  );
+
+  useEffect(() => {
+    const onMove = (event: MouseEvent) => {
+      const active = groupDragRef.current;
+      if (!active) return;
+      event.preventDefault();
+      const deltaX = (event.clientX - active.lastClient.x) / viewport.zoom;
+      const deltaY = (event.clientY - active.lastClient.y) / viewport.zoom;
+      if (deltaX === 0 && deltaY === 0) return;
+      active.lastClient = { x: event.clientX, y: event.clientY };
+      const group = (nodeGroups ?? []).find((g) => g.id === active.groupId);
+      if (!group) return;
+      const nextNodes = (nodesRef.current ?? []).map((node: any) => {
+        if (!group.nodeIds.includes(node.id)) return node;
+        const position = node.position ?? { x: 0, y: 0 };
+        return {
+          ...node,
+          position: {
+            x: position.x + deltaX,
+            y: position.y + deltaY,
+          },
+        };
+      });
+      setNodes(nextNodes);
+    };
+    const onUp = () => {
+      if (!groupDragRef.current) return;
+      groupDragRef.current = null;
+      setIsNodeDragging(false);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [nodeGroups, setNodes, viewport.zoom]);
 
   useEffect(() => {
     if (!rf) return;
@@ -1714,7 +1905,7 @@ export default function MindMap() {
     closePaneMenu();
 
     // Show context menu for selected nodes
-    if (node.id !== selectedNodeId) return;
+    if (!selectedNodeIdSet.has(node.id)) return;
 
     const container = canvasBodyRef.current?.getBoundingClientRect();
     const x = container ? e.clientX - container.left : e.clientX;
@@ -2200,7 +2391,7 @@ export default function MindMap() {
         position: preserved ?? node.position,
         style: preservedStyle,
         data: mergedData,
-        selected: node.id === selectedNodeId,
+        selected: selectedNodeIdSet.has(node.id),
       };
     });
 
@@ -2239,7 +2430,7 @@ export default function MindMap() {
         position: preserved ?? baseNode.position,
         style: preservedStyle,
         data: mergedData,
-        selected: flowNode.id === selectedNodeId,
+        selected: selectedNodeIdSet.has(flowNode.id),
       };
     });
 
@@ -2248,7 +2439,7 @@ export default function MindMap() {
     );
     const customNodes = existingCustomNodes.map((node: any) => ({
       ...node,
-      selected: node.id === selectedNodeId,
+      selected: selectedNodeIdSet.has(node.id),
     }));
     const mergedNodes = [
       ...withSelection,
@@ -2354,6 +2545,7 @@ export default function MindMap() {
   const onViewportMove = useCallback(
     (_: any, viewport: { x: number; y: number; zoom: number }) => {
       queueViewportSave(viewport);
+      setViewport(viewport);
     },
     [queueViewportSave]
   );
@@ -3285,6 +3477,108 @@ export default function MindMap() {
               </div>
             </div>
           )}
+          {nodeGroups.length > 0 &&
+            nodeGroups.map((group) => {
+              const bounds = getGroupBounds(group);
+              if (!bounds) return null;
+              const left = bounds.x * viewport.zoom + viewport.x;
+              const top = bounds.y * viewport.zoom + viewport.y;
+              return (
+                <Fragment key={group.id}>
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      left,
+                      top,
+                      width: bounds.width,
+                      height: bounds.height,
+                      transform: `scale(${viewport.zoom})`,
+                      transformOrigin: "top left",
+                      pointerEvents: "none",
+                      zIndex: 30,
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        border: "1px solid rgba(255, 255, 255, 0.25)",
+                        borderRadius: "18px",
+                        background: "transparent",
+                        boxShadow: "0 6px 18px rgba(0,0,0,0.18)",
+                      }}
+                    />
+                  </div>
+                  <div
+                    onMouseDown={(event) => onGroupMouseDown(event, group.id)}
+                    style={{
+                      position: "absolute",
+                      left,
+                      top,
+                      height: bounds.headerHeight,
+                      width: bounds.width,
+                      transform: `scale(${viewport.zoom})`,
+                      transformOrigin: "top left",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0 10px",
+                      boxSizing: "border-box",
+                      background: "rgba(0,0,0,0.2)",
+                      color: "var(--text)",
+                      borderTopLeftRadius: "18px",
+                      borderTopRightRadius: "18px",
+                      cursor: "grab",
+                      pointerEvents: "auto",
+                      zIndex: 31,
+                    }}
+                  >
+                    <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>
+                      {uiText.grouping.groupedNodes}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={uiText.tooltips.ungroupNodes}
+                      title={uiText.tooltips.ungroupNodes}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        removeGroup(group.id);
+                      }}
+                      style={{
+                        height: 20,
+                        width: 20,
+                        borderRadius: "var(--radius-sm)",
+                        border: "none",
+                        background: "transparent",
+                        color: "inherit",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "0.95rem",
+                        lineHeight: 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "rgba(255,255,255,0.12)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "transparent";
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </Fragment>
+              );
+            })}
           <ReactFlow
             nodes={renderedNodes}
             edges={renderedEdges}
@@ -3360,6 +3654,7 @@ export default function MindMap() {
             onNodeMouseMove={onNodeMouseMove}
             onNodeMouseLeave={onNodeMouseLeave}
             onNodeDragStart={onNodeDragStart}
+            onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
           />
 
@@ -3934,6 +4229,38 @@ export default function MindMap() {
                 padding: "6px",
               }}
             >
+              {isMultiSelect ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    createGroup(selectedNodeIds);
+                    closeContextMenu();
+                  }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "8px 10px",
+                    borderRadius: "var(--radius-sm)",
+                    border: "none",
+                    background: "transparent",
+                    color: "inherit",
+                    cursor: "pointer",
+                    fontFamily: "var(--font-family)",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "var(--surface-1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background =
+                      "transparent";
+                  }}
+                >
+                  {uiText.contextMenus.node.groupNodes}
+                </button>
+              ) : (
+                <>
               {canShowSubtreeNotes(contextMenu.node) && (
                   <button
                     type="button"
@@ -4315,6 +4642,8 @@ export default function MindMap() {
                     {uiText.contextMenus.file.openFile}
                   </button>
                 )}
+                </>
+              )}
             </div>
           )}
         </div>
