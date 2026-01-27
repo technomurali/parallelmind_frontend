@@ -328,18 +328,36 @@ export default function ShieldFileNode({
               paddingLeft: Math.max(4, Math.round(6 * sizeScale)),
               paddingRight: Math.max(24, Math.round(28 * sizeScale)),
               display: "flex",
-              alignItems: "center",
-              fontWeight: 700,
-              fontSize: `${Math.max(6, Math.round(8 * sizeScale))}px`,
-              lineHeight: "1.2",
+              flexDirection: "column",
+              justifyContent: "center",
+              gap: Math.max(1, Math.round(2 * sizeScale)),
               color: nodeTextColor,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
               pointerEvents: "none",
             }}
           >
-            {nodeName ?? "(no name)"}
+            <div
+              style={{
+                fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
+                fontWeight: 400,
+                letterSpacing: "0.02em",
+                opacity: 0.85,
+                lineHeight: 1.1,
+              }}
+            >
+              File Name
+            </div>
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+                lineHeight: "1.2",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {nodeName ?? "(no name)"}
+            </div>
           </div>
 
           {/* +/- controls: ALSO inside top box */}
@@ -429,17 +447,35 @@ export default function ShieldFileNode({
               transition: dragging ? "none" : "opacity 180ms ease, max-height 180ms ease",
               padding: `${Math.max(4, Math.round(6 * sizeScale))}px`,
               paddingTop: Math.max(4, Math.round(6 * sizeScale)),
-              fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
-              lineHeight: "1.25",
-              wordBreak: "break-word",
-              overflowWrap: "break-word",
-              whiteSpace: "pre-wrap",
               color: nodeTextColor,
               opacity: isExpanded ? 0.95 : 0,
               pointerEvents: "none",
             }}
           >
-            {displayPurpose ?? ""}
+            <div
+              style={{
+                fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
+                fontWeight: 400,
+                letterSpacing: "0.02em",
+                opacity: 0.85,
+                lineHeight: 1.1,
+                marginTop: `${Math.max(1, Math.round(3 * sizeScale))}px`,
+              }}
+            >
+              Purpose
+            </div>
+            <div
+              style={{
+                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+                lineHeight: "1.25",
+                wordBreak: "break-word",
+                overflowWrap: "break-word",
+                whiteSpace: "pre-wrap",
+                marginTop: `${Math.max(1, Math.round(3 * sizeScale))}px`,
+              }}
+            >
+              {displayPurpose ?? ""}
+            </div>
           </div>
         </div>
       </div>

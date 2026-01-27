@@ -166,6 +166,10 @@ export default function RightPanel() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
+  const [detailsFileStatus, setDetailsFileStatus] = useState<
+    "idle" | "creating" | "created" | "error"
+  >("idle");
+  const [detailsFileError, setDetailsFileError] = useState<string | null>(null);
   const [fileDetailsExpanded, setFileDetailsExpanded] = useState(false);
   const [imageSrc, setImageSrc] = useState<string>("");
   const [imageLoadError, setImageLoadError] = useState(false);
@@ -238,6 +242,8 @@ export default function RightPanel() {
       setActionError(null);
       setDeleteConfirmOpen(false);
       setDeleteInProgress(false);
+      setDetailsFileStatus("idle");
+      setDetailsFileError(null);
       setSortIndexDraft("");
       setSortIndexDirty(false);
       setSortIndexSaveStatus("idle");
@@ -300,6 +306,8 @@ export default function RightPanel() {
       setActionError(null);
       setDeleteConfirmOpen(false);
       setDeleteInProgress(false);
+      setDetailsFileStatus("idle");
+      setDetailsFileError(null);
       setSortIndexDirty(false);
       setSortIndexSaveStatus("idle");
     }
@@ -380,6 +388,17 @@ export default function RightPanel() {
     (selectedNode?.data as any)?.node_type === "fullImageNode" ||
     (selectedNode?.data as any)?.type === "fullImageNode" ||
     selectedNode?.type === "fullImageNode";
+  const isShieldFileNode =
+    isFileNode &&
+    (((selectedNode?.data as any)?.node_variant as string) === "shieldFile" ||
+      selectedNode?.type === "shieldFile");
+  const detailsPath =
+    typeof (selectedNode?.data as any)?.details_path === "string"
+      ? ((selectedNode?.data as any)?.details_path as string)
+      : "";
+  const detailsOptOut = !!(selectedNode?.data as any)?.details_opt_out;
+  const shouldOfferDetailsFile =
+    isFlowchartNode || isShieldFileNode || isImageNode;
   const youtubeSettings = draft.yt_settings ?? DEFAULT_YT_SETTINGS;
   const showSortIndex =
     moduleType === "cognitiveNotes" &&
@@ -658,10 +677,9 @@ export default function RightPanel() {
   }, [isImageNode, selectedNode, rootDirectoryHandle, fileManager]);
 
   useEffect(() => {
-    const shouldOpen =
-      !!selectedNodeId && isDraftNode && (isFileNode || isImageNode);
+    const shouldOpen = !!selectedNodeId && isDraftNode;
     setFileDetailsExpanded(shouldOpen);
-  }, [selectedNodeId, isDraftNode, isFileNode, isImageNode]);
+  }, [selectedNodeId, isDraftNode]);
 
   // Save callback: updates in-memory state and persists only when we already have a persistence mechanism.
   const commitSave = async () => {
@@ -1176,11 +1194,298 @@ export default function RightPanel() {
     }
   };
 
+  const updateFlowchartNodeDetails = (
+    list: any[],
+    nodeId: string,
+    details: { details_path?: string; details_opt_out?: boolean }
+  ): any[] => {
+    const updatedAt = new Date().toISOString();
+    return (list ?? []).map((node) =>
+      node?.id === nodeId
+        ? { ...node, ...details, updated_on: updatedAt }
+        : node
+    );
+  };
+
+  const updateFileNodeDetails = (
+    list: any[],
+    nodeId: string,
+    details: { details_path?: string; details_opt_out?: boolean }
+  ): { nodes: any[]; updated: boolean } => {
+    let updated = false;
+    const next = (list ?? []).map((node) => {
+      if (!node) return node;
+      if (node.id === nodeId) {
+        updated = true;
+        return { ...node, ...details };
+      }
+      if (Array.isArray(node.child)) {
+        const childResult = updateFileNodeDetails(node.child, nodeId, details);
+        if (childResult.updated) {
+          updated = true;
+          return { ...node, child: childResult.nodes };
+        }
+      }
+      return node;
+    });
+    return { nodes: next, updated };
+  };
+
+  const persistDetailsLink = async (payload: {
+    detailsPath?: string;
+    detailsOptOut?: boolean;
+  }) => {
+    if (!selectedNodeId) return;
+    updateNodeData(selectedNodeId, {
+      details_path: payload.detailsPath,
+      details_opt_out: payload.detailsOptOut,
+    });
+
+    if (isFlowchartNode) {
+      if (moduleType === "cognitiveNotes" && cognitiveNotesRoot) {
+        const nextFlowchartNodes = updateFlowchartNodeDetails(
+          cognitiveNotesRoot.flowchart_nodes ?? [],
+          selectedNodeId,
+          {
+            details_path: payload.detailsPath,
+            details_opt_out: payload.detailsOptOut,
+          }
+        );
+        await persistCognitiveNotesRoot({
+          ...cognitiveNotesRoot,
+          flowchart_nodes: nextFlowchartNodes,
+        });
+      } else if (rootFolderJson) {
+        const nextFlowchartNodes = updateFlowchartNodeDetails(
+          rootFolderJson.flowchart_nodes ?? [],
+          selectedNodeId,
+          {
+            details_path: payload.detailsPath,
+            details_opt_out: payload.detailsOptOut,
+          }
+        );
+        await persistParallelmindRoot({
+          ...rootFolderJson,
+          flowchart_nodes: nextFlowchartNodes,
+        });
+      }
+      return;
+    }
+
+    if (isShieldFileNode && rootFolderJson) {
+      const updatedTree = updateFileNodeDetails(
+        rootFolderJson.child ?? [],
+        selectedNodeId,
+        {
+          details_path: payload.detailsPath,
+          details_opt_out: payload.detailsOptOut,
+        }
+      );
+      if (updatedTree.updated) {
+        await persistParallelmindRoot({
+          ...rootFolderJson,
+          child: updatedTree.nodes,
+        });
+      }
+    }
+  };
+
+  const createAssociatedTextFile = async () => {
+    if (!selectedNodeId) return;
+    const trimmedName = draft.name.trim();
+    if (!trimmedName) {
+      setDetailsFileStatus("error");
+      setDetailsFileError("Name is required before creating a text file.");
+      return;
+    }
+    setDetailsFileStatus("creating");
+    setDetailsFileError(null);
+
+    try {
+      const { exists } = await import("@tauri-apps/plugin-fs");
+      const fileName = splitDraftFileName(trimmedName).fullName;
+      const data = (selectedNode?.data ?? {}) as any;
+
+      if (isShieldFileNode) {
+        const existingPath = typeof data.path === "string" ? data.path : "";
+        let targetPath = existingPath;
+
+        if (!targetPath) {
+          if (rootDirectoryHandle) {
+            targetPath = fileName;
+            await ensureTextFileExistsFromHandle(rootDirectoryHandle, targetPath);
+          } else {
+            const basePath = rootFolderJson?.path ?? "";
+            if (!basePath) {
+              throw new Error("Root folder path is missing.");
+            }
+            targetPath = joinPath(basePath, fileName);
+            const alreadyExists = await exists(targetPath);
+            if (!alreadyExists) {
+              await fileManager.writeTextFileFromPath(targetPath, "");
+            }
+          }
+        } else if (rootDirectoryHandle && !isAbsolutePath(existingPath)) {
+          await ensureTextFileExistsFromHandle(rootDirectoryHandle, existingPath);
+        } else if (existingPath) {
+          const alreadyExists = await exists(existingPath);
+          if (!alreadyExists) {
+            await fileManager.writeTextFileFromPath(existingPath, "");
+          }
+        }
+
+        await persistDetailsLink({
+          detailsPath: targetPath,
+          detailsOptOut: false,
+        });
+        setDetailsFileStatus("created");
+        return;
+      }
+
+      if (isImageNode) {
+        let targetPath = "";
+        if (moduleType === "cognitiveNotes") {
+          if (cognitiveNotesDirectoryHandle) {
+            targetPath = fileName;
+            await ensureTextFileExistsFromHandle(
+              cognitiveNotesDirectoryHandle,
+              targetPath
+            );
+          } else {
+            const basePath = cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
+            if (!basePath) {
+              throw new Error("Cognitive Notes folder path is missing.");
+            }
+            targetPath = joinPath(basePath, fileName);
+            const alreadyExists = await exists(targetPath);
+            if (!alreadyExists) {
+              await fileManager.writeTextFileFromPath(targetPath, "");
+            }
+          }
+        } else {
+          if (rootDirectoryHandle) {
+            targetPath = fileName;
+            await ensureTextFileExistsFromHandle(rootDirectoryHandle, targetPath);
+          } else {
+            const basePath = rootFolderJson?.path ?? "";
+            if (!basePath) {
+              throw new Error("Root folder path is missing.");
+            }
+            targetPath = joinPath(basePath, fileName);
+            const alreadyExists = await exists(targetPath);
+            if (!alreadyExists) {
+              await fileManager.writeTextFileFromPath(targetPath, "");
+            }
+          }
+        }
+
+        await persistDetailsLink({
+          detailsPath: targetPath,
+          detailsOptOut: false,
+        });
+        setDetailsFileStatus("created");
+        return;
+      }
+
+      if (isFlowchartNode) {
+        let targetPath = "";
+        if (moduleType === "cognitiveNotes") {
+          if (cognitiveNotesDirectoryHandle) {
+            targetPath = fileName;
+            await ensureTextFileExistsFromHandle(
+              cognitiveNotesDirectoryHandle,
+              targetPath
+            );
+          } else {
+            const basePath = cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
+            if (!basePath) {
+              throw new Error("Cognitive Notes folder path is missing.");
+            }
+            targetPath = joinPath(basePath, fileName);
+            const alreadyExists = await exists(targetPath);
+            if (!alreadyExists) {
+              await fileManager.writeTextFileFromPath(targetPath, "");
+            }
+          }
+        } else {
+          if (rootDirectoryHandle) {
+            targetPath = fileName;
+            await ensureTextFileExistsFromHandle(rootDirectoryHandle, targetPath);
+          } else {
+            const basePath = rootFolderJson?.path ?? "";
+            if (!basePath) {
+              throw new Error("Root folder path is missing.");
+            }
+            targetPath = joinPath(basePath, fileName);
+            const alreadyExists = await exists(targetPath);
+            if (!alreadyExists) {
+              await fileManager.writeTextFileFromPath(targetPath, "");
+            }
+          }
+        }
+
+        await persistDetailsLink({
+          detailsPath: targetPath,
+          detailsOptOut: false,
+        });
+        setDetailsFileStatus("created");
+      }
+    } catch (error) {
+      console.error("[RightPanel] Failed to create associated text file:", error);
+      setDetailsFileStatus("error");
+      setDetailsFileError(
+        error instanceof Error
+          ? error.message
+          : "Failed to create associated text file."
+      );
+    }
+  };
+
+  const skipAssociatedTextFile = async () => {
+    setDetailsFileStatus("idle");
+    setDetailsFileError(null);
+    await persistDetailsLink({ detailsOptOut: true, detailsPath: "" });
+  };
+
   const joinPath = (dirPath: string, fileName: string): string => {
     const trimmed = (dirPath ?? "").replace(/[\\/]+$/, "");
     if (!trimmed) return fileName;
     const sep = trimmed.includes("\\") ? "\\" : "/";
     return `${trimmed}${sep}${fileName}`;
+  };
+
+  const isAbsolutePath = (value: string): boolean => {
+    if (!value) return false;
+    if (value.startsWith("/") || value.startsWith("\\")) return true;
+    return /^[a-zA-Z]:[\\/]/.test(value);
+  };
+
+  const ensureTextFileExistsFromHandle = async (
+    rootHandle: FileSystemDirectoryHandle,
+    relPath: string,
+  ): Promise<void> => {
+    const parts = (relPath ?? "").split(/[\\/]/).filter(Boolean);
+    const fileName = parts.pop();
+    if (!fileName) {
+      throw new Error("File path is missing a filename.");
+    }
+    let current = rootHandle;
+    for (const part of parts) {
+      current = await current.getDirectoryHandle(part, { create: false });
+    }
+    try {
+      await current.getFileHandle(fileName, { create: false });
+      return;
+    } catch (_error) {
+      // Intentionally create a new file if missing.
+    }
+    const fileHandle = await current.getFileHandle(fileName, { create: true });
+    const writable = await (fileHandle as any).createWritable?.();
+    if (!writable) {
+      throw new Error("Failed to create associated text file.");
+    }
+    await writable.write("");
+    await writable.close();
   };
 
   const writeCognitiveNotesFile = async (fileName: string, content: string) => {
@@ -1522,6 +1827,7 @@ export default function RightPanel() {
       selectNode(draftNodeId);
       setDirty(false);
       setSaveStatus("saved");
+      setFileDetailsExpanded(false);
       return;
     }
     if (!parentIdForDraft) {
@@ -1688,6 +1994,7 @@ export default function RightPanel() {
         selectNode(draftNodeId);
         setDirty(false);
         setSaveStatus("saved");
+        setFileDetailsExpanded(false);
         return;
       }
 
@@ -1797,6 +2104,7 @@ export default function RightPanel() {
       selectNode(result.node.id);
       setDirty(false);
       setSaveStatus("saved");
+      setFileDetailsExpanded(false);
       window.setTimeout(() => {
         const latest = useMindMapStore.getState();
         const latestTab = selectActiveTab(latest);
@@ -2375,12 +2683,6 @@ export default function RightPanel() {
       : selectedEdgeId && !selectedNodeId
       ? uiText.panels.edge
       : uiText.panels.node;
-
-  const isAbsolutePath = (value: string): boolean => {
-    if (!value) return false;
-    if (value.startsWith("/") || value.startsWith("\\")) return true;
-    return /^[A-Za-z]:[\\/]/.test(value);
-  };
 
   const TEXT_EXTENSIONS = new Set([
     "txt",
@@ -3259,6 +3561,159 @@ export default function RightPanel() {
                             />
                           )}
                         </label>
+                        {shouldOfferDetailsFile && (
+                          <div
+                            style={{
+                              display: "grid",
+                              gap: "var(--space-2)",
+                              width: "100%",
+                              minWidth: 0,
+                              border: "var(--border-width) solid var(--border)",
+                              borderRadius: "var(--radius-md)",
+                              padding: "var(--space-2)",
+                              background: "var(--surface-1)",
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                              {detailsPath || detailsOptOut
+                                ? uiText.fields.nodeDetails.associatedTextFileLabel
+                                : uiText.fields.nodeDetails.associatedTextFileQuestion}
+                            </div>
+                            {detailsPath ? (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "var(--space-1)",
+                                  fontSize: "0.8rem",
+                                }}
+                              >
+                                <div style={{ wordBreak: "break-all" }}>
+                                  {detailsPath}
+                                </div>
+                                {detailsFileStatus === "created" && (
+                                  <div style={{ color: "var(--success, #2f9e44)" }}>
+                                    {uiText.fields.nodeDetails.associatedTextFileCreated}
+                                  </div>
+                                )}
+                              </div>
+                            ) : detailsOptOut ? (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "var(--space-2)",
+                                  fontSize: "0.8rem",
+                                }}
+                              >
+                                <div style={{ opacity: 0.7 }}>
+                                  {uiText.fields.nodeDetails.associatedTextFileSkipped}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => void createAssociatedTextFile()}
+                                  disabled={
+                                    detailsFileStatus === "creating" ||
+                                    !draft.name.trim()
+                                  }
+                                  style={{
+                                    borderRadius: "999px",
+                                    border: "var(--border-width) solid var(--border)",
+                                    background: "var(--surface-2)",
+                                    color: "var(--text)",
+                                    padding: "4px 12px",
+                                    fontSize: "0.8rem",
+                                    fontWeight: 600,
+                                    cursor:
+                                      detailsFileStatus === "creating" ||
+                                      !draft.name.trim()
+                                        ? "not-allowed"
+                                        : "pointer",
+                                    opacity:
+                                      detailsFileStatus === "creating" ||
+                                      !draft.name.trim()
+                                        ? 0.6
+                                        : 1,
+                                    width: "fit-content",
+                                  }}
+                                >
+                                  {uiText.fields.nodeDetails.associatedTextFileCreate}
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: "var(--space-2)",
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => void createAssociatedTextFile()}
+                                    disabled={
+                                      detailsFileStatus === "creating" ||
+                                      !draft.name.trim()
+                                    }
+                                    style={{
+                                      borderRadius: "999px",
+                                      border: "var(--border-width) solid var(--border)",
+                                      background: "var(--surface-2)",
+                                      color: "var(--text)",
+                                      padding: "4px 12px",
+                                      fontSize: "0.8rem",
+                                      fontWeight: 600,
+                                      cursor:
+                                        detailsFileStatus === "creating" ||
+                                        !draft.name.trim()
+                                          ? "not-allowed"
+                                          : "pointer",
+                                      opacity:
+                                        detailsFileStatus === "creating" ||
+                                        !draft.name.trim()
+                                          ? 0.6
+                                          : 1,
+                                    }}
+                                  >
+                                    {uiText.fields.nodeDetails.associatedTextFileCreate}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void skipAssociatedTextFile()}
+                                    style={{
+                                      borderRadius: "999px",
+                                      border: "var(--border-width) solid var(--border)",
+                                      background: "transparent",
+                                      color: "inherit",
+                                      padding: "4px 12px",
+                                      fontSize: "0.8rem",
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    {uiText.fields.nodeDetails.associatedTextFileSkip}
+                                  </button>
+                                </div>
+                                {detailsFileStatus === "creating" && (
+                                  <div style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+                                    {uiText.statusMessages.saving}
+                                  </div>
+                                )}
+                                {detailsFileStatus === "error" && detailsFileError && (
+                                  <div
+                                    style={{
+                                      fontSize: "0.8rem",
+                                      color: "var(--danger, #e5484d)",
+                                    }}
+                                  >
+                                    {detailsFileError}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
                         {(isDraftNode || canRenameItem || canDeleteItem || actionError) && (
                           <div
                             style={{

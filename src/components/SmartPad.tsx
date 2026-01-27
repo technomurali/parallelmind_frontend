@@ -7,6 +7,7 @@ import { FileManager } from "../data/fileManager";
 import { CognitiveNotesManager } from "../extensions/cognitiveNotes/data/cognitiveNotesManager";
 import { useAutoSave } from "../hooks/useAutoSave";
 import { selectActiveTab, useMindMapStore } from "../store/mindMapStore";
+import { isFlowchartNodeType } from "../containers/MindMap/flowchartnode";
 import { htmlToMarkdownPreserveSpacing } from "../utils/clipboardToMarkdown";
 import {
   getEditorPlainText,
@@ -101,7 +102,48 @@ const isFileNode = (node: Node | null): boolean =>
   !!node &&
   ((node?.data as any)?.node_type === "file" ||
     (node?.data as any)?.type === "file" ||
-    node?.type === "file");
+    node?.type === "file" ||
+    node?.type === "shieldFile");
+
+const isImageNode = (node: Node | null): boolean =>
+  !!node &&
+  ((node?.data as any)?.node_type === "polaroidImage" ||
+    (node?.data as any)?.type === "polaroidImage" ||
+    node?.type === "polaroidImage" ||
+    (node?.data as any)?.node_type === "fullImageNode" ||
+    (node?.data as any)?.type === "fullImageNode" ||
+    node?.type === "fullImageNode");
+
+const isShieldFileNode = (node: Node | null): boolean =>
+  !!node &&
+  (((node?.data as any)?.node_variant as string) === "shieldFile" ||
+    node?.type === "shieldFile");
+
+const getDetailsPath = (node: Node | null): string => {
+  if (!node) return "";
+  const raw = (node?.data as any)?.details_path;
+  return typeof raw === "string" ? raw.trim() : "";
+};
+
+const resolveSmartpadTarget = (
+  node: Node | null
+): { path: string; isAssociated: boolean; isFlowchart: boolean } => {
+  if (!node) return { path: "", isAssociated: false, isFlowchart: false };
+  const flowType = (node?.data as any)?.node_type ?? node?.type;
+  const isFlowchart = isFlowchartNodeType(flowType);
+  const detailsPath = getDetailsPath(node);
+  if (detailsPath && (isFlowchart || isShieldFileNode(node) || isImageNode(node))) {
+    return { path: detailsPath, isAssociated: true, isFlowchart };
+  }
+  if (isFileNode(node)) {
+    const nodePath =
+      typeof (node?.data as any)?.path === "string"
+        ? ((node?.data as any)?.path as string).trim()
+        : "";
+    return { path: nodePath, isAssociated: false, isFlowchart };
+  }
+  return { path: "", isAssociated: false, isFlowchart };
+};
 
 export default function SmartPad({
   selectedNode,
@@ -234,19 +276,19 @@ export default function SmartPad({
       setPreview({ status, content: "", isMarkdown: false });
     };
 
-    if (!selectedNode || !isFileNode(selectedNode)) {
+    const target = resolveSmartpadTarget(selectedNode);
+    if (!selectedNode || !target.path) {
       resetPreview("idle");
       return;
     }
 
     const isCognitiveNotes = activeTab?.moduleType === "cognitiveNotes";
-    const nodePath =
-      typeof (selectedNode?.data as any)?.path === "string"
-        ? ((selectedNode?.data as any)?.path as string).trim()
-        : "";
+    const nodePath = target.path;
     const extensionValue =
-      normalizeExtension((selectedNode?.data as any)?.extension) ||
-      normalizeExtension(nodePath.split(".").pop());
+      target.isAssociated
+        ? normalizeExtension(nodePath.split(".").pop())
+        : normalizeExtension((selectedNode?.data as any)?.extension) ||
+          normalizeExtension(nodePath.split(".").pop());
     const isMarkdown = isMarkdownExtension(extensionValue);
     const extensionEligible = isTextExtension(extensionValue) || isMarkdown;
     const contentEligible = extensionEligible;
@@ -373,13 +415,11 @@ export default function SmartPad({
   }, [isPreview]);
 
   const commitSave = async () => {
-    if (!selectedNode || !isFileNode(selectedNode) || !dirty) return;
+    const target = resolveSmartpadTarget(selectedNode);
+    if (!selectedNode || !target.path || !dirty) return;
     if (preview.status !== "ready" && preview.status !== "empty") return;
 
-    const nodePath =
-      typeof (selectedNode?.data as any)?.path === "string"
-        ? ((selectedNode?.data as any)?.path as string).trim()
-        : "";
+    const nodePath = target.path;
     if (!nodePath) return;
 
     const currentContent = editableContentRef.current;
@@ -448,8 +488,28 @@ export default function SmartPad({
         await fileManager.writeTextFileFromPath(resolvePath(), currentContent);
       }
 
-      // Update file node's updated_on timestamp in index
-      if (!isCognitiveNotes && rootFolderJson) {
+      // Update node timestamps in index when applicable
+      if (target.isAssociated && target.isFlowchart) {
+        const nextUpdatedOn = new Date().toISOString();
+        if (isCognitiveNotes && cognitiveNotesRoot) {
+          const nextNodes = (cognitiveNotesRoot.flowchart_nodes ?? []).map(
+            (node: any) =>
+              node?.id === nodeId ? { ...node, updated_on: nextUpdatedOn } : node
+          );
+          updateCognitiveNotesRoot({
+            ...cognitiveNotesRoot,
+            flowchart_nodes: nextNodes,
+          });
+        } else if (!isCognitiveNotes && rootFolderJson) {
+          const nextNodes = (rootFolderJson.flowchart_nodes ?? []).map((node: any) =>
+            node?.id === nodeId ? { ...node, updated_on: nextUpdatedOn } : node
+          );
+          updateRootFolderJson({
+            ...rootFolderJson,
+            flowchart_nodes: nextNodes,
+          });
+        }
+      } else if (!isCognitiveNotes && rootFolderJson) {
         const updatedRoot = hasDirectoryHandle
           ? await fileManager.updateFileNodeTimestampFromHandle({
               dirHandle: rootDirectoryHandle!,
