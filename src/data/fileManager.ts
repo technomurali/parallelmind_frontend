@@ -72,7 +72,7 @@ export type FlowchartNode = {
     mute?: boolean;
     controls?: boolean;
   };
-};
+} & Record<string, unknown>;
 
 export type FlowchartEdge = {
   id: string;
@@ -604,35 +604,39 @@ export class FileManager {
     const flowchart_nodes: FlowchartNode[] = rawFlowchartNodes
       .filter((node) => node && typeof node === "object")
       .map((node) => {
-        const base = {
-          id: typeof node.id === "string" ? node.id : "",
-          type: typeof node.type === "string" ? node.type : "",
-          name: typeof node.name === "string" ? node.name : "",
-          purpose: typeof node.purpose === "string" ? node.purpose : "",
-          created_on: typeof node.created_on === "string" ? node.created_on : "",
-          updated_on:
-            typeof node.updated_on === "string"
-              ? node.updated_on
-              : typeof node.created_on === "string"
-              ? node.created_on
-              : "",
-        } as FlowchartNode;
+        // Preserve additional keys (e.g. imageSrc, dimensions) for canvas-only nodes.
+        const raw = { ...(node as any) } as Record<string, unknown>;
+        const createdOn = typeof (node as any).created_on === "string" ? (node as any).created_on : "";
+        const updatedOn =
+          typeof (node as any).updated_on === "string"
+            ? (node as any).updated_on
+            : createdOn;
+
+        const normalized: FlowchartNode = {
+          ...raw,
+          id: typeof (node as any).id === "string" ? (node as any).id : "",
+          type: typeof (node as any).type === "string" ? (node as any).type : "",
+          name: typeof (node as any).name === "string" ? (node as any).name : "",
+          purpose: typeof (node as any).purpose === "string" ? (node as any).purpose : "",
+          created_on: createdOn,
+          updated_on: updatedOn,
+        };
         if (typeof (node as any).details_path === "string") {
-          base.details_path = (node as any).details_path;
+          normalized.details_path = (node as any).details_path;
         }
         if (typeof (node as any).details_opt_out === "boolean") {
-          base.details_opt_out = (node as any).details_opt_out;
+          normalized.details_opt_out = (node as any).details_opt_out;
         }
-        if (typeof node.youtube_url === "string") {
-          base.youtube_url = node.youtube_url;
+        if (typeof (node as any).youtube_url === "string") {
+          normalized.youtube_url = (node as any).youtube_url;
         }
-        if (typeof node.youtube_video_id === "string") {
-          base.youtube_video_id = node.youtube_video_id;
+        if (typeof (node as any).youtube_video_id === "string") {
+          normalized.youtube_video_id = (node as any).youtube_video_id;
         }
-        if (node.yt_settings && typeof node.yt_settings === "object") {
-          base.yt_settings = { ...(node.yt_settings as any) };
+        if ((node as any).yt_settings && typeof (node as any).yt_settings === "object") {
+          normalized.yt_settings = { ...((node as any).yt_settings as any) };
         }
-        return base;
+        return normalized;
       })
       .filter((node) => node.id && node.type);
 

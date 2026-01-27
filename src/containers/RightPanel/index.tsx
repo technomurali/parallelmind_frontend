@@ -365,6 +365,15 @@ export default function RightPanel() {
   const flowchartType =
     (selectedNode?.data as any)?.node_type ?? (selectedNode as any)?.type;
   const isFlowchartNode = isFlowchartNodeType(flowchartType);
+  // Some canvas-only nodes are persisted inside `flowchart_nodes` (even if their type isn't a flowchart shape).
+  const isStoredAsFlowchartNode = useMemo(() => {
+    if (!selectedNodeId) return false;
+    const list =
+      moduleType === "cognitiveNotes"
+        ? (cognitiveNotesRoot?.flowchart_nodes ?? [])
+        : (rootFolderJson?.flowchart_nodes ?? []);
+    return (list as any[]).some((node: any) => node?.id === selectedNodeId);
+  }, [selectedNodeId, moduleType, cognitiveNotesRoot?.flowchart_nodes, rootFolderJson?.flowchart_nodes]);
   const isYoutubeNode = flowchartType === "flowchart.youtube";
   const isNonPersistentNode = !!(selectedNode?.data as any)?.nonPersistent;
   const parentIdForDraft =
@@ -974,29 +983,7 @@ export default function RightPanel() {
     }
   };
 
-  const upsertFlowchartNode = (
-    list: {
-      id: string;
-      type: string;
-      name: string;
-      purpose: string;
-      created_on: string;
-      updated_on: string;
-      youtube_url?: string;
-      youtube_video_id?: string;
-      yt_settings?: YoutubeSettings;
-    }[],
-    payload: {
-      id: string;
-      type: string;
-      name: string;
-      purpose: string;
-      updated_on: string;
-      youtube_url?: string;
-      youtube_video_id?: string;
-      yt_settings?: YoutubeSettings;
-    }
-  ) => {
+  const upsertFlowchartNode = (list: any[], payload: any) => {
     const index = list.findIndex((node) => node.id === payload.id);
     if (index >= 0) {
       const existing = list[index];
@@ -1269,7 +1256,7 @@ export default function RightPanel() {
       details_opt_out: payload.detailsOptOut,
     });
 
-    if (isFlowchartNode) {
+    if (isFlowchartNode || isStoredAsFlowchartNode) {
       if (moduleType === "cognitiveNotes" && cognitiveNotesRoot) {
         const nextFlowchartNodes = updateFlowchartNodeDetails(
           cognitiveNotesRoot.flowchart_nodes ?? [],
@@ -1352,8 +1339,6 @@ export default function RightPanel() {
       const baseName = splitDraftFileName(trimmedName).name;
       const fileName =
         isShieldFileNode || isOutputFileNode ? `${baseName}.notes.md` : `${baseName}.md`;
-      const data = (selectedNode?.data ?? {}) as any;
-
       if (isShieldFileNode || isOutputFileNode) {
         let targetPath = "";
         if (moduleType === "cognitiveNotes") {
@@ -1996,6 +1981,143 @@ export default function RightPanel() {
           setSaveStatus("idle");
           return;
         }
+        // Canvas-only nodes: do NOT create any files on "Create".
+        // Files are created only when the user clicks the associated text file "Yes, create" button.
+        if (isImageNode || nodeVariant === "shieldFile" || nodeVariant === "outputShield") {
+          const nowIso = new Date().toISOString();
+          const nodePosition = (selectedNode as any)?.position ?? null;
+          const nextPositions = {
+            ...(cognitiveNotesRoot.node_positions ?? {}),
+          };
+          if (nodePosition) {
+            nextPositions[draftNodeId] = { x: nodePosition.x, y: nodePosition.y };
+          }
+          const nextNodeColors = getNextNodeColors();
+
+          const draftNode = (nodes ?? []).find((n: any) => n?.id === draftNodeId);
+          const clipboardFile = (draftNode?.data as any)?.clipboardFile as File | null;
+          const clipboardMimeType = (draftNode?.data as any)?.clipboardMimeType as string | null;
+
+          const fileToDataUrl = (file: File) =>
+            new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () =>
+                resolve(typeof reader.result === "string" ? reader.result : "");
+              reader.onerror = () => reject(new Error("Failed to read image data."));
+              reader.readAsDataURL(file);
+            });
+
+          const imageDataUrl =
+            isImageNode && clipboardFile ? await fileToDataUrl(clipboardFile) : "";
+          const ext =
+            isImageNode && clipboardMimeType
+              ? getExtensionFromMimeType(clipboardMimeType)
+              : "";
+
+          const flowType = (selectedNode as any)?.type ?? (selectedNode?.data as any)?.node_type;
+          const nextRecord: any = {
+            id: draftNodeId,
+            type: flowType,
+            name: trimmedName,
+            purpose: draft.purpose,
+            created_on: nowIso,
+            updated_on: nowIso,
+          };
+          if (isImageNode) {
+            nextRecord.imageSrc = imageDataUrl || (draftNode?.data as any)?.imageSrc || "";
+            nextRecord.caption = trimmedCaption;
+            nextRecord.extension = ext;
+            nextRecord.imageWidth = (draftNode?.data as any)?.imageWidth;
+            nextRecord.imageHeight = (draftNode?.data as any)?.imageHeight;
+            nextRecord.nodeWidth = (draftNode?.data as any)?.nodeWidth;
+            nextRecord.nodeHeight = (draftNode?.data as any)?.nodeHeight;
+          }
+
+          const nextFlowNodes = [...(cognitiveNotesRoot.flowchart_nodes ?? []), nextRecord];
+          const nextFlowEdges =
+            edgeId && parentIdForDraft
+              ? (cognitiveNotesRoot.flowchart_edges ?? []).some((e: any) => e?.id === edgeId)
+                ? cognitiveNotesRoot.flowchart_edges ?? []
+                : [
+                    ...(cognitiveNotesRoot.flowchart_edges ?? []),
+                    { id: edgeId, source: parentIdForDraft, target: draftNodeId },
+                  ]
+              : cognitiveNotesRoot.flowchart_edges ?? [];
+
+          // Fade out draft node + edge (if any), then remove after persist.
+          setNodes(
+            (nodes ?? []).map((node: any) => {
+              if (node?.id !== draftNodeId) return node;
+              return {
+                ...node,
+                data: {
+                  ...(node.data ?? {}),
+                  name: trimmedName,
+                  purpose: draft.purpose,
+                  node_color:
+                    (node.data as any)?.node_color ??
+                    nextNodeColors[draftNodeId] ??
+                    undefined,
+                  imageSrc: isImageNode
+                    ? imageDataUrl || (node.data as any)?.imageSrc
+                    : (node.data as any)?.imageSrc,
+                  caption: isImageNode ? trimmedCaption : (node.data as any)?.caption,
+                  extension: isImageNode ? ext : (node.data as any)?.extension,
+                  isDraft: false,
+                  nonPersistent: false,
+                  isDraftClosing: true,
+                },
+                style: {
+                  ...(node.style ?? {}),
+                  opacity: 0,
+                  transition: "opacity 180ms ease",
+                },
+              };
+            })
+          );
+          if (edgeId) {
+            setEdges(
+              (edges ?? []).map((edge: any) => {
+                if (edge?.id !== edgeId) return edge;
+                return {
+                  ...edge,
+                  data: { ...(edge.data ?? {}), isDraftClosing: true },
+                  style: {
+                    ...(edge.style ?? {}),
+                    opacity: 0,
+                    transition: "opacity 180ms ease",
+                  },
+                };
+              })
+            );
+          }
+
+          await persistCognitiveNotesRoot({
+            ...cognitiveNotesRoot,
+            updated_on: nowIso,
+            flowchart_nodes: nextFlowNodes,
+            flowchart_edges: nextFlowEdges,
+            node_positions: nextPositions,
+            node_colors: nextNodeColors,
+          });
+
+          setPendingChildCreation(null);
+          selectNode(draftNodeId);
+          setDirty(false);
+          setSaveStatus("saved");
+          setFileDetailsExpanded(false);
+          window.setTimeout(() => {
+            const latest = useMindMapStore.getState();
+            const latestTab = selectActiveTab(latest);
+            const latestNodes = latestTab?.nodes ?? [];
+            const latestEdges = latestTab?.edges ?? [];
+            setNodes(latestNodes.filter((node: any) => node?.id !== draftNodeId));
+            if (edgeId) {
+              setEdges(latestEdges.filter((edge: any) => edge?.id !== edgeId));
+            }
+          }, 200);
+          return;
+        }
         if (isImageNode) {
           const draftNode = (nodes ?? []).find((n: any) => n?.id === draftNodeId);
           const clipboardFile = (draftNode?.data as any)?.clipboardFile as File | null;
@@ -2045,8 +2167,8 @@ export default function RightPanel() {
               name: trimmedCaption,
               extension: ext,
               purpose: draft.purpose,
-              type: "file_A",
-              level: 1,
+              type: "file_A" as const,
+              level: 1 as const,
               path: nodePath,
               created_on: new Date().toISOString(),
               updated_on: new Date().toISOString(),
@@ -2099,8 +2221,8 @@ export default function RightPanel() {
               name: splitDraftFileName(trimmedName).name,
               extension: splitDraftFileName(trimmedName).extension,
               purpose: draft.purpose,
-              type: "file_A",
-              level: 1,
+              type: "file_A" as const,
+              level: 1 as const,
               path: nodePath,
               created_on: new Date().toISOString(),
               updated_on: new Date().toISOString(),
@@ -2110,7 +2232,7 @@ export default function RightPanel() {
               sort_index: null,
               node_variant:
                 nodeVariant === "shieldFile" || nodeVariant === "outputShield"
-                  ? nodeVariant
+                  ? (nodeVariant as "shieldFile" | "outputShield")
                   : undefined,
             },
           ];
@@ -2126,6 +2248,144 @@ export default function RightPanel() {
         setDirty(false);
         setSaveStatus("saved");
         setFileDetailsExpanded(false);
+        return;
+      }
+
+      if (!rootFolderJson) {
+        setCreateError(uiText.alerts.errorCreateFailed);
+        setSaveStatus("idle");
+        return;
+      }
+
+      // Canvas-only nodes: do NOT create any files on "Create".
+      // Files are created only when the user clicks the associated text file "Yes, create" button.
+      if (isImageNode || nodeVariant === "shieldFile" || nodeVariant === "outputShield") {
+        const nowIso = new Date().toISOString();
+        const nodePosition = (selectedNode as any)?.position ?? null;
+        const nextPositions = {
+          ...(rootFolderJson.node_positions ?? {}),
+        };
+        if (nodePosition) {
+          nextPositions[draftNodeId] = { x: nodePosition.x, y: nodePosition.y };
+        }
+
+        const draftNode = (nodes ?? []).find((n: any) => n?.id === draftNodeId);
+        const clipboardFile = (draftNode?.data as any)?.clipboardFile as File | null;
+        const clipboardMimeType = (draftNode?.data as any)?.clipboardMimeType as string | null;
+
+        const fileToDataUrl = (file: File) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () =>
+              resolve(typeof reader.result === "string" ? reader.result : "");
+            reader.onerror = () => reject(new Error("Failed to read image data."));
+            reader.readAsDataURL(file);
+          });
+
+        const imageDataUrl =
+          isImageNode && clipboardFile ? await fileToDataUrl(clipboardFile) : "";
+        const ext =
+          isImageNode && clipboardMimeType
+            ? getExtensionFromMimeType(clipboardMimeType)
+            : "";
+
+        const flowType = (selectedNode as any)?.type ?? (selectedNode?.data as any)?.node_type;
+        const nextRecord: any = {
+          id: draftNodeId,
+          type: flowType,
+          name: trimmedName,
+          purpose: draft.purpose,
+          created_on: nowIso,
+          updated_on: nowIso,
+        };
+        if (isImageNode) {
+          nextRecord.imageSrc = imageDataUrl || (draftNode?.data as any)?.imageSrc || "";
+          nextRecord.caption = trimmedCaption;
+          nextRecord.extension = ext;
+          nextRecord.imageWidth = (draftNode?.data as any)?.imageWidth;
+          nextRecord.imageHeight = (draftNode?.data as any)?.imageHeight;
+          nextRecord.nodeWidth = (draftNode?.data as any)?.nodeWidth;
+          nextRecord.nodeHeight = (draftNode?.data as any)?.nodeHeight;
+        }
+
+        const nextFlowNodes = [...(rootFolderJson.flowchart_nodes ?? []), nextRecord];
+        const nextFlowEdges =
+          edgeId && parentIdForDraft
+            ? (rootFolderJson.flowchart_edges ?? []).some((e: any) => e?.id === edgeId)
+              ? rootFolderJson.flowchart_edges ?? []
+              : [
+                  ...(rootFolderJson.flowchart_edges ?? []),
+                  { id: edgeId, source: parentIdForDraft, target: draftNodeId },
+                ]
+            : rootFolderJson.flowchart_edges ?? [];
+
+        // Fade out the draft node + edge before removing them.
+        setNodes(
+          (nodes ?? []).map((node: any) => {
+            if (node?.id !== draftNodeId) return node;
+            return {
+              ...node,
+              data: {
+                ...(node.data ?? {}),
+                name: trimmedName,
+                purpose: draft.purpose,
+                imageSrc: isImageNode
+                  ? imageDataUrl || (node.data as any)?.imageSrc
+                  : (node.data as any)?.imageSrc,
+                caption: isImageNode ? trimmedCaption : (node.data as any)?.caption,
+                extension: isImageNode ? ext : (node.data as any)?.extension,
+                isDraft: false,
+                nonPersistent: false,
+                isDraftClosing: true,
+              },
+              style: {
+                ...(node.style ?? {}),
+                opacity: 0,
+                transition: "opacity 180ms ease",
+              },
+            };
+          })
+        );
+        if (edgeId) {
+          setEdges(
+            (edges ?? []).map((edge: any) => {
+              if (edge?.id !== edgeId) return edge;
+              return {
+                ...edge,
+                data: { ...(edge.data ?? {}), isDraftClosing: true },
+                style: {
+                  ...(edge.style ?? {}),
+                  opacity: 0,
+                  transition: "opacity 180ms ease",
+                },
+              };
+            })
+          );
+        }
+
+        await persistParallelmindRoot({
+          ...rootFolderJson,
+          updated_on: nowIso,
+          flowchart_nodes: nextFlowNodes,
+          flowchart_edges: nextFlowEdges,
+          node_positions: nextPositions,
+        });
+
+        setPendingChildCreation(null);
+        selectNode(draftNodeId);
+        setDirty(false);
+        setSaveStatus("saved");
+        setFileDetailsExpanded(false);
+        window.setTimeout(() => {
+          const latest = useMindMapStore.getState();
+          const latestTab = selectActiveTab(latest);
+          const latestNodes = latestTab?.nodes ?? [];
+          const latestEdges = latestTab?.edges ?? [];
+          setNodes(latestNodes.filter((node: any) => node?.id !== draftNodeId));
+          if (edgeId) {
+            setEdges(latestEdges.filter((edge: any) => edge?.id !== edgeId));
+          }
+        }, 200);
         return;
       }
 
@@ -2268,7 +2528,7 @@ export default function RightPanel() {
   const onRenameItem = async () => {
     if (!canRenameItem || !selectedNodeId) return;
     setActionError(null);
-    if (isFlowchartNode) {
+    if (isFlowchartNode || isStoredAsFlowchartNode) {
       if (!renameActive) {
         setRenameActive(true);
         nameInputRef.current?.focus();
@@ -2602,7 +2862,7 @@ export default function RightPanel() {
       setDeleteInProgress(false);
       return;
     }
-    if (isFlowchartNode) {
+    if (isFlowchartNode || isStoredAsFlowchartNode) {
       setSaveStatus("saving");
       try {
         const nodeId = selectedNodeId;

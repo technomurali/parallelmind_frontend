@@ -154,15 +154,30 @@ export default function MindMap() {
     settings.appearance.cognitiveNotesDefaultNodeColor ?? "";
   const isValidHexColor = (value: string) =>
     /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim());
-  const isFlowchartNode = (node: any) =>
-    isFlowchartNodeType(node?.type) ||
-    isFlowchartNodeType(node?.data?.node_type);
-  const buildFlowchartEdges = (edgesList: Edge[], nodesList: any[]) => {
-    const nodeIds = new Set(
-      (nodesList ?? [])
-        .filter((node: any) => isFlowchartNode(node))
-        .map((node: any) => node.id)
+  // "Canvas nodes" include real flowchart shapes AND special nodes stored in `flowchart_nodes`
+  // (e.g. input/output/image nodes persisted for canvas usage).
+  const persistedCanvasNodeIds = useMemo(() => {
+    const list = isCognitiveNotes
+      ? (cognitiveNotesRoot?.flowchart_nodes ?? [])
+      : (rootFolderJson?.flowchart_nodes ?? []);
+    return new Set(
+      (list as any[])
+        .map((node: any) => (typeof node?.id === "string" ? node.id : ""))
+        .filter(Boolean)
     );
+  }, [isCognitiveNotes, cognitiveNotesRoot?.flowchart_nodes, rootFolderJson?.flowchart_nodes]);
+
+  const isCanvasNode = (node: any) =>
+    !!node &&
+    (persistedCanvasNodeIds.has(node.id) ||
+      isFlowchartNodeType(node?.type) ||
+      isFlowchartNodeType(node?.data?.node_type));
+
+  const buildFlowchartEdges = (edgesList: Edge[], nodesList: any[]) => {
+    const nodeIds = new Set<string>(Array.from(persistedCanvasNodeIds));
+    (nodesList ?? []).forEach((node: any) => {
+      if (node?.id && isCanvasNode(node)) nodeIds.add(node.id);
+    });
     return (edgesList ?? [])
       .filter((edge: any) => {
         const sourceIsFlow = nodeIds.has(edge?.source);
@@ -1400,7 +1415,10 @@ export default function MindMap() {
       (node: any) => node?.id === connection.target
     );
     const isFlowchartEdge =
-      isFlowchartNode(sourceNode) || isFlowchartNode(targetNode);
+      isCanvasNode(sourceNode) ||
+      isCanvasNode(targetNode) ||
+      persistedCanvasNodeIds.has(connection.source) ||
+      persistedCanvasNodeIds.has(connection.target);
     if (!isCognitiveNotes && !isFlowchartEdge) return;
 
     const edgeId = `e_${connection.source}_${connection.target}_${Date.now()}`;
