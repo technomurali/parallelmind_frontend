@@ -2023,15 +2023,16 @@ export default function RightPanel() {
   };
 
   const canDeleteItem =
-    (isFolderNode || isFileNode || isImageNode || isFlowchartNode || isNonPersistentNode) &&
-    !isRootNode &&
-    !isDraftNode &&
     !!selectedNodeId &&
-    (isNonPersistentNode
+    !isRootNode &&
+    (isDraftNode
       ? true
-      : moduleType === "cognitiveNotes"
-      ? !!cognitiveNotesRoot
-      : !!rootFolderJson);
+      : (isFolderNode || isFileNode || isImageNode || isFlowchartNode || isNonPersistentNode) &&
+        (isNonPersistentNode
+          ? true
+          : moduleType === "cognitiveNotes"
+          ? !!cognitiveNotesRoot
+          : !!rootFolderJson));
 
   const fileDetailsTitle =
     isFileNode || isImageNode
@@ -2041,6 +2042,26 @@ export default function RightPanel() {
   const onDeleteItem = async () => {
     if (!canDeleteItem || !selectedNodeId) return;
     setActionError(null);
+    if (isDraftNode) {
+      const draftId = selectedNodeId;
+      const draftParentId = parentIdForDraft;
+      setNodes((nodes ?? []).filter((node: any) => node?.id !== draftId));
+      setEdges(
+        (edges ?? []).filter((edge: any) => {
+          if (edge?.source === draftId || edge?.target === draftId) return false;
+          if (draftParentId && edge?.id === `e_${draftParentId}_${draftId}`) {
+            return false;
+          }
+          return true;
+        })
+      );
+      setPendingChildCreation(null);
+      setDeleteConfirmOpen(false);
+      setDeleteInProgress(false);
+      selectNode(null);
+      selectEdge(null);
+      return;
+    }
     setDeleteConfirmOpen(true);
   };
 
