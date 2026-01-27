@@ -13,6 +13,8 @@ export type CognitiveNotesFileNode = {
   related_nodes: CognitiveNotesRelation[];
   sort_index: number | null;
   node_variant?: "shieldFile" | "outputShield";
+  details_path?: string;
+  details_opt_out?: boolean;
 };
 
 export type CognitiveNotesRelation = {
@@ -49,6 +51,8 @@ export type CognitiveNotesJson = {
     purpose: string;
     created_on: string;
     updated_on: string;
+    details_path?: string;
+    details_opt_out?: boolean;
     youtube_url?: string;
     youtube_video_id?: string;
     yt_settings?: {
@@ -242,6 +246,12 @@ export class CognitiveNotesManager {
               ? node.created_on
               : "",
         } as CognitiveNotesJson["flowchart_nodes"][number];
+        if (typeof (node as any).details_path === "string") {
+          (base as any).details_path = (node as any).details_path;
+        }
+        if (typeof (node as any).details_opt_out === "boolean") {
+          (base as any).details_opt_out = (node as any).details_opt_out;
+        }
         if (typeof node.youtube_url === "string") {
           base.youtube_url = node.youtube_url;
         }
@@ -401,6 +411,15 @@ export class CognitiveNotesManager {
         typeof existing?.views === "number" && Number.isFinite(existing.views)
           ? existing.views
           : 0,
+      node_variant: existing?.node_variant,
+      details_path:
+        typeof (existing as any)?.details_path === "string"
+          ? (existing as any).details_path
+          : undefined,
+      details_opt_out:
+        typeof (existing as any)?.details_opt_out === "boolean"
+          ? (existing as any).details_opt_out
+          : undefined,
       related_nodes: Array.isArray(existing?.related_nodes)
         ? existing!.related_nodes
         : Array.isArray(scanned.related_nodes)

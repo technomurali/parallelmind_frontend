@@ -1236,6 +1236,23 @@ export default function RightPanel() {
     return { nodes: next, updated };
   };
 
+  const updateCognitiveNotesChildDetails = (
+    list: any[],
+    nodeId: string,
+    details: { details_path?: string; details_opt_out?: boolean }
+  ): { nodes: any[]; updated: boolean } => {
+    let updated = false;
+    const next = (list ?? []).map((node) => {
+      if (!node) return node;
+      if (node.id === nodeId) {
+        updated = true;
+        return { ...node, ...details };
+      }
+      return node;
+    });
+    return { nodes: next, updated };
+  };
+
   const persistDetailsLink = async (payload: {
     detailsPath?: string;
     detailsOptOut?: boolean;
@@ -1277,6 +1294,24 @@ export default function RightPanel() {
       return;
     }
 
+    if (moduleType === "cognitiveNotes" && cognitiveNotesRoot) {
+      const updatedList = updateCognitiveNotesChildDetails(
+        cognitiveNotesRoot.child ?? [],
+        selectedNodeId,
+        {
+          details_path: payload.detailsPath,
+          details_opt_out: payload.detailsOptOut,
+        }
+      );
+      if (updatedList.updated) {
+        await persistCognitiveNotesRoot({
+          ...cognitiveNotesRoot,
+          child: updatedList.nodes,
+        });
+      }
+      return;
+    }
+
     if ((isShieldFileNode || isOutputFileNode) && rootFolderJson) {
       const updatedTree = updateFileNodeDetails(
         rootFolderJson.child ?? [],
@@ -1308,14 +1343,32 @@ export default function RightPanel() {
 
     try {
       const { exists } = await import("@tauri-apps/plugin-fs");
-      const fileName = splitDraftFileName(trimmedName).fullName;
+      const baseName = splitDraftFileName(trimmedName).name;
+      const fileName =
+        isShieldFileNode || isOutputFileNode ? `${baseName}.notes.md` : `${baseName}.md`;
       const data = (selectedNode?.data ?? {}) as any;
 
       if (isShieldFileNode || isOutputFileNode) {
-        const existingPath = typeof data.path === "string" ? data.path : "";
-        let targetPath = existingPath;
-
-        if (!targetPath) {
+        let targetPath = "";
+        if (moduleType === "cognitiveNotes") {
+          if (cognitiveNotesDirectoryHandle) {
+            targetPath = fileName;
+            await ensureTextFileExistsFromHandle(
+              cognitiveNotesDirectoryHandle,
+              targetPath
+            );
+          } else {
+            const basePath = cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
+            if (!basePath) {
+              throw new Error("Cognitive Notes folder path is missing.");
+            }
+            targetPath = joinPath(basePath, fileName);
+            const alreadyExists = await exists(targetPath);
+            if (!alreadyExists) {
+              await fileManager.writeTextFileFromPath(targetPath, "");
+            }
+          }
+        } else {
           if (rootDirectoryHandle) {
             targetPath = fileName;
             await ensureTextFileExistsFromHandle(rootDirectoryHandle, targetPath);
@@ -1329,13 +1382,6 @@ export default function RightPanel() {
             if (!alreadyExists) {
               await fileManager.writeTextFileFromPath(targetPath, "");
             }
-          }
-        } else if (rootDirectoryHandle && !isAbsolutePath(existingPath)) {
-          await ensureTextFileExistsFromHandle(rootDirectoryHandle, existingPath);
-        } else if (existingPath) {
-          const alreadyExists = await exists(existingPath);
-          if (!alreadyExists) {
-            await fileManager.writeTextFileFromPath(existingPath, "");
           }
         }
 

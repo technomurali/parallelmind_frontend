@@ -48,6 +48,8 @@ export type IndexFileNode = {
   last_viewed_on: string;
   views: number;
   node_variant?: "shieldFile" | "outputShield";
+  details_path?: string;
+  details_opt_out?: boolean;
 };
 
 export type IndexNode = IndexFolderNode | IndexFileNode;
@@ -59,6 +61,8 @@ export type FlowchartNode = {
   purpose: string;
   created_on: string;
   updated_on: string;
+  details_path?: string;
+  details_opt_out?: boolean;
   youtube_url?: string;
   youtube_video_id?: string;
   yt_settings?: {
@@ -613,6 +617,12 @@ export class FileManager {
               ? node.created_on
               : "",
         } as FlowchartNode;
+        if (typeof (node as any).details_path === "string") {
+          base.details_path = (node as any).details_path;
+        }
+        if (typeof (node as any).details_opt_out === "boolean") {
+          base.details_opt_out = (node as any).details_opt_out;
+        }
         if (typeof node.youtube_url === "string") {
           base.youtube_url = node.youtube_url;
         }
@@ -855,6 +865,15 @@ export class FileManager {
         typeof existingFile?.views === "number" && Number.isFinite(existingFile.views)
           ? existingFile.views
           : 0,
+      node_variant: existingFile?.node_variant,
+      details_path:
+        typeof (existingFile as any)?.details_path === "string"
+          ? (existingFile as any).details_path
+          : undefined,
+      details_opt_out:
+        typeof (existingFile as any)?.details_opt_out === "boolean"
+          ? (existingFile as any).details_opt_out
+          : undefined,
     };
   }
 

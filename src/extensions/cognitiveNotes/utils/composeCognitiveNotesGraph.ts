@@ -100,6 +100,13 @@ const normalizeHandle = (
   return getDefaultHandle(nodeType, kind);
 };
 
+const normalizePathKey = (value: unknown): string => {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.replace(/\\/g, "/").toLowerCase();
+};
+
 const collectEdgesFromRelations = (
   nodes: CognitiveNotesFileNode[],
   nodeTypeById: Map<string, string>
@@ -139,6 +146,15 @@ export const composeCognitiveNotesGraph = (
 ): CognitiveNotesComposeResult => {
   const rootNodeId = normalizeRootId(root);
   const storedPositions = root?.node_positions ?? {};
+  const associatedNotePaths = new Set<string>();
+  (root.flowchart_nodes ?? []).forEach((node: any) => {
+    const key = normalizePathKey(node?.details_path);
+    if (key) associatedNotePaths.add(key);
+  });
+  (root.child ?? []).forEach((node: any) => {
+    const key = normalizePathKey((node as any)?.details_path);
+    if (key) associatedNotePaths.add(key);
+  });
   const rootPosition = storedPositions[rootNodeId] ?? options.rootPosition ?? { x: 0, y: 0 };
   const nodeSize =
     typeof options.nodeSize === "number" && Number.isFinite(options.nodeSize)
@@ -183,6 +199,10 @@ export const composeCognitiveNotesGraph = (
   layoutNodes.forEach((note, index) => {
     if (!note || typeof note !== "object") return;
     if (typeof note.id !== "string" || !note.id.trim()) return;
+    const notePathKey = normalizePathKey((note as any)?.path);
+    if (notePathKey && associatedNotePaths.has(notePathKey)) {
+      return;
+    }
     const fileName = note.extension
       ? `${note.name}.${note.extension}`
       : note.name;

@@ -107,6 +107,28 @@ export const composeMindMapGraphFromRoot = (
   const edges: Edge[] = [];
   const edgeIds = new Set<string>();
 
+  const normalizePathKey = (value: unknown): string => {
+    if (typeof value !== "string") return "";
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    return trimmed.replace(/\\/g, "/").toLowerCase();
+  };
+
+  // Associated notes files should NOT be rendered as separate file nodes.
+  const associatedNotePaths = new Set<string>();
+  (root.flowchart_nodes ?? []).forEach((node: any) => {
+    const key = normalizePathKey(node?.details_path);
+    if (key) associatedNotePaths.add(key);
+  });
+  const collectTreePaths = (list: any[]) => {
+    (list ?? []).forEach((node: any) => {
+      const key = normalizePathKey(node?.details_path);
+      if (key) associatedNotePaths.add(key);
+      if (Array.isArray(node?.child)) collectTreePaths(node.child);
+    });
+  };
+  collectTreePaths(root.child ?? []);
+
   const rootNodeId = options.rootNodeId ?? "00";
   const rootPosition = options.rootPosition ?? { x: 0, y: 0 };
   const nodeSize =
@@ -186,6 +208,13 @@ export const composeMindMapGraphFromRoot = (
         ? (node as any).extension.toLowerCase()
         : "";
     const isImageFile = kind === "file" && IMAGE_EXTENSIONS.has(extension);
+
+    if (kind === "file") {
+      const pathKey = normalizePathKey((node as any)?.path);
+      if (pathKey && associatedNotePaths.has(pathKey)) {
+        return null;
+      }
+    }
     const nodeVariant =
       typeof (node as any)?.node_variant === "string" ? (node as any).node_variant : "";
     const isShieldVariant = nodeVariant === "shieldFile";
