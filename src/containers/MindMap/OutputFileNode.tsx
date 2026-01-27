@@ -114,10 +114,22 @@ export default function OutputFileNode({
 
   const pctX = (x: number) => `${(x / VB_W) * 100}%`;
   const pctY = (y: number) => `${(y / VB_H) * 100}%`;
-  const topHandleTop = `calc(${pctY(INV_TIP_Y)} - ${Math.round(handleHeight / 2)}px)`;
-  const bottomHandleTop = `calc(${pctY(INV_TOP_BOX_BOTTOM)} - ${Math.round(handleHeight / 2)}px)`;
+
+  const yToPx = (y: number) => Math.round((y / VB_H) * svgHeight);
+  // Important: avoid negative handle coordinates (ReactFlow can attach edges away from the visible handle).
+  const topHandleTop = `${Math.max(
+    0,
+    yToPx(INV_TIP_Y) - Math.round(handleHeight / 2)
+  )}px`;
+  const bottomHandleTop = `${Math.max(
+    0,
+    yToPx(INV_TOP_BOX_BOTTOM) - Math.round(handleHeight / 2)
+  )}px`;
   const handleRightOffset = Math.round(6 * sizeScale);
-  const sideHandleTop = `calc(${pctY(INV_SIDE_HANDLE_Y)} - ${Math.round(sideHandleHeight / 2)}px)`;
+  const sideHandleTop = `${Math.max(
+    0,
+    yToPx(INV_SIDE_HANDLE_Y) - Math.round(sideHandleHeight / 2)
+  )}px`;
   const leftHandleLeft = `calc(${pctX(SHIELD_LEFT)} - ${Math.round(sideHandleWidth / 2)}px)`;
   const rightHandleLeft = `calc(${pctX(SHIELD_RIGHT)} - ${Math.round(sideHandleWidth / 2)}px)`;
   const centerHandleLeft = `calc(${pctX(SHIELD_CENTER_X)} - ${Math.round(handleWidth / 2)}px + ${handleRightOffset}px)`;
@@ -356,7 +368,7 @@ export default function OutputFileNode({
           >
             <div
               style={{
-                fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
+                fontSize: `${Math.max(6, Math.round(7 * sizeScale))}px`,
                 fontWeight: 400,
                 letterSpacing: "0.02em",
                 opacity: 0.85,
@@ -368,7 +380,7 @@ export default function OutputFileNode({
             <div
               style={{
                 fontWeight: 700,
-                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+                fontSize: `${Math.max(7, Math.round(9 * sizeScale))}px`,
                 lineHeight: "1.2",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -476,7 +488,7 @@ export default function OutputFileNode({
           >
             <div
               style={{
-                fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
+                fontSize: `${Math.max(6, Math.round(7 * sizeScale))}px`,
                 fontWeight: 400,
                 letterSpacing: "0.02em",
                 opacity: 0.85,
@@ -487,7 +499,7 @@ export default function OutputFileNode({
             </div>
             <div
               style={{
-                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+                fontSize: `${Math.max(7, Math.round(9 * sizeScale))}px`,
                 lineHeight: "1.25",
                 wordBreak: "break-word",
                 overflowWrap: "break-word",

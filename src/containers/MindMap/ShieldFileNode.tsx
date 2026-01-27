@@ -337,7 +337,7 @@ export default function ShieldFileNode({
           >
             <div
               style={{
-                fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
+                fontSize: `${Math.max(6, Math.round(7 * sizeScale))}px`,
                 fontWeight: 400,
                 letterSpacing: "0.02em",
                 opacity: 0.85,
@@ -349,7 +349,7 @@ export default function ShieldFileNode({
             <div
               style={{
                 fontWeight: 700,
-                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+                fontSize: `${Math.max(7, Math.round(9 * sizeScale))}px`,
                 lineHeight: "1.2",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -454,7 +454,7 @@ export default function ShieldFileNode({
           >
             <div
               style={{
-                fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
+                fontSize: `${Math.max(6, Math.round(7 * sizeScale))}px`,
                 fontWeight: 400,
                 letterSpacing: "0.02em",
                 opacity: 0.85,
@@ -466,7 +466,7 @@ export default function ShieldFileNode({
             </div>
             <div
               style={{
-                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+                fontSize: `${Math.max(7, Math.round(9 * sizeScale))}px`,
                 lineHeight: "1.25",
                 wordBreak: "break-word",
                 overflowWrap: "break-word",
