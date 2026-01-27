@@ -1610,7 +1610,7 @@ export default function MindMap() {
 
   const getNodeBounds = useCallback(
     (node: any) => {
-      const position = node?.positionAbsolute ?? node?.position ?? { x: 0, y: 0 };
+      const position = node?.position ?? { x: 0, y: 0 };
       const width =
         typeof node?.width === "number"
           ? node.width
@@ -1695,17 +1695,21 @@ export default function MindMap() {
     setIsNodeDragging(false);
   };
 
+  const startGroupDrag = useCallback((clientX: number, clientY: number, groupId: string) => {
+    groupDragRef.current = {
+      groupId,
+      lastClient: { x: clientX, y: clientY },
+    };
+    setIsNodeDragging(true);
+  }, []);
+
   const onGroupMouseDown = useCallback(
     (event: React.MouseEvent, groupId: string) => {
       event.preventDefault();
       event.stopPropagation();
-      groupDragRef.current = {
-        groupId,
-        lastClient: { x: event.clientX, y: event.clientY },
-      };
-      setIsNodeDragging(true);
+      startGroupDrag(event.clientX, event.clientY, groupId);
     },
-    []
+    [startGroupDrag]
   );
 
   useEffect(() => {
@@ -1730,6 +1734,7 @@ export default function MindMap() {
           },
         };
       });
+      nodesRef.current = nextNodes;
       setNodes(nextNodes);
     };
     const onUp = () => {
@@ -1806,6 +1811,32 @@ export default function MindMap() {
     canvasBodyRef.current?.focus();
     if (!showDetailsActive) return;
     const target = event.target as HTMLElement | null;
+    if (target?.closest(".react-flow__node")) return;
+    const rect = canvasBodyRef.current?.getBoundingClientRect();
+    if (rect) {
+      const offsetX = event.clientX - rect.left;
+      const offsetY = event.clientY - rect.top;
+      const hitGroup = (nodeGroups ?? []).find((group) => {
+        const bounds = getGroupBounds(group);
+        if (!bounds) return false;
+        const left = bounds.x * viewport.zoom + viewport.x;
+        const top = bounds.y * viewport.zoom + viewport.y;
+        const width = bounds.width * viewport.zoom;
+        const height = bounds.height * viewport.zoom;
+        return (
+          offsetX >= left &&
+          offsetX <= left + width &&
+          offsetY >= top &&
+          offsetY <= top + height
+        );
+      });
+      if (hitGroup) {
+        event.preventDefault();
+        event.stopPropagation();
+        startGroupDrag(event.clientX, event.clientY, hitGroup.id);
+        return;
+      }
+    }
     if (target?.closest(".react-flow__pane")) {
       setIsPanning(true);
     }
@@ -3469,7 +3500,8 @@ export default function MindMap() {
                         border: "1px solid rgba(255, 255, 255, 0.25)",
                         borderRadius: "18px",
                         background: "transparent",
-                        boxShadow: "0 6px 18px rgba(0,0,0,0.18)",
+                        boxShadow:
+                          "inset 0 0 14px rgba(64, 200, 255, 0.5), 0 6px 18px rgba(0,0,0,0.18)",
                       }}
                     />
                   </div>
