@@ -12,6 +12,7 @@ export type CognitiveNotesFileNode = {
   views: number;
   related_nodes: CognitiveNotesRelation[];
   sort_index: number | null;
+  node_variant?: "shieldFile";
 };
 
 export type CognitiveNotesRelation = {

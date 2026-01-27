@@ -46,7 +46,7 @@ type NodeInfo = {
   id: string;
   depth: number;
   kind: NormalizedKind;
-  renderType: "rootFolder" | "file" | "polaroidImage" | "fullImageNode";
+  renderType: "rootFolder" | "file" | "shieldFile" | "polaroidImage" | "fullImageNode";
   data: Record<string, unknown>;
   children: string[];
   parentId: string | null;
@@ -180,6 +180,9 @@ export const composeMindMapGraphFromRoot = (
         ? (node as any).extension.toLowerCase()
         : "";
     const isImageFile = kind === "file" && IMAGE_EXTENSIONS.has(extension);
+    const nodeVariant =
+      typeof (node as any)?.node_variant === "string" ? (node as any).node_variant : "";
+    const isShieldVariant = nodeVariant === "shieldFile";
 
     if (kind === "unknown") {
       warnings.push(
@@ -197,7 +200,14 @@ export const composeMindMapGraphFromRoot = (
       id,
       depth,
       kind,
-      renderType: kind === "folder" ? "rootFolder" : isImageFile ? "fullImageNode" : "file",
+      renderType:
+        kind === "folder"
+          ? "rootFolder"
+          : isImageFile
+          ? "fullImageNode"
+          : isShieldVariant
+          ? "shieldFile"
+          : "file",
       data,
       children: [],
       parentId,

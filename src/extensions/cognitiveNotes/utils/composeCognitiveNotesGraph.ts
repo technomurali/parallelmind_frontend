@@ -65,7 +65,7 @@ const buildNoteNode = (
   root: CognitiveNotesJson,
   note: CognitiveNotesFileNode,
   position: { x: number; y: number },
-  renderType: "file" | "fullImageNode"
+  renderType: "file" | "shieldFile" | "fullImageNode"
 ): Node => {
   return {
     id: note.id,
@@ -89,6 +89,10 @@ const NODE_HANDLE_SETS: Record<
   { source: Set<string>; target: Set<string> }
 > = {
   file: {
+    source: new Set(["source-left", "source-right", "source-bottom"]),
+    target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
+  },
+  shieldFile: {
     source: new Set(["source-left", "source-right", "source-bottom"]),
     target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
   },
@@ -216,7 +220,13 @@ export const composeCognitiveNotesGraph = (
     }
     const extension =
       typeof note.extension === "string" ? note.extension.toLowerCase() : "";
-    const renderType = IMAGE_EXTENSIONS.has(extension) ? "fullImageNode" : "file";
+    const nodeVariant =
+      typeof (note as any)?.node_variant === "string" ? (note as any).node_variant : "";
+    const renderType = IMAGE_EXTENSIONS.has(extension)
+      ? "fullImageNode"
+      : nodeVariant === "shieldFile"
+      ? "shieldFile"
+      : "file";
     const col = index % columns;
     const row = Math.floor(index / columns);
     const x = baseX + col * spacingX;

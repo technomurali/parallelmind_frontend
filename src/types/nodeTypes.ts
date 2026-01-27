@@ -56,7 +56,7 @@ export type FolderLevel = number; // 0 = root, 1 = first level, etc.
  * Node type enumeration
  * Defines the different types of nodes in the mind map.
  */
-export type NodeType = 'file' | 'folder' | 'note' | 'task' | 'link';
+export type NodeType = 'file' | 'shieldFile' | 'folder' | 'note' | 'task' | 'link';
 
 /**
  * Extended node data with folder level information

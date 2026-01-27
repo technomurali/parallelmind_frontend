@@ -47,6 +47,7 @@ export type IndexFileNode = {
   updated_on: string;
   last_viewed_on: string;
   views: number;
+  node_variant?: "shieldFile";
 };
 
 export type IndexNode = IndexFolderNode | IndexFileNode;
@@ -2305,8 +2306,9 @@ export class FileManager {
     parentNodeId: string;
     fileName: string; // includes extension if provided
     purpose: string;
+    nodeVariant?: "shieldFile";
   }): Promise<{ root: RootFolderJson; node: IndexFileNode }> {
-    const { dirHandle, existing, parentNodeId, fileName, purpose } = args;
+    const { dirHandle, existing, parentNodeId, fileName, purpose, nodeVariant } = args;
     const now = this.nowIso();
     const parentInfo = this.resolveParentInfo({
       root: existing,
@@ -2350,6 +2352,7 @@ export class FileManager {
       updated_on: now,
       last_viewed_on: now,
       views: 0,
+      node_variant: nodeVariant,
     };
 
     const parentIsRoot = parentNodeId === "00" || parentNodeId === existing.id;
@@ -2382,8 +2385,9 @@ export class FileManager {
     parentNodeId: string;
     fileName: string; // includes extension if provided
     purpose: string;
+    nodeVariant?: "shieldFile";
   }): Promise<{ root: RootFolderJson; node: IndexFileNode }> {
-    const { dirPath, existing, parentNodeId, fileName, purpose } = args;
+    const { dirPath, existing, parentNodeId, fileName, purpose, nodeVariant } = args;
     const now = this.nowIso();
     const parentInfo = this.resolveParentInfo({
       root: { ...existing, path: dirPath },
@@ -2420,6 +2424,7 @@ export class FileManager {
       updated_on: now,
       last_viewed_on: now,
       views: 0,
+      node_variant: nodeVariant,
     };
 
     const baseRoot = { ...existing, path: dirPath, updated_on: now };

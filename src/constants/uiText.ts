@@ -70,6 +70,19 @@ export const uiText = {
       purpose: 'Embed a YouTube video with controls.',
     },
   },
+  nodeSelector: {
+    intro: "Select a node type to add to the canvas.",
+    flowchartTitle: "Flowchart nodes",
+    flowchartDescription: "Flowchart nodes can be added to the canvas from here.",
+    fileTitle: "File nodes",
+    fileDescription: "File nodes are created under the selected folder (or root).",
+    items: {
+      shieldFile: {
+        name: "Shield File Node",
+        purpose: "Shield-styled file node with Name and Purpose.",
+      },
+    },
+  },
   settings: {
     appearance: {
       edgeTypeLabel: 'Edge type',

@@ -42,6 +42,7 @@ import {
 } from "../../utils/viewportGuards";
 import RootFolderNode from "./RootFolderNode";
 import FileNode from "./FileNode";
+import ShieldFileNode from "./ShieldFileNode";
 import DecisionNode from "./DecisionNode";
 import ImageNode from "./ImageNode";
 import FullImageNode from "./FullImageNode";
@@ -59,6 +60,7 @@ import {
 const NODE_TYPES = {
   rootFolder: RootFolderNode,
   file: FileNode,
+  shieldFile: ShieldFileNode,
   decision: DecisionNode,
   polaroidImage: ImageNode,
   fullImageNode: FullImageNode,

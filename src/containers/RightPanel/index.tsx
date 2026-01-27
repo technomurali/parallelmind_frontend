@@ -371,7 +371,8 @@ export default function RightPanel() {
   const isFileNode =
     (selectedNode?.data as any)?.node_type === "file" ||
     (selectedNode?.data as any)?.type === "file" ||
-    selectedNode?.type === "file";
+    selectedNode?.type === "file" ||
+    selectedNode?.type === "shieldFile";
   const isImageNode =
     (selectedNode?.data as any)?.node_type === "polaroidImage" ||
     (selectedNode?.data as any)?.type === "polaroidImage" ||
@@ -1244,6 +1245,10 @@ export default function RightPanel() {
     moduleType === "cognitiveNotes"
       ? hasCognitiveNotesPersistence
       : !!rootFolderJson && hasParallelmindPersistence;
+  const canAddFileNodes =
+    moduleType === "cognitiveNotes"
+      ? hasCognitiveNotesPersistence
+      : !!rootFolderJson && hasParallelmindPersistence;
 
   const flowchartTextByType: Record<
     FlowchartNodeType,
@@ -1306,6 +1311,89 @@ export default function RightPanel() {
       tempNode,
     ];
     setNodes(next);
+    selectNode(tempNodeId);
+    setRightPanelMode("nodeDetails");
+  };
+
+  const resolveFileDraftParentId = (): string | null => {
+    if (moduleType === "cognitiveNotes") {
+      return typeof cognitiveNotesRoot?.id === "string" && cognitiveNotesRoot.id
+        ? cognitiveNotesRoot.id
+        : "00";
+    }
+    if (selectedNodeId && (isFolderNode || selectedNodeId === "00")) {
+      return selectedNodeId;
+    }
+    return "00";
+  };
+
+  const createShieldFileDraftNode = () => {
+    if (!canAddFileNodes) return;
+    setCreateError(null);
+    const position = lastCanvasPosition ?? canvasCenter ?? { x: 0, y: 0 };
+    const parentNodeId = resolveFileDraftParentId();
+    if (!parentNodeId) {
+      setCreateError(uiText.alerts.errorCreateFailed);
+      return;
+    }
+    const tempNodeId = `tmp_shield_${Date.now()}_${Math.random()
+      .toString(16)
+      .slice(2)}`;
+    const defaultColor = settings.appearance.cognitiveNotesDefaultNodeColor ?? "";
+    const nodeColor =
+      moduleType === "cognitiveNotes" &&
+      /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(defaultColor.trim())
+        ? defaultColor.trim()
+        : undefined;
+    const tempNode: any = {
+      id: tempNodeId,
+      type: "shieldFile",
+      position,
+      style: {
+        opacity: 1,
+        transition: "opacity 180ms ease",
+      },
+      data: {
+        type: "file",
+        node_type: "file",
+        node_variant: "shieldFile",
+        name: "",
+        purpose: "",
+        node_color: nodeColor,
+        parentId: parentNodeId,
+        isDraft: true,
+        nonPersistent: true,
+      },
+      selected: true,
+    };
+    const existing = nodes ?? [];
+    const edgeId = `e_${parentNodeId}_${tempNodeId}`;
+    const nextEdges =
+      moduleType === "cognitiveNotes"
+        ? edges
+        : (edges ?? []).some((edge: any) => edge?.id === edgeId)
+        ? edges
+        : [
+            ...(edges ?? []),
+            {
+              id: edgeId,
+              source: parentNodeId,
+              target: tempNodeId,
+              type: "default",
+              style: { opacity: 1, transition: "opacity 180ms ease" },
+              data: { isDraft: true, nonPersistent: true },
+            },
+          ];
+    const next = [
+      ...existing.map((n: any) => ({
+        ...n,
+        selected: n?.id === tempNodeId,
+      })),
+      tempNode,
+    ];
+    setNodes(next);
+    setEdges(nextEdges);
+    setPendingChildCreation({ tempNodeId, parentNodeId });
     selectNode(tempNodeId);
     setRightPanelMode("nodeDetails");
   };
@@ -1447,6 +1535,10 @@ export default function RightPanel() {
 
     const trimmedName = draft.name.trim();
     const trimmedCaption = trimmedName; // For images, name field is the caption
+    const nodeVariant =
+      typeof (selectedNode?.data as any)?.node_variant === "string"
+        ? ((selectedNode?.data as any).node_variant as string)
+        : undefined;
     const draftNodeId = selectedNodeId;
     const edgeId = parentIdForDraft
       ? `e_${parentIdForDraft}_${draftNodeId}`
@@ -1554,6 +1646,7 @@ export default function RightPanel() {
                       extension: splitDraftFileName(trimmedName).extension,
                       path: nodePath,
                       purpose: draft.purpose,
+                      node_variant: nodeVariant,
                       node_color:
                         (node.data as any)?.node_color ??
                         nextNodeColors[draftNodeId] ??
@@ -1581,6 +1674,7 @@ export default function RightPanel() {
               views: 0,
               related_nodes: [],
               sort_index: null,
+              node_variant: nodeVariant === "shieldFile" ? "shieldFile" : undefined,
             },
           ];
           await persistCognitiveNotesRoot({
@@ -1641,6 +1735,7 @@ export default function RightPanel() {
                 parentNodeId: parentIdForDraft,
                 fileName: nextFileName,
                 purpose: draft.purpose,
+                nodeVariant: nodeVariant === "shieldFile" ? "shieldFile" : undefined,
               })
             : await fileManager.createFileChildFromPath({
                 dirPath: rootFolderJson.path,
@@ -1648,6 +1743,7 @@ export default function RightPanel() {
                 parentNodeId: parentIdForDraft,
                 fileName: nextFileName,
                 purpose: draft.purpose,
+                nodeVariant: nodeVariant === "shieldFile" ? "shieldFile" : undefined,
               })
           : rootDirectoryHandle
           ? await fileManager.createFolderChildFromHandle({
@@ -2525,7 +2621,7 @@ export default function RightPanel() {
             >
               <div style={{ fontWeight: 600 }}>{uiText.panels.nodeSelector}</div>
               <div style={{ opacity: 0.75 }}>
-                Flowchart nodes can be added to the canvas from here.
+                {uiText.nodeSelector.intro}
               </div>
               <div
                 style={{
@@ -2533,12 +2629,67 @@ export default function RightPanel() {
                   gap: "var(--space-2)",
                 }}
               >
-                {flowchartSelectorItems.map((item) => (
+                <div style={{ fontWeight: 600 }}>{uiText.nodeSelector.flowchartTitle}</div>
+                <div style={{ opacity: 0.75 }}>
+                  {uiText.nodeSelector.flowchartDescription}
+                </div>
+                <div style={{ display: "grid", gap: "var(--space-2)" }}>
+                  {flowchartSelectorItems.map((item) => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={() => createFlowchartDraftNode(item.type)}
+                      disabled={!canAddFlowchartNodes}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "28px 1fr",
+                        alignItems: "center",
+                        gap: "var(--space-2)",
+                        padding: "10px",
+                        borderRadius: "var(--radius-md)",
+                        border: "var(--border-width) solid var(--border)",
+                        background: "var(--surface-2)",
+                        color: "inherit",
+                        cursor: canAddFlowchartNodes ? "pointer" : "not-allowed",
+                        opacity: canAddFlowchartNodes ? 1 : 0.6,
+                        textAlign: "left",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!canAddFlowchartNodes) return;
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "var(--surface-1)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          "var(--surface-2)";
+                      }}
+                    >
+                      <span aria-hidden="true">
+                        <FlowchartNodeIcons type={item.type} size={22} />
+                      </span>
+                      <span style={{ display: "grid", gap: 2 }}>
+                        <span style={{ fontWeight: 600 }}>{item.name}</span>
+                        <span style={{ opacity: 0.75 }}>{item.description}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    marginTop: "var(--space-2)",
+                  }}
+                >
+                  {uiText.nodeSelector.fileTitle}
+                </div>
+                <div style={{ opacity: 0.75 }}>
+                  {uiText.nodeSelector.fileDescription}
+                </div>
+                <div style={{ display: "grid", gap: "var(--space-2)" }}>
                   <button
-                    key={item.type}
                     type="button"
-                    onClick={() => createFlowchartDraftNode(item.type)}
-                    disabled={!canAddFlowchartNodes}
+                    onClick={createShieldFileDraftNode}
+                    disabled={!canAddFileNodes}
                     style={{
                       display: "grid",
                       gridTemplateColumns: "28px 1fr",
@@ -2549,12 +2700,12 @@ export default function RightPanel() {
                       border: "var(--border-width) solid var(--border)",
                       background: "var(--surface-2)",
                       color: "inherit",
-                      cursor: canAddFlowchartNodes ? "pointer" : "not-allowed",
-                      opacity: canAddFlowchartNodes ? 1 : 0.6,
+                      cursor: canAddFileNodes ? "pointer" : "not-allowed",
+                      opacity: canAddFileNodes ? 1 : 0.6,
                       textAlign: "left",
                     }}
                     onMouseEnter={(e) => {
-                      if (!canAddFlowchartNodes) return;
+                      if (!canAddFileNodes) return;
                       (e.currentTarget as HTMLButtonElement).style.background =
                         "var(--surface-1)";
                     }}
@@ -2564,14 +2715,29 @@ export default function RightPanel() {
                     }}
                   >
                     <span aria-hidden="true">
-                      <FlowchartNodeIcons type={item.type} size={22} />
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 200 200"
+                        xmlns="http://www.w3.org/2000/svg"
+                        style={{ display: "block" }}
+                      >
+                        <path
+                          d="M 29 11 H 170 V 40 H 29 Z M 29 40 V 150 L 100 185 L 170 150 V 40"
+                          fill="currentColor"
+                        />
+                      </svg>
                     </span>
                     <span style={{ display: "grid", gap: 2 }}>
-                      <span style={{ fontWeight: 600 }}>{item.name}</span>
-                      <span style={{ opacity: 0.75 }}>{item.description}</span>
+                      <span style={{ fontWeight: 600 }}>
+                        {uiText.nodeSelector.items.shieldFile.name}
+                      </span>
+                      <span style={{ opacity: 0.75 }}>
+                        {uiText.nodeSelector.items.shieldFile.purpose}
+                      </span>
                     </span>
                   </button>
-                ))}
+                </div>
               </div>
             </div>
           ) : rightPanelMode === "notesFeed" ? (
