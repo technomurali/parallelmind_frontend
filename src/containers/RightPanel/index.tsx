@@ -380,7 +380,8 @@ export default function RightPanel() {
     (selectedNode?.data as any)?.node_type === "file" ||
     (selectedNode?.data as any)?.type === "file" ||
     selectedNode?.type === "file" ||
-    selectedNode?.type === "shieldFile";
+    selectedNode?.type === "shieldFile" ||
+    selectedNode?.type === "outputFile";
   const isImageNode =
     (selectedNode?.data as any)?.node_type === "polaroidImage" ||
     (selectedNode?.data as any)?.type === "polaroidImage" ||
@@ -392,13 +393,17 @@ export default function RightPanel() {
     isFileNode &&
     (((selectedNode?.data as any)?.node_variant as string) === "shieldFile" ||
       selectedNode?.type === "shieldFile");
+  const isOutputFileNode =
+    isFileNode &&
+    (((selectedNode?.data as any)?.node_variant as string) === "outputShield" ||
+      selectedNode?.type === "outputFile");
   const detailsPath =
     typeof (selectedNode?.data as any)?.details_path === "string"
       ? ((selectedNode?.data as any)?.details_path as string)
       : "";
   const detailsOptOut = !!(selectedNode?.data as any)?.details_opt_out;
   const shouldOfferDetailsFile =
-    isFlowchartNode || isShieldFileNode || isImageNode;
+    isFlowchartNode || isShieldFileNode || isOutputFileNode || isImageNode;
   const youtubeSettings = draft.yt_settings ?? DEFAULT_YT_SETTINGS;
   const showSortIndex =
     moduleType === "cognitiveNotes" &&
@@ -1272,7 +1277,7 @@ export default function RightPanel() {
       return;
     }
 
-    if (isShieldFileNode && rootFolderJson) {
+    if ((isShieldFileNode || isOutputFileNode) && rootFolderJson) {
       const updatedTree = updateFileNodeDetails(
         rootFolderJson.child ?? [],
         selectedNodeId,
@@ -1306,7 +1311,7 @@ export default function RightPanel() {
       const fileName = splitDraftFileName(trimmedName).fullName;
       const data = (selectedNode?.data ?? {}) as any;
 
-      if (isShieldFileNode) {
+      if (isShieldFileNode || isOutputFileNode) {
         const existingPath = typeof data.path === "string" ? data.path : "";
         let targetPath = existingPath;
 
@@ -1703,6 +1708,77 @@ export default function RightPanel() {
     setRightPanelMode("nodeDetails");
   };
 
+  const createOutputFileDraftNode = () => {
+    if (!canAddFileNodes) return;
+    setCreateError(null);
+    const position = lastCanvasPosition ?? canvasCenter ?? { x: 0, y: 0 };
+    const parentNodeId = resolveFileDraftParentId();
+    if (!parentNodeId) {
+      setCreateError(uiText.alerts.errorCreateFailed);
+      return;
+    }
+    const tempNodeId = `tmp_output_${Date.now()}_${Math.random()
+      .toString(16)
+      .slice(2)}`;
+    const defaultColor = settings.appearance.cognitiveNotesDefaultNodeColor ?? "";
+    const nodeColor =
+      moduleType === "cognitiveNotes" &&
+      /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(defaultColor.trim())
+        ? defaultColor.trim()
+        : undefined;
+    const tempNode: any = {
+      id: tempNodeId,
+      type: "outputFile",
+      position,
+      style: {
+        opacity: 1,
+        transition: "opacity 180ms ease",
+      },
+      data: {
+        type: "file",
+        node_type: "file",
+        node_variant: "outputShield",
+        name: "",
+        purpose: "",
+        node_color: nodeColor,
+        parentId: parentNodeId,
+        isDraft: true,
+        nonPersistent: true,
+      },
+      selected: true,
+    };
+    const existing = nodes ?? [];
+    const edgeId = `e_${parentNodeId}_${tempNodeId}`;
+    const nextEdges =
+      moduleType === "cognitiveNotes"
+        ? edges
+        : (edges ?? []).some((edge: any) => edge?.id === edgeId)
+        ? edges
+        : [
+            ...(edges ?? []),
+            {
+              id: edgeId,
+              source: parentNodeId,
+              target: tempNodeId,
+              type: "default",
+              style: { opacity: 1, transition: "opacity 180ms ease" },
+              data: { isDraft: true, nonPersistent: true },
+            },
+          ];
+    const next = [
+      ...existing.map((n: any) => ({
+        ...n,
+        selected: n?.id === tempNodeId,
+      })),
+      tempNode,
+    ];
+    setNodes(next);
+    setEdges(nextEdges);
+    setPendingChildCreation({ tempNodeId, parentNodeId });
+    selectNode(tempNodeId);
+    setRightPanelMode("nodeDetails");
+  };
+
   const onCreateDraft = async () => {
     if (!isDraftNode || !selectedNodeId) return;
     setCreateError(null);
@@ -1980,7 +2056,10 @@ export default function RightPanel() {
               views: 0,
               related_nodes: [],
               sort_index: null,
-              node_variant: nodeVariant === "shieldFile" ? "shieldFile" : undefined,
+              node_variant:
+                nodeVariant === "shieldFile" || nodeVariant === "outputShield"
+                  ? nodeVariant
+                  : undefined,
             },
           ];
           await persistCognitiveNotesRoot({
@@ -2042,7 +2121,10 @@ export default function RightPanel() {
                 parentNodeId: parentIdForDraft,
                 fileName: nextFileName,
                 purpose: draft.purpose,
-                nodeVariant: nodeVariant === "shieldFile" ? "shieldFile" : undefined,
+                nodeVariant:
+                  nodeVariant === "shieldFile" || nodeVariant === "outputShield"
+                    ? nodeVariant
+                    : undefined,
               })
             : await fileManager.createFileChildFromPath({
                 dirPath: rootFolderJson.path,
@@ -2050,7 +2132,10 @@ export default function RightPanel() {
                 parentNodeId: parentIdForDraft,
                 fileName: nextFileName,
                 purpose: draft.purpose,
-                nodeVariant: nodeVariant === "shieldFile" ? "shieldFile" : undefined,
+                nodeVariant:
+                  nodeVariant === "shieldFile" || nodeVariant === "outputShield"
+                    ? nodeVariant
+                    : undefined,
               })
           : rootDirectoryHandle
           ? await fileManager.createFolderChildFromHandle({
@@ -3057,6 +3142,58 @@ export default function RightPanel() {
                       </span>
                       <span style={{ opacity: 0.75 }}>
                         {uiText.nodeSelector.items.shieldFile.purpose}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={createOutputFileDraftNode}
+                    disabled={!canAddFileNodes}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "28px 1fr",
+                      alignItems: "center",
+                      gap: "var(--space-2)",
+                      padding: "10px",
+                      borderRadius: "var(--radius-md)",
+                      border: "var(--border-width) solid var(--border)",
+                      background: "var(--surface-2)",
+                      color: "inherit",
+                      cursor: canAddFileNodes ? "pointer" : "not-allowed",
+                      opacity: canAddFileNodes ? 1 : 0.6,
+                      textAlign: "left",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!canAddFileNodes) return;
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-2)";
+                    }}
+                  >
+                    <span aria-hidden="true">
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 200 200"
+                        xmlns="http://www.w3.org/2000/svg"
+                        style={{ display: "block" }}
+                      >
+                        <path
+                          d="M 29 11 H 170 V 40 H 29 Z M 29 40 V 150 L 100 185 L 170 150 V 40"
+                          fill="currentColor"
+                          transform="rotate(180 100 100)"
+                        />
+                      </svg>
+                    </span>
+                    <span style={{ display: "grid", gap: 2 }}>
+                      <span style={{ fontWeight: 600 }}>
+                        {uiText.nodeSelector.items.outputFile.name}
+                      </span>
+                      <span style={{ opacity: 0.75 }}>
+                        {uiText.nodeSelector.items.outputFile.purpose}
                       </span>
                     </span>
                   </button>

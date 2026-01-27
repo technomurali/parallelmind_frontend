@@ -81,6 +81,10 @@ export const uiText = {
         name: "Shield File Node",
         purpose: "Shield-styled file node with Name and Purpose.",
       },
+      outputFile: {
+        name: "Output File Node",
+        purpose: "Inverted shield-styled file node with Name and Purpose.",
+      },
     },
   },
   settings: {

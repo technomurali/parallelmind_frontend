@@ -43,6 +43,7 @@ import {
 import RootFolderNode from "./RootFolderNode";
 import FileNode from "./FileNode";
 import ShieldFileNode from "./ShieldFileNode";
+import OutputFileNode from "./OutputFileNode";
 import DecisionNode from "./DecisionNode";
 import ImageNode from "./ImageNode";
 import FullImageNode from "./FullImageNode";
@@ -61,6 +62,7 @@ const NODE_TYPES = {
   rootFolder: RootFolderNode,
   file: FileNode,
   shieldFile: ShieldFileNode,
+  outputFile: OutputFileNode,
   decision: DecisionNode,
   polaroidImage: ImageNode,
   fullImageNode: FullImageNode,

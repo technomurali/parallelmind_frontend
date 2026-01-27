@@ -65,7 +65,7 @@ const buildNoteNode = (
   root: CognitiveNotesJson,
   note: CognitiveNotesFileNode,
   position: { x: number; y: number },
-  renderType: "file" | "shieldFile" | "fullImageNode"
+  renderType: "file" | "shieldFile" | "outputFile" | "fullImageNode"
 ): Node => {
   return {
     id: note.id,
@@ -93,6 +93,10 @@ const NODE_HANDLE_SETS: Record<
     target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
   },
   shieldFile: {
+    source: new Set(["source-left", "source-right", "source-bottom"]),
+    target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
+  },
+  outputFile: {
     source: new Set(["source-left", "source-right", "source-bottom"]),
     target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
   },
@@ -226,6 +230,8 @@ export const composeCognitiveNotesGraph = (
       ? "fullImageNode"
       : nodeVariant === "shieldFile"
       ? "shieldFile"
+      : nodeVariant === "outputShield"
+      ? "outputFile"
       : "file";
     const col = index % columns;
     const row = Math.floor(index / columns);

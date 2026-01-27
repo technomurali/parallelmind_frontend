@@ -47,7 +47,7 @@ export type IndexFileNode = {
   updated_on: string;
   last_viewed_on: string;
   views: number;
-  node_variant?: "shieldFile";
+  node_variant?: "shieldFile" | "outputShield";
 };
 
 export type IndexNode = IndexFolderNode | IndexFileNode;
@@ -2306,7 +2306,7 @@ export class FileManager {
     parentNodeId: string;
     fileName: string; // includes extension if provided
     purpose: string;
-    nodeVariant?: "shieldFile";
+    nodeVariant?: "shieldFile" | "outputShield";
   }): Promise<{ root: RootFolderJson; node: IndexFileNode }> {
     const { dirHandle, existing, parentNodeId, fileName, purpose, nodeVariant } = args;
     const now = this.nowIso();
@@ -2385,7 +2385,7 @@ export class FileManager {
     parentNodeId: string;
     fileName: string; // includes extension if provided
     purpose: string;
-    nodeVariant?: "shieldFile";
+    nodeVariant?: "shieldFile" | "outputShield";
   }): Promise<{ root: RootFolderJson; node: IndexFileNode }> {
     const { dirPath, existing, parentNodeId, fileName, purpose, nodeVariant } = args;
     const now = this.nowIso();

@@ -103,7 +103,8 @@ const isFileNode = (node: Node | null): boolean =>
   ((node?.data as any)?.node_type === "file" ||
     (node?.data as any)?.type === "file" ||
     node?.type === "file" ||
-    node?.type === "shieldFile");
+    node?.type === "shieldFile" ||
+    node?.type === "outputFile");
 
 const isImageNode = (node: Node | null): boolean =>
   !!node &&
@@ -119,6 +120,11 @@ const isShieldFileNode = (node: Node | null): boolean =>
   (((node?.data as any)?.node_variant as string) === "shieldFile" ||
     node?.type === "shieldFile");
 
+const isOutputFileNode = (node: Node | null): boolean =>
+  !!node &&
+  (((node?.data as any)?.node_variant as string) === "outputShield" ||
+    node?.type === "outputFile");
+
 const getDetailsPath = (node: Node | null): string => {
   if (!node) return "";
   const raw = (node?.data as any)?.details_path;
@@ -132,7 +138,10 @@ const resolveSmartpadTarget = (
   const flowType = (node?.data as any)?.node_type ?? node?.type;
   const isFlowchart = isFlowchartNodeType(flowType);
   const detailsPath = getDetailsPath(node);
-  if (detailsPath && (isFlowchart || isShieldFileNode(node) || isImageNode(node))) {
+  if (
+    detailsPath &&
+    (isFlowchart || isShieldFileNode(node) || isOutputFileNode(node) || isImageNode(node))
+  ) {
     return { path: detailsPath, isAssociated: true, isFlowchart };
   }
   if (isFileNode(node)) {
