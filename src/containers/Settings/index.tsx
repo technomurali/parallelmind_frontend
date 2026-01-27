@@ -26,11 +26,48 @@ export default function Settings() {
     canvasAids: true,
     nodeColoring: true,
   });
-  const [nodeColorPickerOpen, setNodeColorPickerOpen] = useState<
-    "inputFile" | "file" | "output" | null
-  >(null);
+  const [openColorPicker, setOpenColorPicker] = useState<string | null>(null);
   const isValidHex = (v: string) =>
     /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test((v || "").trim());
+  const hexInputStyle = {
+    width: 88,
+    minWidth: 72,
+    borderRadius: "var(--radius-md)",
+    border: "1px solid var(--border)",
+    padding: "6px 8px",
+    background: "var(--surface-1)",
+    color: "var(--text)",
+    fontFamily: "var(--font-family)",
+    fontSize: "0.8rem",
+  } as const;
+  const swatchButtonStyle = {
+    display: "inline-flex" as const,
+    alignItems: "center",
+    justifyContent: "center",
+    height: "var(--control-size-sm, 28px)",
+    width: "var(--control-size-sm, 28px)",
+    minWidth: 28,
+    minHeight: 28,
+    borderRadius: "var(--radius-md, 6px)",
+    border: "none",
+    background: "transparent",
+    color: "var(--text)",
+    cursor: "pointer",
+  };
+  const colorDropdownStyle = {
+    position: "absolute" as const,
+    top: "calc(100% + 6px)",
+    right: 0,
+    zIndex: 60,
+    padding: "10px",
+    borderRadius: "var(--radius-md)",
+    border: "1px solid var(--border)",
+    background: "var(--surface-2)",
+    boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+    display: "grid" as const,
+    gap: "8px",
+    minWidth: 180,
+  };
 
   const navItems = useMemo(
     () =>
@@ -237,26 +274,158 @@ export default function Settings() {
                             Controls the active tab background color.
                           </div>
                         </div>
-                        <input
-                          className="pm-settings__control"
-                          type="color"
-                          value={
-                            settings.appearance.activeTabColors?.parallelmind ??
-                            "#1a4a8e"
-                          }
-                          onChange={(e) =>
-                            updateSettings({
-                              appearance: {
-                                ...settings.appearance,
-                                activeTabColors: {
-                                  ...settings.appearance.activeTabColors,
-                                  parallelmind: e.target.value,
-                                },
-                              },
-                            })
-                          }
-                          aria-label="Active tab color (Parallelmind)"
-                        />
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={
+                              settings.appearance.activeTabColors?.parallelmind ??
+                              "#1a4a8e"
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value.trim();
+                              if (isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    activeTabColors: {
+                                      ...settings.appearance.activeTabColors,
+                                      parallelmind: v,
+                                    },
+                                  },
+                                });
+                            }}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (!isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    activeTabColors: {
+                                      ...settings.appearance.activeTabColors,
+                                      parallelmind: "#1a4a8e",
+                                    },
+                                  },
+                                });
+                            }}
+                            placeholder="#1a4a8e"
+                            aria-label="Active tab color (Parallelmind) hex"
+                            className="pm-settings__control"
+                            style={hexInputStyle}
+                          />
+                          <div style={{ position: "relative" }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenColorPicker((prev) =>
+                                  prev === "tabParallelmind" ? null : "tabParallelmind"
+                                )
+                              }
+                              aria-label="Active tab color (Parallelmind)"
+                              title="Active tab color (Parallelmind)"
+                              style={swatchButtonStyle}
+                              onMouseEnter={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background =
+                                  "var(--surface-1)";
+                              }}
+                              onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background =
+                                  "transparent";
+                              }}
+                            >
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: 999,
+                                  border: "1px solid var(--border)",
+                                  background:
+                                    settings.appearance.activeTabColors?.parallelmind ??
+                                    "#1a4a8e",
+                                  boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
+                                }}
+                              />
+                            </button>
+                            {openColorPicker === "tabParallelmind" ? (
+                              <div style={colorDropdownStyle}>
+                                <input
+                                  type="color"
+                                  value={
+                                    isValidHex(
+                                      settings.appearance.activeTabColors?.parallelmind ?? ""
+                                    )
+                                      ? (settings.appearance.activeTabColors?.parallelmind ?? "#1a4a8e").trim()
+                                      : "#1a4a8e"
+                                  }
+                                  onChange={(e) =>
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        activeTabColors: {
+                                          ...settings.appearance.activeTabColors,
+                                          parallelmind: e.target.value,
+                                        },
+                                      },
+                                    })
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    height: 36,
+                                    padding: 0,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                  }}
+                                />
+                                <input
+                                  type="text"
+                                  value={
+                                    settings.appearance.activeTabColors?.parallelmind ??
+                                    "#1a4a8e"
+                                  }
+                                  onChange={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          activeTabColors: {
+                                            ...settings.appearance.activeTabColors,
+                                            parallelmind: v,
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  onBlur={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (!isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          activeTabColors: {
+                                            ...settings.appearance.activeTabColors,
+                                            parallelmind: "#1a4a8e",
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  placeholder="#1a4a8e"
+                                  aria-label="Active tab color (Parallelmind) hex"
+                                  style={{
+                                    width: "100%",
+                                    borderRadius: "var(--radius-md)",
+                                    border: "1px solid var(--border)",
+                                    padding: "6px 8px",
+                                    background: "var(--surface-1)",
+                                    color: "var(--text)",
+                                    fontFamily: "var(--font-family)",
+                                    fontSize: "0.8rem",
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="pm-settings__divider" />
@@ -270,26 +439,158 @@ export default function Settings() {
                             Controls the active tab background color.
                           </div>
                         </div>
-                        <input
-                          className="pm-settings__control"
-                          type="color"
-                          value={
-                            settings.appearance.activeTabColors?.cognitiveNotes ??
-                            "#7412b5"
-                          }
-                          onChange={(e) =>
-                            updateSettings({
-                              appearance: {
-                                ...settings.appearance,
-                                activeTabColors: {
-                                  ...settings.appearance.activeTabColors,
-                                  cognitiveNotes: e.target.value,
-                                },
-                              },
-                            })
-                          }
-                          aria-label="Active tab color (Cognitive Notes)"
-                        />
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={
+                              settings.appearance.activeTabColors?.cognitiveNotes ??
+                              "#7412b5"
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value.trim();
+                              if (isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    activeTabColors: {
+                                      ...settings.appearance.activeTabColors,
+                                      cognitiveNotes: v,
+                                    },
+                                  },
+                                });
+                            }}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (!isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    activeTabColors: {
+                                      ...settings.appearance.activeTabColors,
+                                      cognitiveNotes: "#7412b5",
+                                    },
+                                  },
+                                });
+                            }}
+                            placeholder="#7412b5"
+                            aria-label="Active tab color (Cognitive Notes) hex"
+                            className="pm-settings__control"
+                            style={hexInputStyle}
+                          />
+                          <div style={{ position: "relative" }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenColorPicker((prev) =>
+                                  prev === "tabCognitiveNotes" ? null : "tabCognitiveNotes"
+                                )
+                              }
+                              aria-label="Active tab color (Cognitive Notes)"
+                              title="Active tab color (Cognitive Notes)"
+                              style={swatchButtonStyle}
+                              onMouseEnter={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background =
+                                  "var(--surface-1)";
+                              }}
+                              onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background =
+                                  "transparent";
+                              }}
+                            >
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: 999,
+                                  border: "1px solid var(--border)",
+                                  background:
+                                    settings.appearance.activeTabColors?.cognitiveNotes ??
+                                    "#7412b5",
+                                  boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
+                                }}
+                              />
+                            </button>
+                            {openColorPicker === "tabCognitiveNotes" ? (
+                              <div style={colorDropdownStyle}>
+                                <input
+                                  type="color"
+                                  value={
+                                    isValidHex(
+                                      settings.appearance.activeTabColors?.cognitiveNotes ?? ""
+                                    )
+                                      ? (settings.appearance.activeTabColors?.cognitiveNotes ?? "#7412b5").trim()
+                                      : "#7412b5"
+                                  }
+                                  onChange={(e) =>
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        activeTabColors: {
+                                          ...settings.appearance.activeTabColors,
+                                          cognitiveNotes: e.target.value,
+                                        },
+                                      },
+                                    })
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    height: 36,
+                                    padding: 0,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                  }}
+                                />
+                                <input
+                                  type="text"
+                                  value={
+                                    settings.appearance.activeTabColors?.cognitiveNotes ??
+                                    "#7412b5"
+                                  }
+                                  onChange={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          activeTabColors: {
+                                            ...settings.appearance.activeTabColors,
+                                            cognitiveNotes: v,
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  onBlur={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (!isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          activeTabColors: {
+                                            ...settings.appearance.activeTabColors,
+                                            cognitiveNotes: "#7412b5",
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  placeholder="#7412b5"
+                                  aria-label="Active tab color (Cognitive Notes) hex"
+                                  style={{
+                                    width: "100%",
+                                    borderRadius: "var(--radius-md)",
+                                    border: "1px solid var(--border)",
+                                    padding: "6px 8px",
+                                    background: "var(--surface-1)",
+                                    color: "var(--text)",
+                                    fontFamily: "var(--font-family)",
+                                    fontSize: "0.8rem",
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
                     </>
                   ),
@@ -657,23 +958,143 @@ export default function Settings() {
                             Applied to new Cognitive Notes nodes.
                           </div>
                         </div>
-                        <input
-                          className="pm-settings__control"
-                          type="color"
-                          value={
-                            settings.appearance.cognitiveNotesDefaultNodeColor ??
-                            "#4330d5"
-                          }
-                          onChange={(e) =>
-                            updateSettings({
-                              appearance: {
-                                ...settings.appearance,
-                                cognitiveNotesDefaultNodeColor: e.target.value,
-                              },
-                            })
-                          }
-                          aria-label="Cognitive Notes default node color"
-                        />
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={
+                              settings.appearance.cognitiveNotesDefaultNodeColor ??
+                              "#4330d5"
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value.trim();
+                              if (isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    cognitiveNotesDefaultNodeColor: v,
+                                  },
+                                });
+                            }}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (!isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    cognitiveNotesDefaultNodeColor: "#4330d5",
+                                  },
+                                });
+                            }}
+                            placeholder="#4330d5"
+                            aria-label="Cognitive Notes default node color hex"
+                            className="pm-settings__control"
+                            style={hexInputStyle}
+                          />
+                          <div style={{ position: "relative" }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenColorPicker((prev) =>
+                                  prev === "cognitiveNotesDefault" ? null : "cognitiveNotesDefault"
+                                )
+                              }
+                              aria-label="Cognitive Notes default node color"
+                              title="Cognitive Notes default node color"
+                              style={swatchButtonStyle}
+                              onMouseEnter={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background =
+                                  "var(--surface-1)";
+                              }}
+                              onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background =
+                                  "transparent";
+                              }}
+                            >
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: 999,
+                                  border: "1px solid var(--border)",
+                                  background:
+                                    settings.appearance.cognitiveNotesDefaultNodeColor ??
+                                    "#4330d5",
+                                  boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
+                                }}
+                              />
+                            </button>
+                            {openColorPicker === "cognitiveNotesDefault" ? (
+                              <div style={colorDropdownStyle}>
+                                <input
+                                  type="color"
+                                  value={
+                                    isValidHex(
+                                      settings.appearance.cognitiveNotesDefaultNodeColor ?? ""
+                                    )
+                                      ? (settings.appearance.cognitiveNotesDefaultNodeColor ?? "#4330d5").trim()
+                                      : "#4330d5"
+                                  }
+                                  onChange={(e) =>
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        cognitiveNotesDefaultNodeColor: e.target.value,
+                                      },
+                                    })
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    height: 36,
+                                    padding: 0,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                  }}
+                                />
+                                <input
+                                  type="text"
+                                  value={
+                                    settings.appearance.cognitiveNotesDefaultNodeColor ??
+                                    "#4330d5"
+                                  }
+                                  onChange={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          cognitiveNotesDefaultNodeColor: v,
+                                        },
+                                      });
+                                  }}
+                                  onBlur={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (!isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          cognitiveNotesDefaultNodeColor: "#4330d5",
+                                        },
+                                      });
+                                  }}
+                                  placeholder="#4330d5"
+                                  aria-label="Cognitive Notes default node color hex"
+                                  style={{
+                                    width: "100%",
+                                    borderRadius: "var(--radius-md)",
+                                    border: "1px solid var(--border)",
+                                    padding: "6px 8px",
+                                    background: "var(--surface-1)",
+                                    color: "var(--text)",
+                                    fontFamily: "var(--font-family)",
+                                    fontSize: "0.8rem",
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="pm-settings__divider" />
@@ -717,23 +1138,13 @@ export default function Settings() {
                             placeholder="#ff0000"
                             aria-label="Input File Node Color hex"
                             className="pm-settings__control"
-                            style={{
-                              width: 88,
-                              minWidth: 72,
-                              borderRadius: "var(--radius-md)",
-                              border: "1px solid var(--border)",
-                              padding: "6px 8px",
-                              background: "var(--surface-1)",
-                              color: "var(--text)",
-                              fontFamily: "var(--font-family)",
-                              fontSize: "0.8rem",
-                            }}
+                            style={hexInputStyle}
                           />
                           <div style={{ position: "relative" }}>
                           <button
                             type="button"
                             onClick={() =>
-                              setNodeColorPickerOpen((prev) =>
+                              setOpenColorPicker((prev) =>
                                 prev === "inputFile" ? null : "inputFile"
                               )
                             }
@@ -776,7 +1187,7 @@ export default function Settings() {
                               }}
                             />
                           </button>
-                          {nodeColorPickerOpen === "inputFile" ? (
+                          {openColorPicker === "inputFile" ? (
                             <div
                               style={{
                                 position: "absolute",
@@ -903,23 +1314,13 @@ export default function Settings() {
                             placeholder="#faf200"
                             aria-label="File Node Color hex"
                             className="pm-settings__control"
-                            style={{
-                              width: 88,
-                              minWidth: 72,
-                              borderRadius: "var(--radius-md)",
-                              border: "1px solid var(--border)",
-                              padding: "6px 8px",
-                              background: "var(--surface-1)",
-                              color: "var(--text)",
-                              fontFamily: "var(--font-family)",
-                              fontSize: "0.8rem",
-                            }}
+                            style={hexInputStyle}
                           />
                           <div style={{ position: "relative" }}>
                           <button
                             type="button"
                             onClick={() =>
-                              setNodeColorPickerOpen((prev) =>
+                              setOpenColorPicker((prev) =>
                                 prev === "file" ? null : "file"
                               )
                             }
@@ -962,7 +1363,7 @@ export default function Settings() {
                               }}
                             />
                           </button>
-                          {nodeColorPickerOpen === "file" ? (
+                          {openColorPicker === "file" ? (
                             <div
                               style={{
                                 position: "absolute",
@@ -1091,23 +1492,13 @@ export default function Settings() {
                             placeholder="#8cff00"
                             aria-label="Output Node Color hex"
                             className="pm-settings__control"
-                            style={{
-                              width: 88,
-                              minWidth: 72,
-                              borderRadius: "var(--radius-md)",
-                              border: "1px solid var(--border)",
-                              padding: "6px 8px",
-                              background: "var(--surface-1)",
-                              color: "var(--text)",
-                              fontFamily: "var(--font-family)",
-                              fontSize: "0.8rem",
-                            }}
+                            style={hexInputStyle}
                           />
                           <div style={{ position: "relative" }}>
                           <button
                             type="button"
                             onClick={() =>
-                              setNodeColorPickerOpen((prev) =>
+                              setOpenColorPicker((prev) =>
                                 prev === "output" ? null : "output"
                               )
                             }
@@ -1150,7 +1541,7 @@ export default function Settings() {
                               }}
                             />
                           </button>
-                          {nodeColorPickerOpen === "output" ? (
+                          {openColorPicker === "output" ? (
                             <div
                               style={{
                                 position: "absolute",
@@ -1271,24 +1662,151 @@ export default function Settings() {
                             Used when level is 0 or missing.
                           </div>
                         </div>
-                        <input
-                          className="pm-settings__control"
-                          type="color"
-                          value={settings.appearance.nodeFillColors.root}
-                          onChange={(e) =>
-                            updateSettings({
-                              appearance: {
-                                ...settings.appearance,
-                                nodeFillColors: {
-                                  ...settings.appearance.nodeFillColors,
-                                  root: e.target.value,
-                                },
-                              },
-                            })
-                          }
-                          aria-label="Root node color"
-                          disabled={!nodeFillEnabled}
-                        />
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={settings.appearance.nodeFillColors.root}
+                            onChange={(e) => {
+                              const v = e.target.value.trim();
+                              if (isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    nodeFillColors: {
+                                      ...settings.appearance.nodeFillColors,
+                                      root: v,
+                                    },
+                                  },
+                                });
+                            }}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (!isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    nodeFillColors: {
+                                      ...settings.appearance.nodeFillColors,
+                                      root: "#1E1B4B",
+                                    },
+                                  },
+                                });
+                            }}
+                            placeholder="#1E1B4B"
+                            aria-label="Root node color hex"
+                            className="pm-settings__control"
+                            style={hexInputStyle}
+                            disabled={!nodeFillEnabled}
+                          />
+                          <div style={{ position: "relative" }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenColorPicker((prev) =>
+                                  prev === "fillRoot" ? null : "fillRoot"
+                                )
+                              }
+                              aria-label="Root node color"
+                              title="Root node color"
+                              style={{ ...swatchButtonStyle, opacity: nodeFillEnabled ? 1 : 0.5 }}
+                              disabled={!nodeFillEnabled}
+                              onMouseEnter={(e) => {
+                                if (nodeFillEnabled)
+                                  (e.currentTarget as HTMLButtonElement).style.background =
+                                    "var(--surface-1)";
+                              }}
+                              onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background =
+                                  "transparent";
+                              }}
+                            >
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: 999,
+                                  border: "1px solid var(--border)",
+                                  background: settings.appearance.nodeFillColors.root,
+                                  boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
+                                }}
+                              />
+                            </button>
+                            {openColorPicker === "fillRoot" ? (
+                              <div style={colorDropdownStyle}>
+                                <input
+                                  type="color"
+                                  value={
+                                    isValidHex(settings.appearance.nodeFillColors.root)
+                                      ? settings.appearance.nodeFillColors.root.trim()
+                                      : "#1E1B4B"
+                                  }
+                                  onChange={(e) =>
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        nodeFillColors: {
+                                          ...settings.appearance.nodeFillColors,
+                                          root: e.target.value,
+                                        },
+                                      },
+                                    })
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    height: 36,
+                                    padding: 0,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                  }}
+                                />
+                                <input
+                                  type="text"
+                                  value={settings.appearance.nodeFillColors.root}
+                                  onChange={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          nodeFillColors: {
+                                            ...settings.appearance.nodeFillColors,
+                                            root: v,
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  onBlur={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (!isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          nodeFillColors: {
+                                            ...settings.appearance.nodeFillColors,
+                                            root: "#1E1B4B",
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  placeholder="#1E1B4B"
+                                  aria-label="Root node color hex"
+                                  style={{
+                                    width: "100%",
+                                    borderRadius: "var(--radius-md)",
+                                    border: "1px solid var(--border)",
+                                    padding: "6px 8px",
+                                    background: "var(--surface-1)",
+                                    color: "var(--text)",
+                                    fontFamily: "var(--font-family)",
+                                    fontSize: "0.8rem",
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="pm-settings__divider" />
@@ -1300,24 +1818,151 @@ export default function Settings() {
                             Applied to nodes with level 1.
                           </div>
                         </div>
-                        <input
-                          className="pm-settings__control"
-                          type="color"
-                          value={settings.appearance.nodeFillColors.level1}
-                          onChange={(e) =>
-                            updateSettings({
-                              appearance: {
-                                ...settings.appearance,
-                                nodeFillColors: {
-                                  ...settings.appearance.nodeFillColors,
-                                  level1: e.target.value,
-                                },
-                              },
-                            })
-                          }
-                          aria-label="Level 1 node color"
-                          disabled={!nodeFillEnabled}
-                        />
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={settings.appearance.nodeFillColors.level1}
+                            onChange={(e) => {
+                              const v = e.target.value.trim();
+                              if (isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    nodeFillColors: {
+                                      ...settings.appearance.nodeFillColors,
+                                      level1: v,
+                                    },
+                                  },
+                                });
+                            }}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (!isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    nodeFillColors: {
+                                      ...settings.appearance.nodeFillColors,
+                                      level1: "#312E81",
+                                    },
+                                  },
+                                });
+                            }}
+                            placeholder="#312E81"
+                            aria-label="Level 1 node color hex"
+                            className="pm-settings__control"
+                            style={hexInputStyle}
+                            disabled={!nodeFillEnabled}
+                          />
+                          <div style={{ position: "relative" }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenColorPicker((prev) =>
+                                  prev === "fillLevel1" ? null : "fillLevel1"
+                                )
+                              }
+                              aria-label="Level 1 node color"
+                              title="Level 1 node color"
+                              style={{ ...swatchButtonStyle, opacity: nodeFillEnabled ? 1 : 0.5 }}
+                              disabled={!nodeFillEnabled}
+                              onMouseEnter={(e) => {
+                                if (nodeFillEnabled)
+                                  (e.currentTarget as HTMLButtonElement).style.background =
+                                    "var(--surface-1)";
+                              }}
+                              onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background =
+                                  "transparent";
+                              }}
+                            >
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: 999,
+                                  border: "1px solid var(--border)",
+                                  background: settings.appearance.nodeFillColors.level1,
+                                  boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
+                                }}
+                              />
+                            </button>
+                            {openColorPicker === "fillLevel1" ? (
+                              <div style={colorDropdownStyle}>
+                                <input
+                                  type="color"
+                                  value={
+                                    isValidHex(settings.appearance.nodeFillColors.level1)
+                                      ? settings.appearance.nodeFillColors.level1.trim()
+                                      : "#312E81"
+                                  }
+                                  onChange={(e) =>
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        nodeFillColors: {
+                                          ...settings.appearance.nodeFillColors,
+                                          level1: e.target.value,
+                                        },
+                                      },
+                                    })
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    height: 36,
+                                    padding: 0,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                  }}
+                                />
+                                <input
+                                  type="text"
+                                  value={settings.appearance.nodeFillColors.level1}
+                                  onChange={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          nodeFillColors: {
+                                            ...settings.appearance.nodeFillColors,
+                                            level1: v,
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  onBlur={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (!isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          nodeFillColors: {
+                                            ...settings.appearance.nodeFillColors,
+                                            level1: "#312E81",
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  placeholder="#312E81"
+                                  aria-label="Level 1 node color hex"
+                                  style={{
+                                    width: "100%",
+                                    borderRadius: "var(--radius-md)",
+                                    border: "1px solid var(--border)",
+                                    padding: "6px 8px",
+                                    background: "var(--surface-1)",
+                                    color: "var(--text)",
+                                    fontFamily: "var(--font-family)",
+                                    fontSize: "0.8rem",
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="pm-settings__divider" />
@@ -1329,24 +1974,151 @@ export default function Settings() {
                             Applied to nodes with level 2.
                           </div>
                         </div>
-                        <input
-                          className="pm-settings__control"
-                          type="color"
-                          value={settings.appearance.nodeFillColors.level2}
-                          onChange={(e) =>
-                            updateSettings({
-                              appearance: {
-                                ...settings.appearance,
-                                nodeFillColors: {
-                                  ...settings.appearance.nodeFillColors,
-                                  level2: e.target.value,
-                                },
-                              },
-                            })
-                          }
-                          aria-label="Level 2 node color"
-                          disabled={!nodeFillEnabled}
-                        />
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={settings.appearance.nodeFillColors.level2}
+                            onChange={(e) => {
+                              const v = e.target.value.trim();
+                              if (isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    nodeFillColors: {
+                                      ...settings.appearance.nodeFillColors,
+                                      level2: v,
+                                    },
+                                  },
+                                });
+                            }}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (!isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    nodeFillColors: {
+                                      ...settings.appearance.nodeFillColors,
+                                      level2: "#4F46E5",
+                                    },
+                                  },
+                                });
+                            }}
+                            placeholder="#4F46E5"
+                            aria-label="Level 2 node color hex"
+                            className="pm-settings__control"
+                            style={hexInputStyle}
+                            disabled={!nodeFillEnabled}
+                          />
+                          <div style={{ position: "relative" }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenColorPicker((prev) =>
+                                  prev === "fillLevel2" ? null : "fillLevel2"
+                                )
+                              }
+                              aria-label="Level 2 node color"
+                              title="Level 2 node color"
+                              style={{ ...swatchButtonStyle, opacity: nodeFillEnabled ? 1 : 0.5 }}
+                              disabled={!nodeFillEnabled}
+                              onMouseEnter={(e) => {
+                                if (nodeFillEnabled)
+                                  (e.currentTarget as HTMLButtonElement).style.background =
+                                    "var(--surface-1)";
+                              }}
+                              onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background =
+                                  "transparent";
+                              }}
+                            >
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: 999,
+                                  border: "1px solid var(--border)",
+                                  background: settings.appearance.nodeFillColors.level2,
+                                  boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
+                                }}
+                              />
+                            </button>
+                            {openColorPicker === "fillLevel2" ? (
+                              <div style={colorDropdownStyle}>
+                                <input
+                                  type="color"
+                                  value={
+                                    isValidHex(settings.appearance.nodeFillColors.level2)
+                                      ? settings.appearance.nodeFillColors.level2.trim()
+                                      : "#4F46E5"
+                                  }
+                                  onChange={(e) =>
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        nodeFillColors: {
+                                          ...settings.appearance.nodeFillColors,
+                                          level2: e.target.value,
+                                        },
+                                      },
+                                    })
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    height: 36,
+                                    padding: 0,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                  }}
+                                />
+                                <input
+                                  type="text"
+                                  value={settings.appearance.nodeFillColors.level2}
+                                  onChange={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          nodeFillColors: {
+                                            ...settings.appearance.nodeFillColors,
+                                            level2: v,
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  onBlur={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (!isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          nodeFillColors: {
+                                            ...settings.appearance.nodeFillColors,
+                                            level2: "#4F46E5",
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  placeholder="#4F46E5"
+                                  aria-label="Level 2 node color hex"
+                                  style={{
+                                    width: "100%",
+                                    borderRadius: "var(--radius-md)",
+                                    border: "1px solid var(--border)",
+                                    padding: "6px 8px",
+                                    background: "var(--surface-1)",
+                                    color: "var(--text)",
+                                    fontFamily: "var(--font-family)",
+                                    fontSize: "0.8rem",
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="pm-settings__divider" />
@@ -1358,24 +2130,151 @@ export default function Settings() {
                             Applied to nodes with level 3.
                           </div>
                         </div>
-                        <input
-                          className="pm-settings__control"
-                          type="color"
-                          value={settings.appearance.nodeFillColors.level3}
-                          onChange={(e) =>
-                            updateSettings({
-                              appearance: {
-                                ...settings.appearance,
-                                nodeFillColors: {
-                                  ...settings.appearance.nodeFillColors,
-                                  level3: e.target.value,
-                                },
-                              },
-                            })
-                          }
-                          aria-label="Level 3 node color"
-                          disabled={!nodeFillEnabled}
-                        />
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={settings.appearance.nodeFillColors.level3}
+                            onChange={(e) => {
+                              const v = e.target.value.trim();
+                              if (isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    nodeFillColors: {
+                                      ...settings.appearance.nodeFillColors,
+                                      level3: v,
+                                    },
+                                  },
+                                });
+                            }}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (!isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    nodeFillColors: {
+                                      ...settings.appearance.nodeFillColors,
+                                      level3: "#60A5FA",
+                                    },
+                                  },
+                                });
+                            }}
+                            placeholder="#60A5FA"
+                            aria-label="Level 3 node color hex"
+                            className="pm-settings__control"
+                            style={hexInputStyle}
+                            disabled={!nodeFillEnabled}
+                          />
+                          <div style={{ position: "relative" }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenColorPicker((prev) =>
+                                  prev === "fillLevel3" ? null : "fillLevel3"
+                                )
+                              }
+                              aria-label="Level 3 node color"
+                              title="Level 3 node color"
+                              style={{ ...swatchButtonStyle, opacity: nodeFillEnabled ? 1 : 0.5 }}
+                              disabled={!nodeFillEnabled}
+                              onMouseEnter={(e) => {
+                                if (nodeFillEnabled)
+                                  (e.currentTarget as HTMLButtonElement).style.background =
+                                    "var(--surface-1)";
+                              }}
+                              onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background =
+                                  "transparent";
+                              }}
+                            >
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: 999,
+                                  border: "1px solid var(--border)",
+                                  background: settings.appearance.nodeFillColors.level3,
+                                  boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
+                                }}
+                              />
+                            </button>
+                            {openColorPicker === "fillLevel3" ? (
+                              <div style={colorDropdownStyle}>
+                                <input
+                                  type="color"
+                                  value={
+                                    isValidHex(settings.appearance.nodeFillColors.level3)
+                                      ? settings.appearance.nodeFillColors.level3.trim()
+                                      : "#60A5FA"
+                                  }
+                                  onChange={(e) =>
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        nodeFillColors: {
+                                          ...settings.appearance.nodeFillColors,
+                                          level3: e.target.value,
+                                        },
+                                      },
+                                    })
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    height: 36,
+                                    padding: 0,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                  }}
+                                />
+                                <input
+                                  type="text"
+                                  value={settings.appearance.nodeFillColors.level3}
+                                  onChange={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          nodeFillColors: {
+                                            ...settings.appearance.nodeFillColors,
+                                            level3: v,
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  onBlur={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (!isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          nodeFillColors: {
+                                            ...settings.appearance.nodeFillColors,
+                                            level3: "#60A5FA",
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  placeholder="#60A5FA"
+                                  aria-label="Level 3 node color hex"
+                                  style={{
+                                    width: "100%",
+                                    borderRadius: "var(--radius-md)",
+                                    border: "1px solid var(--border)",
+                                    padding: "6px 8px",
+                                    background: "var(--surface-1)",
+                                    color: "var(--text)",
+                                    fontFamily: "var(--font-family)",
+                                    fontSize: "0.8rem",
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="pm-settings__divider" />
@@ -1387,24 +2286,151 @@ export default function Settings() {
                             Applied to nodes with level 4 and deeper.
                           </div>
                         </div>
-                        <input
-                          className="pm-settings__control"
-                          type="color"
-                          value={settings.appearance.nodeFillColors.level4}
-                          onChange={(e) =>
-                            updateSettings({
-                              appearance: {
-                                ...settings.appearance,
-                                nodeFillColors: {
-                                  ...settings.appearance.nodeFillColors,
-                                  level4: e.target.value,
-                                },
-                              },
-                            })
-                          }
-                          aria-label="Level 4 node color"
-                          disabled={!nodeFillEnabled}
-                        />
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={settings.appearance.nodeFillColors.level4}
+                            onChange={(e) => {
+                              const v = e.target.value.trim();
+                              if (isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    nodeFillColors: {
+                                      ...settings.appearance.nodeFillColors,
+                                      level4: v,
+                                    },
+                                  },
+                                });
+                            }}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (!isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    nodeFillColors: {
+                                      ...settings.appearance.nodeFillColors,
+                                      level4: "#BFDBFE",
+                                    },
+                                  },
+                                });
+                            }}
+                            placeholder="#BFDBFE"
+                            aria-label="Level 4 node color hex"
+                            className="pm-settings__control"
+                            style={hexInputStyle}
+                            disabled={!nodeFillEnabled}
+                          />
+                          <div style={{ position: "relative" }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenColorPicker((prev) =>
+                                  prev === "fillLevel4" ? null : "fillLevel4"
+                                )
+                              }
+                              aria-label="Level 4 node color"
+                              title="Level 4 node color"
+                              style={{ ...swatchButtonStyle, opacity: nodeFillEnabled ? 1 : 0.5 }}
+                              disabled={!nodeFillEnabled}
+                              onMouseEnter={(e) => {
+                                if (nodeFillEnabled)
+                                  (e.currentTarget as HTMLButtonElement).style.background =
+                                    "var(--surface-1)";
+                              }}
+                              onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.background =
+                                  "transparent";
+                              }}
+                            >
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: 999,
+                                  border: "1px solid var(--border)",
+                                  background: settings.appearance.nodeFillColors.level4,
+                                  boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
+                                }}
+                              />
+                            </button>
+                            {openColorPicker === "fillLevel4" ? (
+                              <div style={colorDropdownStyle}>
+                                <input
+                                  type="color"
+                                  value={
+                                    isValidHex(settings.appearance.nodeFillColors.level4)
+                                      ? settings.appearance.nodeFillColors.level4.trim()
+                                      : "#BFDBFE"
+                                  }
+                                  onChange={(e) =>
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        nodeFillColors: {
+                                          ...settings.appearance.nodeFillColors,
+                                          level4: e.target.value,
+                                        },
+                                      },
+                                    })
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    height: 36,
+                                    padding: 0,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                  }}
+                                />
+                                <input
+                                  type="text"
+                                  value={settings.appearance.nodeFillColors.level4}
+                                  onChange={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          nodeFillColors: {
+                                            ...settings.appearance.nodeFillColors,
+                                            level4: v,
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  onBlur={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (!isValidHex(v))
+                                      updateSettings({
+                                        appearance: {
+                                          ...settings.appearance,
+                                          nodeFillColors: {
+                                            ...settings.appearance.nodeFillColors,
+                                            level4: "#BFDBFE",
+                                          },
+                                        },
+                                      });
+                                  }}
+                                  placeholder="#BFDBFE"
+                                  aria-label="Level 4 node color hex"
+                                  style={{
+                                    width: "100%",
+                                    borderRadius: "var(--radius-md)",
+                                    border: "1px solid var(--border)",
+                                    padding: "6px 8px",
+                                    background: "var(--surface-1)",
+                                    color: "var(--text)",
+                                    fontFamily: "var(--font-family)",
+                                    fontSize: "0.8rem",
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
                     </>
                   ),
