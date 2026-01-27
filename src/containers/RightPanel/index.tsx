@@ -167,6 +167,10 @@ export default function RightPanel() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
   );
+  const [groupSaveStatus, setGroupSaveStatus] = useState<
+    "idle" | "saving" | "saved"
+  >("idle");
+  const [groupDirty, setGroupDirty] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [renameActive, setRenameActive] = useState(false);
@@ -264,6 +268,27 @@ export default function RightPanel() {
     });
   };
 
+  const commitGroupSave = async () => {
+    if (!groupDirty || !selectedGroupId) return;
+    if (moduleType !== "cognitiveNotes" || !cognitiveNotesRoot) {
+      setGroupDirty(true);
+      setGroupSaveStatus("idle");
+      return;
+    }
+    setGroupSaveStatus("saving");
+    try {
+      await persistGroupMeta({
+        name: groupDraft.name.trim(),
+        purpose: groupDraft.purpose,
+      });
+      setGroupDirty(false);
+      setGroupSaveStatus("saved");
+    } catch {
+      setGroupDirty(true);
+      setGroupSaveStatus("idle");
+    }
+  };
+
   const hideNotesFeedItem = (id: string) => {
     if (!id) return;
     setNotesFeedHiddenIds((prev) => {
@@ -280,6 +305,8 @@ export default function RightPanel() {
       setGroupDetailsOptOut(false);
       setGroupDetailsFileStatus("idle");
       setGroupDetailsFileError(null);
+      setGroupDirty(false);
+      setGroupSaveStatus("idle");
       return;
     }
     setGroupDraft({
@@ -292,6 +319,8 @@ export default function RightPanel() {
     setGroupDetailsOptOut(!!selectedGroup.details_opt_out);
     setGroupDetailsFileStatus("idle");
     setGroupDetailsFileError(null);
+    setGroupDirty(false);
+    setGroupSaveStatus("idle");
   }, [selectedGroupId, selectedGroup]);
 
   useEffect(() => {
@@ -1171,6 +1200,15 @@ export default function RightPanel() {
       dirty,
     ],
     dirty
+  );
+
+  useAutoSave(
+    () => {
+      void commitGroupSave();
+    },
+    3000,
+    [groupDraft.name, groupDraft.purpose, selectedGroupId, groupDirty],
+    groupDirty
   );
 
   useAutoSave(
@@ -3828,11 +3866,13 @@ export default function RightPanel() {
                   </div>
                   <input
                     value={groupDraft.name}
-                    onChange={(e) =>
-                      setGroupDraft((prev) => ({ ...prev, name: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      setGroupDraft((prev) => ({ ...prev, name: e.target.value }));
+                      setGroupDirty(true);
+                      setGroupSaveStatus("saving");
+                    }}
                     onBlur={() => {
-                      void persistGroupMeta({ name: groupDraft.name });
+                      void commitGroupSave();
                     }}
                     placeholder={uiText.fields.groupDetails.name}
                     aria-label={uiText.fields.groupDetails.name}
@@ -3855,11 +3895,13 @@ export default function RightPanel() {
                   </div>
                   <textarea
                     value={groupDraft.purpose}
-                    onChange={(e) =>
-                      setGroupDraft((prev) => ({ ...prev, purpose: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      setGroupDraft((prev) => ({ ...prev, purpose: e.target.value }));
+                      setGroupDirty(true);
+                      setGroupSaveStatus("saving");
+                    }}
                     onBlur={() => {
-                      void persistGroupMeta({ purpose: groupDraft.purpose });
+                      void commitGroupSave();
                     }}
                     placeholder={uiText.fields.groupDetails.purpose}
                     aria-label={uiText.fields.groupDetails.purpose}
@@ -3878,6 +3920,18 @@ export default function RightPanel() {
                     }}
                   />
                 </label>
+                <div
+                  style={{
+                    fontSize: "0.75em",
+                    opacity: 0.9,
+                  }}
+                >
+                  {groupSaveStatus === "saving"
+                    ? uiText.statusMessages.saving
+                    : groupSaveStatus === "saved"
+                    ? uiText.statusMessages.saved
+                    : uiText.statusMessages.idle}
+                </div>
                 <div
                   style={{
                     display: "grid",
