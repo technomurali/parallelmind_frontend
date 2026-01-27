@@ -288,6 +288,8 @@ export const uiText = {
     rootFolderNamePrefix: 'Root Folder:',
     autoCenterSelection: 'Auto-center selected node',
     ungroupNodes: 'Ungroup nodes',
+    groupScaleUp: 'Scale up group',
+    groupScaleDown: 'Scale down group',
   },
 
   grouping: {

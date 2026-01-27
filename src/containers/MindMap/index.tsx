@@ -109,6 +109,7 @@ export default function MindMap() {
   const removeGroup = useMindMapStore((s) => s.removeGroup);
   const removeNodeFromGroup = useMindMapStore((s) => s.removeNodeFromGroup);
   const selectGroup = useMindMapStore((s) => s.selectGroup);
+  const updateGroupData = useMindMapStore((s) => s.updateGroupData);
   const tabs = useMindMapStore((s) => s.tabs);
   const createTab = useMindMapStore((s) => s.createTab);
   const setActiveTab = useMindMapStore((s) => s.setActiveTab);
@@ -168,6 +169,7 @@ export default function MindMap() {
     zoom: 1,
   });
   const nodesRef = useRef<any[]>([]);
+  const prevGroupsRef = useRef<Map<string, string[]>>(new Map());
 
   useEffect(() => {
     nodesRef.current = nodes ?? [];
@@ -177,6 +179,27 @@ export default function MindMap() {
     if (!rf) return;
     setViewport(rf.getViewport());
   }, [rf]);
+
+  useEffect(() => {
+    const prev = prevGroupsRef.current;
+    const current = new Map((nodeGroups ?? []).map((group) => [group.id, group.nodeIds]));
+    if (rf && typeof (rf as any).updateNodeInternals === "function") {
+      prev.forEach((prevNodes, groupId) => {
+        const currentNodes = current.get(groupId);
+        if (!currentNodes) {
+          if (prevNodes.length > 0) {
+            (rf as any).updateNodeInternals(prevNodes);
+          }
+          return;
+        }
+        const removedNodes = prevNodes.filter((id) => !currentNodes.includes(id));
+        if (removedNodes.length > 0) {
+          (rf as any).updateNodeInternals(removedNodes);
+        }
+      });
+    }
+    prevGroupsRef.current = current;
+  }, [nodeGroups, rf]);
   const fileManager = useMemo(() => new FileManager(), []);
   const cognitiveNotesManager = useMemo(() => new CognitiveNotesManager(), []);
   const defaultCognitiveNodeColor =
@@ -1663,6 +1686,112 @@ export default function MindMap() {
       };
     },
     [getNodeBounds]
+  );
+
+  const getGroupBaseSizes = useCallback(
+    (group: { nodeIds: string[] }, fallbackScale = 1) => {
+      const baseSizes: Record<
+        string,
+        { nodeSize?: number; nodeWidth?: number; nodeHeight?: number }
+      > = {};
+      const baseNodeSize = settings.appearance.nodeSize;
+      (nodesRef.current ?? []).forEach((node: any) => {
+        if (!group.nodeIds.includes(node?.id)) return;
+        const data = node.data ?? {};
+        const nodeWidth =
+          typeof (data as any).nodeWidth === "number" ? (data as any).nodeWidth : undefined;
+        const nodeHeight =
+          typeof (data as any).nodeHeight === "number" ? (data as any).nodeHeight : undefined;
+        if (typeof nodeWidth === "number" && typeof nodeHeight === "number") {
+          baseSizes[node.id] = {
+            nodeWidth: nodeWidth / fallbackScale,
+            nodeHeight: nodeHeight / fallbackScale,
+          };
+          return;
+        }
+        const nodeSize =
+          typeof (data as any).node_size === "number" &&
+          Number.isFinite((data as any).node_size)
+            ? (data as any).node_size / fallbackScale
+            : baseNodeSize;
+        baseSizes[node.id] = { nodeSize };
+      });
+      return baseSizes;
+    },
+    [settings.appearance.nodeSize]
+  );
+
+  const getGroupBasePositions = useCallback((group: { nodeIds: string[] }) => {
+    const positions: Record<string, { x: number; y: number }> = {};
+    (nodesRef.current ?? []).forEach((node: any) => {
+      if (!group.nodeIds.includes(node?.id)) return;
+      if (!node?.position) return;
+      positions[node.id] = { x: node.position.x, y: node.position.y };
+    });
+    return positions;
+  }, []);
+
+  const scaleGroupNodes = useCallback(
+    (groupId: string, direction: "up" | "down") => {
+      const group = (nodeGroups ?? []).find((item) => item.id === groupId);
+      if (!group) return;
+      const currentScale = typeof group.scale === "number" ? group.scale : 1;
+      const step = 0.1;
+      const nextScaleRaw = direction === "up" ? currentScale + step : currentScale - step;
+      const nextScale = Math.min(2, Math.max(0.5, Number(nextScaleRaw.toFixed(2))));
+      if (nextScale === currentScale) return;
+      const baseSizes =
+        group.baseSizes ??
+        getGroupBaseSizes(group, currentScale > 0 ? currentScale : 1);
+      const basePositions = group.basePositions ?? getGroupBasePositions(group);
+      const baseCenter = (() => {
+        const coords = Object.values(basePositions);
+        if (coords.length === 0) return { x: 0, y: 0 };
+        const xs = coords.map((p) => p.x);
+        const ys = coords.map((p) => p.y);
+        return {
+          x: (Math.min(...xs) + Math.max(...xs)) / 2,
+          y: (Math.min(...ys) + Math.max(...ys)) / 2,
+        };
+      })();
+      const nextNodes = (nodesRef.current ?? []).map((node: any) => {
+        if (!group.nodeIds.includes(node?.id)) return node;
+        const base = baseSizes[node.id];
+        if (!base) return node;
+        const data = { ...(node.data ?? {}) };
+        if (
+          typeof base.nodeWidth === "number" &&
+          typeof base.nodeHeight === "number"
+        ) {
+          data.nodeWidth = Math.round(base.nodeWidth * nextScale);
+          data.nodeHeight = Math.round(base.nodeHeight * nextScale);
+        } else if (typeof base.nodeSize === "number") {
+          data.node_size = Math.round(base.nodeSize * nextScale);
+        }
+        const basePos = basePositions[node.id];
+        const nextPos = basePos
+          ? {
+              x: baseCenter.x + (basePos.x - baseCenter.x) * nextScale,
+              y: baseCenter.y + (basePos.y - baseCenter.y) * nextScale,
+            }
+          : node.position;
+        return { ...node, data, position: nextPos ?? node.position };
+      });
+      nodesRef.current = nextNodes;
+      setNodes(nextNodes);
+      if (rf && typeof (rf as any).updateNodeInternals === "function") {
+        requestAnimationFrame(() => {
+          (rf as any).updateNodeInternals(group.nodeIds);
+        });
+      }
+      updateGroupData(groupId, {
+        scale: nextScale,
+        baseSizes,
+        basePositions,
+        updatedOn: new Date().toISOString(),
+      });
+    },
+    [getGroupBasePositions, getGroupBaseSizes, nodeGroups, setNodes, updateGroupData]
   );
 
   const getPreviewPosition = (clientX: number, clientY: number) => {
@@ -3537,44 +3666,130 @@ export default function MindMap() {
                     <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>
                       {group.name?.trim() ? group.name : uiText.grouping.groupedNodes}
                     </span>
-                    <button
-                      type="button"
-                      aria-label={uiText.tooltips.ungroupNodes}
-                      title={uiText.tooltips.ungroupNodes}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                      }}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        removeGroup(group.id);
-                      }}
-                      style={{
-                        height: 20,
-                        width: 20,
-                        borderRadius: "var(--radius-sm)",
-                        border: "none",
-                        background: "transparent",
-                        color: "inherit",
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "0.95rem",
-                        lineHeight: 1,
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "rgba(255,255,255,0.12)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "transparent";
-                      }}
-                    >
-                      ×
-                    </button>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <button
+                        type="button"
+                        aria-label={uiText.tooltips.groupScaleDown}
+                        title={uiText.tooltips.groupScaleDown}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          scaleGroupNodes(group.id, "down");
+                        }}
+                        disabled={(group.scale ?? 1) <= 0.5}
+                        style={{
+                          height: 20,
+                          width: 20,
+                          borderRadius: "var(--radius-sm)",
+                          border: "none",
+                          background: "transparent",
+                          color: "inherit",
+                          cursor:
+                            (group.scale ?? 1) <= 0.5 ? "not-allowed" : "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "0.95rem",
+                          lineHeight: 1,
+                          opacity: (group.scale ?? 1) <= 0.5 ? 0.5 : 1,
+                        }}
+                        onMouseEnter={(e) => {
+                          if ((group.scale ?? 1) <= 0.5) return;
+                          (e.currentTarget as HTMLButtonElement).style.background =
+                            "rgba(255,255,255,0.12)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.background =
+                            "transparent";
+                        }}
+                      >
+                        −
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={uiText.tooltips.groupScaleUp}
+                        title={uiText.tooltips.groupScaleUp}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          scaleGroupNodes(group.id, "up");
+                        }}
+                        disabled={(group.scale ?? 1) >= 2}
+                        style={{
+                          height: 20,
+                          width: 20,
+                          borderRadius: "var(--radius-sm)",
+                          border: "none",
+                          background: "transparent",
+                          color: "inherit",
+                          cursor:
+                            (group.scale ?? 1) >= 2 ? "not-allowed" : "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "0.95rem",
+                          lineHeight: 1,
+                          opacity: (group.scale ?? 1) >= 2 ? 0.5 : 1,
+                        }}
+                        onMouseEnter={(e) => {
+                          if ((group.scale ?? 1) >= 2) return;
+                          (e.currentTarget as HTMLButtonElement).style.background =
+                            "rgba(255,255,255,0.12)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.background =
+                            "transparent";
+                        }}
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={uiText.tooltips.ungroupNodes}
+                        title={uiText.tooltips.ungroupNodes}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          removeGroup(group.id);
+                        }}
+                        style={{
+                          height: 20,
+                          width: 20,
+                          borderRadius: "var(--radius-sm)",
+                          border: "none",
+                          background: "transparent",
+                          color: "inherit",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "0.95rem",
+                          lineHeight: 1,
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.background =
+                            "rgba(255,255,255,0.12)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.background =
+                            "transparent";
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 </Fragment>
               );

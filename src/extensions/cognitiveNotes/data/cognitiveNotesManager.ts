@@ -32,6 +32,12 @@ export type CognitiveNotesGroup = {
   node_ids: string[];
   created_on: string;
   updated_on: string;
+  scale?: number;
+  base_sizes?: Record<
+    string,
+    { node_size?: number; nodeWidth?: number; nodeHeight?: number }
+  >;
+  base_positions?: Record<string, { x: number; y: number }>;
   details_path?: string;
   details_opt_out?: boolean;
 };
@@ -321,6 +327,18 @@ export class CognitiveNotesManager {
           created_on: createdOn,
           updated_on: updatedOn,
         } as any;
+        if (typeof (group as any).scale === "number" && Number.isFinite((group as any).scale)) {
+          normalized.scale = (group as any).scale;
+        }
+        if ((group as any).base_sizes && typeof (group as any).base_sizes === "object") {
+          normalized.base_sizes = { ...((group as any).base_sizes as any) };
+        }
+        if (
+          (group as any).base_positions &&
+          typeof (group as any).base_positions === "object"
+        ) {
+          normalized.base_positions = { ...((group as any).base_positions as any) };
+        }
         if (typeof (group as any).details_path === "string") {
           normalized.details_path = (group as any).details_path;
         }
