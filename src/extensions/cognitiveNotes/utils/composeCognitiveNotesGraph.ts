@@ -84,32 +84,6 @@ const buildNoteNode = (
   };
 };
 
-const NODE_HANDLE_SETS: Record<
-  string,
-  { source: Set<string>; target: Set<string> }
-> = {
-  file: {
-    source: new Set(["source-left", "source-right", "source-bottom"]),
-    target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
-  },
-  shieldFile: {
-    source: new Set(["source-left", "source-right", "source-bottom"]),
-    target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
-  },
-  outputFile: {
-    source: new Set(["source-left", "source-right", "source-bottom"]),
-    target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
-  },
-  fullImageNode: {
-    source: new Set(["source-left", "source-right", "source-bottom"]),
-    target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
-  },
-  rootFolder: {
-    source: new Set(["source-bottom"]),
-    target: new Set(["target-top"]),
-  },
-};
-
 const getDefaultHandle = (nodeType: string, kind: "source" | "target") => {
   if (nodeType === "rootFolder") {
     return kind === "source" ? "source-bottom" : "target-top";
@@ -122,10 +96,7 @@ const normalizeHandle = (
   nodeType: string,
   kind: "source" | "target"
 ): string => {
-  if (typeof handle === "string" && handle.trim()) {
-    const allowed = NODE_HANDLE_SETS[nodeType]?.[kind];
-    if (!allowed || allowed.has(handle)) return handle;
-  }
+  if (typeof handle === "string" && handle.trim()) return handle;
   return getDefaultHandle(nodeType, kind);
 };
 

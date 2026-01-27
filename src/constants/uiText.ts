@@ -78,7 +78,7 @@ export const uiText = {
     fileDescription: "File nodes are created under the selected folder (or root).",
     items: {
       shieldFile: {
-        name: "Shield File Node",
+        name: "Input File Node",
         purpose: "Shield-styled file node with Name and Purpose.",
       },
       outputFile: {

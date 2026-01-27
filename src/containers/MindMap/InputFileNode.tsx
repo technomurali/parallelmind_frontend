@@ -1,8 +1,10 @@
 /**
- * ShieldFileNode.tsx
+ * InputFileNode.tsx
  *
- * Custom node component that renders a shield-styled file node.
- * Displays Name (top box) and Purpose (below).
+ * Custom node component that renders the (input) shield-styled file node.
+ * This is the former ShieldFileNode, renamed for clarity in the UI/codebase.
+ *
+ * Note: Persisted node type remains `shieldFile` / `node_variant: "shieldFile"`.
  */
 import { useMemo } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
@@ -10,7 +12,7 @@ import { FileManager } from "../../data/fileManager";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { getNodeFillColor } from "../../utils/nodeFillColors";
 
-export default function ShieldFileNode({
+export default function InputFileNode({
   id,
   data,
   selected,
@@ -98,16 +100,28 @@ export default function ShieldFileNode({
 
   const pctX = (x: number) => `${(x / VB_W) * 100}%`;
   const pctY = (y: number) => `${(y / VB_H) * 100}%`;
-  const topHandleTop = `calc(${pctY(TOP_BOX_TOP)} - ${Math.round(handleHeight / 2)}px)`;
-  const bottomHandleTop = `calc(${pctY(TIP_Y)} - ${Math.round(handleHeight / 2)}px)`;
+  const topHandleTop = `calc(${pctY(TOP_BOX_TOP)} - ${Math.round(
+    handleHeight / 2
+  )}px)`;
+  const bottomHandleTop = `calc(${pctY(TIP_Y)} - ${Math.round(
+    handleHeight / 2
+  )}px)`;
   const handleRightOffset = Math.round(6 * sizeScale);
-  const sideHandleTop = `calc(${pctY(SIDE_HANDLE_Y)} - ${Math.round(sideHandleHeight / 2)}px)`;
-  const leftHandleLeft = `calc(${pctX(SHIELD_LEFT)} - ${Math.round(sideHandleWidth / 2)}px)`;
-  const rightHandleLeft = `calc(${pctX(SHIELD_RIGHT)} - ${Math.round(sideHandleWidth / 2)}px)`;
-  const centerHandleLeft = `calc(${pctX(SHIELD_CENTER_X)} - ${Math.round(handleWidth / 2)}px + ${handleRightOffset}px)`;
+  const sideHandleTop = `calc(${pctY(SIDE_HANDLE_Y)} - ${Math.round(
+    sideHandleHeight / 2
+  )}px)`;
+  const leftHandleLeft = `calc(${pctX(SHIELD_LEFT)} - ${Math.round(
+    sideHandleWidth / 2
+  )}px)`;
+  const rightHandleLeft = `calc(${pctX(SHIELD_RIGHT)} - ${Math.round(
+    sideHandleWidth / 2
+  )}px)`;
+  const centerHandleLeft = `calc(${pctX(
+    SHIELD_CENTER_X
+  )} - ${Math.round(handleWidth / 2)}px + ${handleRightOffset}px)`;
   const clipId = useMemo(() => {
     const safe = String(id ?? "").replace(/[^a-zA-Z0-9_-]/g, "");
-    return `shield-clip-${safe || "node"}`;
+    return `input-shield-clip-${safe || "node"}`;
   }, [id]);
 
   const snapOffsetX =
@@ -137,7 +151,7 @@ export default function ShieldFileNode({
         await fileManager.writeRootFolderJsonFromPath(rootFolderJson.path, nextRoot);
       }
     } catch (err) {
-      console.error("[ShieldFileNode] Persist node size failed:", err);
+      console.error("[InputFileNode] Persist node size failed:", err);
     }
   };
 
@@ -317,7 +331,6 @@ export default function ShieldFileNode({
               clipPath={`url(#${clipId})`}
             />
           </svg>
-          {/* Name: EXACTLY inside top box (29..170, 11..63) */}
           <div
             style={{
               position: "absolute",
@@ -360,7 +373,6 @@ export default function ShieldFileNode({
             </div>
           </div>
 
-          {/* +/- controls: ALSO inside top box */}
           <div
             style={{
               position: "absolute",
@@ -433,7 +445,6 @@ export default function ShieldFileNode({
             </button>
           </div>
 
-          {/* Purpose: inside body region (29..170, 63..185) */}
           <div
             style={{
               position: "absolute",
@@ -444,7 +455,8 @@ export default function ShieldFileNode({
                 ? `calc(${pctY(BODY_BOTTOM)} - ${pctY(TOP_BOX_BOTTOM)})`
                 : "0px",
               overflow: "hidden",
-              transition: dragging ? "none" : "opacity 180ms ease, max-height 180ms ease",
+              transition:
+                dragging ? "none" : "opacity 180ms ease, max-height 180ms ease",
               padding: `${Math.max(4, Math.round(6 * sizeScale))}px`,
               paddingTop: Math.max(4, Math.round(6 * sizeScale)),
               color: nodeTextColor,
@@ -482,3 +494,4 @@ export default function ShieldFileNode({
     </div>
   );
 }
+

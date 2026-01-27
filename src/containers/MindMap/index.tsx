@@ -42,7 +42,7 @@ import {
 } from "../../utils/viewportGuards";
 import RootFolderNode from "./RootFolderNode";
 import FileNode from "./FileNode";
-import ShieldFileNode from "./ShieldFileNode";
+import InputFileNode from "./InputFileNode.tsx";
 import OutputFileNode from "./OutputFileNode";
 import DecisionNode from "./DecisionNode";
 import ImageNode from "./ImageNode";
@@ -61,7 +61,7 @@ import {
 const NODE_TYPES = {
   rootFolder: RootFolderNode,
   file: FileNode,
-  shieldFile: ShieldFileNode,
+  shieldFile: InputFileNode,
   outputFile: OutputFileNode,
   decision: DecisionNode,
   polaroidImage: ImageNode,
@@ -286,31 +286,13 @@ export default function MindMap() {
       if (nodeType === "rootFolder") return "target-top";
       return "target-left";
     };
-    const allowedHandlesByType: Record<
-      string,
-      { source: Set<string>; target: Set<string> }
-    > = {
-      file: {
-        source: new Set(["source-left", "source-right", "source-bottom"]),
-        target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
-      },
-      fullImageNode: {
-        source: new Set(["source-left", "source-right", "source-bottom"]),
-        target: new Set(["target-left", "target-right", "target-top", "target-bottom"]),
-      },
-      rootFolder: {
-        source: new Set(["source-bottom"]),
-        target: new Set(["target-top"]),
-      },
-    };
     const normalizeHandle = (
       handle: unknown,
       nodeType: string | undefined,
       kind: "source" | "target"
     ) => {
       if (typeof handle === "string" && handle.trim()) {
-        const allowed = nodeType ? allowedHandlesByType[nodeType]?.[kind] : null;
-        if (!allowed || allowed.has(handle)) return handle;
+        return handle;
       }
       return kind === "source"
         ? defaultSourceHandle(nodeType)
