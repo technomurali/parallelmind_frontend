@@ -2083,7 +2083,6 @@ export default function MindMap() {
 
   const canShowSubtreeNotes = (node: Node | null): boolean => {
     if (!isCognitiveNotes || !node) return false;
-    if (node.type !== "file" && node.type !== "fullImageNode") return false;
     return hasMoveChildrenTargets(node);
   };
 
