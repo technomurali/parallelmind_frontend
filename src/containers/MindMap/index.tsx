@@ -150,11 +150,6 @@ export default function MindMap() {
     groupId: string;
     lastClient: { x: number; y: number };
   } | null>(null);
-  const nodeGroupDragRef = useRef<{
-    groupId: string;
-    lastPos: { x: number; y: number };
-    nodeId: string;
-  } | null>(null);
   const lastFitRootIdRef = useRef<string | null>(null);
   const lastRestoredTabIdRef = useRef<string | null>(null);
   const lastSavedViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(
@@ -1690,46 +1685,14 @@ export default function MindMap() {
     setDetailsPreview(null);
   };
 
-  const onNodeDragStart = (_: unknown, node: Node) => {
+  const onNodeDragStart = (_: unknown, _node: Node) => {
     if (!showDetailsActive) return;
     setIsNodeDragging(true);
     setDetailsPreview(null);
-    const groupId = findGroupIdForNode(node.id);
-    if (groupId) {
-      nodeGroupDragRef.current = {
-        groupId,
-        lastPos: { x: node.position.x, y: node.position.y },
-        nodeId: node.id,
-      };
-    }
-  };
-
-  const onNodeDrag = (_: unknown, node: Node) => {
-    const active = nodeGroupDragRef.current;
-    if (!active || active.nodeId !== node.id) return;
-    const group = (nodeGroups ?? []).find((g) => g.id === active.groupId);
-    if (!group) return;
-    const deltaX = node.position.x - active.lastPos.x;
-    const deltaY = node.position.y - active.lastPos.y;
-    if (deltaX === 0 && deltaY === 0) return;
-    active.lastPos = { x: node.position.x, y: node.position.y };
-    const nextNodes = (nodesRef.current ?? []).map((n: any) => {
-      if (!group.nodeIds.includes(n.id) || n.id === node.id) return n;
-      const position = n.position ?? { x: 0, y: 0 };
-      return {
-        ...n,
-        position: {
-          x: position.x + deltaX,
-          y: position.y + deltaY,
-        },
-      };
-    });
-    setNodes(nextNodes);
   };
 
   const onNodeDragStop = () => {
     setIsNodeDragging(false);
-    nodeGroupDragRef.current = null;
   };
 
   const onGroupMouseDown = useCallback(
@@ -3654,7 +3617,6 @@ export default function MindMap() {
             onNodeMouseMove={onNodeMouseMove}
             onNodeMouseLeave={onNodeMouseLeave}
             onNodeDragStart={onNodeDragStart}
-            onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
           />
 
