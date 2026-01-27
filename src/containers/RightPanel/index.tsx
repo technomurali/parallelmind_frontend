@@ -88,9 +88,11 @@ export default function RightPanel() {
   const activeTab = useMindMapStore(selectActiveTab);
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
   const selectedNodeIds = activeTab?.selectedNodeIds ?? [];
+  const selectedGroupId = activeTab?.selectedGroupId ?? null;
   const selectedEdgeId = activeTab?.selectedEdgeId ?? null;
   const nodes = activeTab?.nodes ?? [];
   const edges = activeTab?.edges ?? [];
+  const groups = activeTab?.groups ?? [];
   const cognitiveNotesRoot = activeTab?.cognitiveNotesRoot ?? null;
   const moduleType = activeTab?.moduleType ?? null;
   const cognitiveNotesDirectoryHandle =
@@ -120,6 +122,7 @@ export default function RightPanel() {
   const selectEdge = useMindMapStore((s) => s.selectEdge);
   const setSelectedNodeIds = useMindMapStore((s) => s.setSelectedNodeIds);
   const removeNodeFromGroup = useMindMapStore((s) => s.removeNodeFromGroup);
+  const updateGroupData = useMindMapStore((s) => s.updateGroupData);
 
   const dragRef = useRef<{
     startX: number;
@@ -198,6 +201,7 @@ export default function RightPanel() {
   );
 
   const hasMultiSelection = selectedNodeIds.length > 1;
+  const hasGroupSelection = !!selectedGroupId;
   const selectedNodes = useMemo(
     () =>
       (selectedNodeIds ?? [])
@@ -206,11 +210,58 @@ export default function RightPanel() {
     [nodes, selectedNodeIds]
   );
 
+  const selectedGroup = useMemo(() => {
+    if (!selectedGroupId) return null;
+    if (moduleType === "cognitiveNotes") {
+      return (cognitiveNotesRoot?.groups ?? []).find(
+        (group: any) => group?.id === selectedGroupId
+      );
+    }
+    return (groups ?? []).find((group: any) => group?.id === selectedGroupId) ?? null;
+  }, [selectedGroupId, moduleType, cognitiveNotesRoot?.groups, groups]);
+
+  const [groupDraft, setGroupDraft] = useState({
+    name: "",
+    purpose: "",
+  });
+  const [groupDetailsPath, setGroupDetailsPath] = useState("");
+  const [groupDetailsOptOut, setGroupDetailsOptOut] = useState(false);
+  const [groupDetailsFileStatus, setGroupDetailsFileStatus] = useState<
+    "idle" | "creating" | "created" | "error"
+  >("idle");
+  const [groupDetailsFileError, setGroupDetailsFileError] = useState<string | null>(null);
+
   const removeSelectedNodeChip = (nodeId: string) => {
     if (!nodeId) return;
     removeNodeFromGroup(nodeId);
     const nextIds = selectedNodeIds.filter((id) => id !== nodeId);
     setSelectedNodeIds(nextIds);
+  };
+
+  const persistGroupMeta = async (payload: { name?: string; purpose?: string }) => {
+    if (!selectedGroupId || moduleType !== "cognitiveNotes" || !cognitiveNotesRoot) {
+      return;
+    }
+    const nowIso = new Date().toISOString();
+    const nextGroups = (cognitiveNotesRoot.groups ?? []).map((group: any) => {
+      if (group?.id !== selectedGroupId) return group;
+      return {
+        ...group,
+        name: typeof payload.name === "string" ? payload.name : group.name,
+        purpose: typeof payload.purpose === "string" ? payload.purpose : group.purpose,
+        updated_on: nowIso,
+      };
+    });
+    await persistCognitiveNotesRoot({
+      ...cognitiveNotesRoot,
+      updated_on: nowIso,
+      groups: nextGroups,
+    });
+    updateGroupData(selectedGroupId, {
+      name: typeof payload.name === "string" ? payload.name : undefined,
+      purpose: typeof payload.purpose === "string" ? payload.purpose : undefined,
+      updatedOn: nowIso,
+    });
   };
 
   const hideNotesFeedItem = (id: string) => {
@@ -221,6 +272,27 @@ export default function RightPanel() {
       return next;
     });
   };
+
+  useEffect(() => {
+    if (!selectedGroupId || !selectedGroup) {
+      setGroupDraft({ name: "", purpose: "" });
+      setGroupDetailsPath("");
+      setGroupDetailsOptOut(false);
+      setGroupDetailsFileStatus("idle");
+      setGroupDetailsFileError(null);
+      return;
+    }
+    setGroupDraft({
+      name: typeof selectedGroup.name === "string" ? selectedGroup.name : "",
+      purpose: typeof selectedGroup.purpose === "string" ? selectedGroup.purpose : "",
+    });
+    setGroupDetailsPath(
+      typeof selectedGroup.details_path === "string" ? selectedGroup.details_path : ""
+    );
+    setGroupDetailsOptOut(!!selectedGroup.details_opt_out);
+    setGroupDetailsFileStatus("idle");
+    setGroupDetailsFileError(null);
+  }, [selectedGroupId, selectedGroup]);
 
   useEffect(() => {
     if (!selectedNodeId) return;
@@ -1343,6 +1415,35 @@ export default function RightPanel() {
     }
   };
 
+  const persistGroupDetailsLink = async (payload: {
+    detailsPath?: string;
+    detailsOptOut?: boolean;
+  }) => {
+    if (!selectedGroupId || moduleType !== "cognitiveNotes" || !cognitiveNotesRoot) {
+      return;
+    }
+    const nowIso = new Date().toISOString();
+    const nextGroups = (cognitiveNotesRoot.groups ?? []).map((group: any) => {
+      if (group?.id !== selectedGroupId) return group;
+      return {
+        ...group,
+        details_path: payload.detailsPath ?? "",
+        details_opt_out: payload.detailsOptOut ?? false,
+        updated_on: nowIso,
+      };
+    });
+    await persistCognitiveNotesRoot({
+      ...cognitiveNotesRoot,
+      updated_on: nowIso,
+      groups: nextGroups,
+    });
+    updateGroupData(selectedGroupId, {
+      detailsPath: payload.detailsPath ?? "",
+      detailsOptOut: payload.detailsOptOut ?? false,
+      updatedOn: nowIso,
+    });
+  };
+
   const createAssociatedTextFile = async () => {
     if (!selectedNodeId) return;
     const trimmedName = draft.name.trim();
@@ -1501,6 +1602,59 @@ export default function RightPanel() {
           : "Failed to create associated text file."
       );
     }
+  };
+
+  const createGroupAssociatedTextFile = async () => {
+    if (!selectedGroupId || moduleType !== "cognitiveNotes" || !cognitiveNotesRoot) return;
+    const trimmedName = groupDraft.name.trim();
+    if (!trimmedName) {
+      setGroupDetailsFileStatus("error");
+      setGroupDetailsFileError("Group name is required before creating a text file.");
+      return;
+    }
+    setGroupDetailsFileStatus("creating");
+    setGroupDetailsFileError(null);
+    try {
+      const { exists } = await import("@tauri-apps/plugin-fs");
+      const baseName = splitDraftFileName(trimmedName).name;
+      const fileName = `${baseName}.notes.md`;
+      let targetPath = "";
+      if (cognitiveNotesDirectoryHandle) {
+        targetPath = fileName;
+        await ensureTextFileExistsFromHandle(cognitiveNotesDirectoryHandle, targetPath);
+      } else {
+        const basePath = cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "";
+        if (!basePath) {
+          throw new Error("Cognitive Notes folder path is missing.");
+        }
+        targetPath = joinPath(basePath, fileName);
+        const alreadyExists = await exists(targetPath);
+        if (!alreadyExists) {
+          await fileManager.writeTextFileFromPath(targetPath, "");
+        }
+      }
+      await persistGroupDetailsLink({
+        detailsPath: targetPath,
+        detailsOptOut: false,
+      });
+      setGroupDetailsPath(targetPath);
+      setGroupDetailsOptOut(false);
+      setGroupDetailsFileStatus("created");
+    } catch (error) {
+      console.error("[RightPanel] Failed to create group text file:", error);
+      setGroupDetailsFileStatus("error");
+      setGroupDetailsFileError(
+        error instanceof Error ? error.message : "Failed to create associated text file."
+      );
+    }
+  };
+
+  const skipGroupAssociatedTextFile = async () => {
+    setGroupDetailsFileStatus("idle");
+    setGroupDetailsFileError(null);
+    await persistGroupDetailsLink({ detailsOptOut: true, detailsPath: "" });
+    setGroupDetailsOptOut(true);
+    setGroupDetailsPath("");
   };
 
   const skipAssociatedTextFile = async () => {
@@ -3083,6 +3237,8 @@ export default function RightPanel() {
       ? uiText.panels.nodeSelector
       : rightPanelMode === "notesFeed"
       ? uiText.panels.notesFeed
+      : selectedGroupId
+      ? uiText.panels.group
       : selectedEdgeId && !selectedNodeId
       ? uiText.panels.edge
       : uiText.panels.node;
@@ -3602,6 +3758,166 @@ export default function RightPanel() {
                     ) : null}
                   </div>
                 ))}
+            </div>
+          ) : hasGroupSelection ? (
+            <div
+              aria-label={uiText.fields.groupDetails.sectionTitle}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-3)",
+                height: "100%",
+                width: "100%",
+                minWidth: 0,
+                boxSizing: "border-box",
+                padding: "var(--space-3)",
+                color: "var(--text)",
+                fontSize: "0.85rem",
+              }}
+            >
+              <div
+                style={{
+                  borderRadius: "var(--radius-md)",
+                  border: "var(--border-width) solid var(--border)",
+                  background: "var(--surface-2)",
+                  padding: "var(--space-2)",
+                  display: "grid",
+                  gap: "var(--space-2)",
+                }}
+              >
+                <label style={{ display: "grid", gap: "var(--space-2)" }}>
+                  <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                    {uiText.fields.groupDetails.name}
+                  </div>
+                  <input
+                    value={groupDraft.name}
+                    onChange={(e) =>
+                      setGroupDraft((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    onBlur={() => {
+                      void persistGroupMeta({ name: groupDraft.name });
+                    }}
+                    placeholder={uiText.fields.groupDetails.name}
+                    aria-label={uiText.fields.groupDetails.name}
+                    style={{
+                      width: "100%",
+                      minWidth: 0,
+                      boxSizing: "border-box",
+                      borderRadius: "var(--radius-md)",
+                      border: "var(--border-width) solid var(--border)",
+                      padding: "var(--space-2)",
+                      background: "var(--surface-1)",
+                      color: "var(--text)",
+                      fontFamily: "var(--font-family)",
+                    }}
+                  />
+                </label>
+                <label style={{ display: "grid", gap: "var(--space-2)" }}>
+                  <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                    {uiText.fields.groupDetails.purpose}
+                  </div>
+                  <textarea
+                    value={groupDraft.purpose}
+                    onChange={(e) =>
+                      setGroupDraft((prev) => ({ ...prev, purpose: e.target.value }))
+                    }
+                    onBlur={() => {
+                      void persistGroupMeta({ purpose: groupDraft.purpose });
+                    }}
+                    placeholder={uiText.fields.groupDetails.purpose}
+                    aria-label={uiText.fields.groupDetails.purpose}
+                    rows={2}
+                    style={{
+                      width: "100%",
+                      minWidth: 0,
+                      boxSizing: "border-box",
+                      resize: "none",
+                      borderRadius: "var(--radius-md)",
+                      border: "var(--border-width) solid var(--border)",
+                      padding: "var(--space-2)",
+                      background: "var(--surface-1)",
+                      color: "var(--text)",
+                      fontFamily: "var(--font-family)",
+                    }}
+                  />
+                </label>
+                <div
+                  style={{
+                    display: "grid",
+                    gap: "var(--space-2)",
+                    border: "var(--border-width) solid var(--border)",
+                    borderRadius: "var(--radius-md)",
+                    padding: "var(--space-2)",
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                    {groupDetailsPath
+                      ? uiText.fields.groupDetails.associatedTextFileLabel
+                      : uiText.fields.groupDetails.associatedTextFileQuestion}
+                  </div>
+                  {groupDetailsPath ? (
+                    <div style={{ display: "grid", gap: "var(--space-2)" }}>
+                      <div style={{ fontSize: "0.8rem", opacity: 0.75 }}>
+                        {groupDetailsFileStatus === "created"
+                          ? uiText.fields.groupDetails.associatedTextFileCreated
+                          : uiText.fields.groupDetails.associatedTextFileLabel}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.8rem",
+                          opacity: 0.8,
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {groupDetailsPath}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                      <button
+                        type="button"
+                        onClick={() => void createGroupAssociatedTextFile()}
+                        style={{
+                          borderRadius: "var(--radius-md)",
+                          border: "var(--border-width) solid var(--border)",
+                          padding: "var(--space-1) var(--space-2)",
+                          background: "var(--surface-1)",
+                          color: "inherit",
+                          cursor: "pointer",
+                          fontFamily: "var(--font-family)",
+                        }}
+                      >
+                        {uiText.fields.groupDetails.associatedTextFileCreate}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void skipGroupAssociatedTextFile()}
+                        style={{
+                          borderRadius: "var(--radius-md)",
+                          border: "var(--border-width) solid var(--border)",
+                          padding: "var(--space-1) var(--space-2)",
+                          background: "transparent",
+                          color: "inherit",
+                          cursor: "pointer",
+                          fontFamily: "var(--font-family)",
+                        }}
+                      >
+                        {uiText.fields.groupDetails.associatedTextFileSkip}
+                      </button>
+                    </div>
+                  )}
+                  {groupDetailsFileStatus === "error" && groupDetailsFileError && (
+                    <div style={{ fontSize: "0.8rem", color: "var(--danger, #e5484d)" }}>
+                      {groupDetailsFileError}
+                    </div>
+                  )}
+                  {groupDetailsOptOut && (
+                    <div style={{ fontSize: "0.8rem", opacity: 0.75 }}>
+                      {uiText.fields.groupDetails.associatedTextFileSkipped}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           ) : hasMultiSelection ? (
             <div

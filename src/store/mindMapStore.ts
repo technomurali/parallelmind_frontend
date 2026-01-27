@@ -98,6 +98,7 @@ export type CanvasTab = {
   selectedNodeId: string | null;
   selectedNodeIds: string[];
   selectedEdgeId: string | null;
+  selectedGroupId: string | null;
   groups: NodeGroup[];
   pendingChildCreation: {
     tempNodeId: string;
@@ -120,6 +121,12 @@ export type CanvasTab = {
 export type NodeGroup = {
   id: string;
   nodeIds: string[];
+  name?: string;
+  purpose?: string;
+  createdOn?: string;
+  updatedOn?: string;
+  detailsPath?: string;
+  detailsOptOut?: boolean;
 };
 
 type TabSnapshot = {
@@ -130,6 +137,7 @@ type TabSnapshot = {
   selectedNodeId: string | null;
   selectedNodeIds: string[];
   selectedEdgeId: string | null;
+  selectedGroupId: string | null;
   groups: NodeGroup[];
   title: string;
   moduleType: CanvasTab["moduleType"];
@@ -152,6 +160,7 @@ function createEmptyTab(): CanvasTab {
     selectedNodeId: null,
     selectedNodeIds: [],
     selectedEdgeId: null,
+    selectedGroupId: null,
     groups: [],
     pendingChildCreation: null,
     lastCanvasPosition: null,
@@ -185,6 +194,7 @@ function resetTabCanvas(tab: CanvasTab): CanvasTab {
     selectedNodeId: null,
     selectedNodeIds: [],
     selectedEdgeId: null,
+    selectedGroupId: null,
     groups: [],
     pendingChildCreation: null,
     lastCanvasPosition: null,
@@ -209,6 +219,43 @@ function updateTabById(
   return tabs.map((tab) => (tab.id === tabId ? updater(tab) : tab));
 }
 
+function pruneGroupsForNodes(groups: NodeGroup[], nodes: any[]): NodeGroup[] {
+  const nodeIds = new Set((nodes ?? []).map((node) => node?.id).filter(Boolean));
+  return (groups ?? [])
+    .map((group) => {
+      const nextNodeIds = (group.nodeIds ?? []).filter((id) => nodeIds.has(id));
+      return { ...group, nodeIds: nextNodeIds };
+    })
+    .filter((group) => (group.nodeIds ?? []).length >= 2);
+}
+
+function mapRootGroupsToNodeGroups(root: CognitiveNotesJson | null): NodeGroup[] {
+  const groups = Array.isArray(root?.groups) ? root!.groups : [];
+  return groups.map((group) => ({
+    id: group.id,
+    nodeIds: Array.isArray(group.node_ids) ? group.node_ids : [],
+    name: group.name ?? "",
+    purpose: group.purpose ?? "",
+    createdOn: group.created_on ?? "",
+    updatedOn: group.updated_on ?? "",
+    detailsPath: group.details_path,
+    detailsOptOut: group.details_opt_out,
+  }));
+}
+
+function mapNodeGroupsToRootGroups(groups: NodeGroup[]): CognitiveNotesJson["groups"] {
+  return (groups ?? []).map((group) => ({
+    id: group.id,
+    name: group.name ?? "",
+    purpose: group.purpose ?? "",
+    node_ids: group.nodeIds ?? [],
+    created_on: group.createdOn ?? "",
+    updated_on: group.updatedOn ?? "",
+    details_path: group.detailsPath,
+    details_opt_out: group.detailsOptOut,
+  }));
+}
+
 const HISTORY_LIMIT = 100;
 
 const cloneValue = <T,>(value: T): T => {
@@ -227,6 +274,7 @@ const getSnapshot = (tab: CanvasTab): TabSnapshot => {
     selectedNodeId: tab.selectedNodeId ?? null,
     selectedNodeIds: cloneValue(tab.selectedNodeIds ?? []),
     selectedEdgeId: tab.selectedEdgeId ?? null,
+    selectedGroupId: tab.selectedGroupId ?? null,
     groups: cloneValue(tab.groups ?? []),
     title: tab.title ?? "",
     moduleType: tab.moduleType ?? null,
@@ -329,6 +377,7 @@ export interface MindMapActions {
   setSelectedNodeIds: (nodeIds: string[]) => void;
   toggleSelectedNode: (nodeId: string) => void;
   clearSelectedNodes: () => void;
+  selectGroup: (groupId: string | null) => void;
   selectEdge: (edgeId: string | null) => void;
   setCanvasSaveStatus: (status: CanvasTab["canvasSaveStatus"]) => void;
   setPendingChildCreation: (
@@ -373,6 +422,7 @@ export interface MindMapActions {
   createGroup: (nodeIds: string[]) => string | null;
   removeGroup: (groupId: string) => void;
   removeNodeFromGroup: (nodeId: string) => void;
+  updateGroupData: (groupId: string, data: Partial<NodeGroup>) => void;
 }
 
 /**
@@ -491,10 +541,26 @@ export const useMindMapStore = create<MindMapStore>((set) => {
   // Actions
   setNodes: (nodes) =>
     set((state) => ({
-      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
-        ...pushHistory(tab),
-        nodes,
-      })),
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => {
+        const prunedGroups = pruneGroupsForNodes(tab.groups ?? [], nodes);
+        const nextSelectedGroupId =
+          tab.selectedGroupId && prunedGroups.some((g) => g.id === tab.selectedGroupId)
+            ? tab.selectedGroupId
+            : null;
+        return {
+          ...pushHistory(tab),
+          nodes,
+          groups: prunedGroups,
+          selectedGroupId: nextSelectedGroupId,
+          cognitiveNotesRoot:
+            tab.moduleType === "cognitiveNotes" && tab.cognitiveNotesRoot
+              ? {
+                  ...tab.cognitiveNotesRoot,
+                  groups: mapNodeGroupsToRootGroups(prunedGroups),
+                }
+              : tab.cognitiveNotesRoot,
+        };
+      }),
     })),
   setEdges: (edges) =>
     set((state) => ({
@@ -517,6 +583,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         selectedNodeId: nodeId,
         selectedNodeIds: nodeId ? [nodeId] : [],
         selectedEdgeId: nodeId ? null : tab.selectedEdgeId,
+        selectedGroupId: nodeId ? null : tab.selectedGroupId,
       })),
     })),
   setSelectedNodeIds: (nodeIds) =>
@@ -529,6 +596,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
           selectedNodeId: lastId,
           selectedNodeIds: uniqueIds,
           selectedEdgeId: uniqueIds.length > 0 ? null : tab.selectedEdgeId,
+          selectedGroupId: uniqueIds.length > 0 ? null : tab.selectedGroupId,
         };
       }),
     })),
@@ -560,6 +628,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
           selectedNodeId: current.length > 0 ? nextSelectedId : null,
           selectedNodeIds: current,
           selectedEdgeId: current.length > 0 ? null : tab.selectedEdgeId,
+          selectedGroupId: current.length > 0 ? null : tab.selectedGroupId,
         };
       }),
     })),
@@ -571,11 +640,22 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         selectedNodeIds: [],
       })),
     })),
+  selectGroup: (groupId) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
+        ...tab,
+        selectedGroupId: groupId,
+        selectedNodeId: groupId ? null : tab.selectedNodeId,
+        selectedNodeIds: groupId ? [] : tab.selectedNodeIds,
+        selectedEdgeId: groupId ? null : tab.selectedEdgeId,
+      })),
+    })),
   selectEdge: (edgeId) =>
     set((state) => ({
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
         ...tab,
         selectedEdgeId: edgeId,
+        selectedGroupId: edgeId ? null : tab.selectedGroupId,
       })),
     })),
   createGroup: (nodeIds) => {
@@ -595,15 +675,29 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         .toString(16)
         .slice(2)}`;
       createdId = newGroupId;
+      const nowIso = new Date().toISOString();
       const nextGroup: NodeGroup = {
         id: newGroupId,
         nodeIds: ungroupedIds,
+        name: "",
+        purpose: "",
+        createdOn: nowIso,
+        updatedOn: nowIso,
       };
+        const nextGroups = [...existingGroups, nextGroup];
+        const nextRoot =
+          tab.moduleType === "cognitiveNotes" && tab.cognitiveNotesRoot
+            ? {
+                ...tab.cognitiveNotesRoot,
+                groups: mapNodeGroupsToRootGroups(nextGroups),
+              }
+            : tab.cognitiveNotesRoot;
       return {
         ...state,
         tabs: updateTabById(state.tabs, state.activeTabId, (active) => ({
           ...pushHistory(active),
-          groups: [...existingGroups, nextGroup],
+          groups: nextGroups,
+          cognitiveNotesRoot: nextRoot,
         })),
       };
     });
@@ -611,10 +705,23 @@ export const useMindMapStore = create<MindMapStore>((set) => {
   },
   removeGroup: (groupId) =>
     set((state) => ({
-      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
-        ...pushHistory(tab),
-        groups: (tab.groups ?? []).filter((group) => group.id !== groupId),
-      })),
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => {
+        const nextGroups = (tab.groups ?? []).filter((group) => group.id !== groupId);
+        const nextRoot =
+          tab.moduleType === "cognitiveNotes" && tab.cognitiveNotesRoot
+            ? {
+                ...tab.cognitiveNotesRoot,
+                groups: mapNodeGroupsToRootGroups(nextGroups),
+              }
+            : tab.cognitiveNotesRoot;
+        return {
+          ...pushHistory(tab),
+          groups: nextGroups,
+          cognitiveNotesRoot: nextRoot,
+          selectedGroupId:
+            tab.selectedGroupId === groupId ? null : tab.selectedGroupId,
+        };
+      }),
     })),
   removeNodeFromGroup: (nodeId) =>
     set((state) => ({
@@ -626,9 +733,37 @@ export const useMindMapStore = create<MindMapStore>((set) => {
             return { ...group, nodeIds: nextNodeIds };
           })
           .filter((group) => group.nodeIds.length > 1);
+        const nextRoot =
+          tab.moduleType === "cognitiveNotes" && tab.cognitiveNotesRoot
+            ? {
+                ...tab.cognitiveNotesRoot,
+                groups: mapNodeGroupsToRootGroups(nextGroups),
+              }
+            : tab.cognitiveNotesRoot;
         return {
           ...pushHistory(tab),
           groups: nextGroups,
+          cognitiveNotesRoot: nextRoot,
+        };
+      }),
+    })),
+  updateGroupData: (groupId, data) =>
+    set((state) => ({
+      tabs: updateTabById(state.tabs, state.activeTabId, (tab) => {
+        const nextGroups = (tab.groups ?? []).map((group) =>
+          group.id === groupId ? { ...group, ...data } : group
+        );
+        const nextRoot =
+          tab.moduleType === "cognitiveNotes" && tab.cognitiveNotesRoot
+            ? {
+                ...tab.cognitiveNotesRoot,
+                groups: mapNodeGroupsToRootGroups(nextGroups),
+              }
+            : tab.cognitiveNotesRoot;
+        return {
+          ...pushHistory(tab),
+          groups: nextGroups,
+          cognitiveNotesRoot: nextRoot,
         };
       }),
     })),
@@ -825,6 +960,8 @@ export const useMindMapStore = create<MindMapStore>((set) => {
         rootDirectoryHandle: null,
         rootFolderJson: null,
         cognitiveNotesRoot: root,
+        groups: mapRootGroupsToNodeGroups(root),
+        selectedGroupId: null,
         title: typeof root?.name === "string" ? root.name : tab.title,
         moduleType: "cognitiveNotes",
         canvasSaveStatus: "idle",
@@ -844,6 +981,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
       tabs: updateTabById(state.tabs, state.activeTabId, (tab) => ({
         ...pushHistory(tab),
         cognitiveNotesRoot: root,
+        groups: mapRootGroupsToNodeGroups(root),
         title: typeof root?.name === "string" ? root.name : tab.title,
         moduleType: "cognitiveNotes",
       })),
@@ -1015,6 +1153,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
           selectedNodeId: prev.selectedNodeId,
           selectedNodeIds: cloneValue(prev.selectedNodeIds ?? []),
           selectedEdgeId: prev.selectedEdgeId,
+          selectedGroupId: prev.selectedGroupId ?? null,
           groups: cloneValue(prev.groups ?? []),
           title: prev.title,
           moduleType: prev.moduleType,
@@ -1045,6 +1184,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
           selectedNodeId: next.selectedNodeId,
           selectedNodeIds: cloneValue(next.selectedNodeIds ?? []),
           selectedEdgeId: next.selectedEdgeId,
+          selectedGroupId: next.selectedGroupId ?? null,
           groups: cloneValue(next.groups ?? []),
           title: next.title,
           moduleType: next.moduleType,

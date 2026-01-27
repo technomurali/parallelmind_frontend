@@ -25,6 +25,17 @@ export type CognitiveNotesRelation = {
   target_handle?: string;
 };
 
+export type CognitiveNotesGroup = {
+  id: string;
+  name: string;
+  purpose: string;
+  node_ids: string[];
+  created_on: string;
+  updated_on: string;
+  details_path?: string;
+  details_opt_out?: boolean;
+};
+
 export type CognitiveNotesJson = {
   schema_version: "1.0.0";
   id: string;
@@ -71,6 +82,7 @@ export type CognitiveNotesJson = {
     target_handle?: string;
     purpose?: string;
   }[];
+  groups: CognitiveNotesGroup[];
   child: CognitiveNotesFileNode[];
 };
 
@@ -288,6 +300,37 @@ export class CognitiveNotesManager {
       }))
       .filter((edge) => edge.id && edge.source && edge.target);
 
+    const rawGroups = Array.isArray((obj as any).groups) ? ((obj as any).groups as any[]) : [];
+    const groups = rawGroups
+      .filter((group) => group && typeof group === "object")
+      .map((group) => {
+        const createdOn =
+          typeof (group as any).created_on === "string" ? (group as any).created_on : "";
+        const updatedOn =
+          typeof (group as any).updated_on === "string"
+            ? (group as any).updated_on
+            : createdOn;
+        const nodeIds = Array.isArray((group as any).node_ids)
+          ? (group as any).node_ids.filter((id: any) => typeof id === "string")
+          : [];
+        const normalized = {
+          id: typeof (group as any).id === "string" ? (group as any).id : "",
+          name: typeof (group as any).name === "string" ? (group as any).name : "",
+          purpose: typeof (group as any).purpose === "string" ? (group as any).purpose : "",
+          node_ids: nodeIds,
+          created_on: createdOn,
+          updated_on: updatedOn,
+        } as any;
+        if (typeof (group as any).details_path === "string") {
+          normalized.details_path = (group as any).details_path;
+        }
+        if (typeof (group as any).details_opt_out === "boolean") {
+          normalized.details_opt_out = (group as any).details_opt_out;
+        }
+        return normalized as CognitiveNotesGroup;
+      })
+      .filter((group) => group.id && Array.isArray(group.node_ids));
+
     const rawChild = Array.isArray(obj.child)
       ? (obj.child as CognitiveNotesFileNode[])
       : Array.isArray(obj.related_nodes)
@@ -316,6 +359,7 @@ export class CognitiveNotesManager {
       node_size,
       flowchart_nodes,
       flowchart_edges,
+      groups,
       child,
     };
   }
@@ -343,6 +387,7 @@ export class CognitiveNotesManager {
       node_size: {},
       flowchart_nodes: [],
       flowchart_edges: [],
+      groups: [],
       child: [],
     };
   }
@@ -541,6 +586,9 @@ export class CognitiveNotesManager {
         : [],
       flowchart_edges: Array.isArray(existing.flowchart_edges)
         ? existing.flowchart_edges
+        : [],
+      groups: Array.isArray((existing as any).groups)
+        ? ((existing as any).groups as CognitiveNotesGroup[])
         : [],
       child: mergedNodes,
     };
@@ -990,6 +1038,9 @@ export class CognitiveNotesManager {
       flowchart_edges: Array.isArray(root.flowchart_edges)
         ? root.flowchart_edges
         : existing?.flowchart_edges ?? [],
+      groups: Array.isArray((root as any).groups)
+        ? ((root as any).groups as CognitiveNotesGroup[])
+        : existing?.groups ?? [],
       child: Array.isArray(root.child)
         ? (root.child as CognitiveNotesFileNode[])
         : existing?.child ?? [],
@@ -1082,6 +1133,9 @@ export class CognitiveNotesManager {
       flowchart_edges: Array.isArray(root.flowchart_edges)
         ? root.flowchart_edges
         : existing?.flowchart_edges ?? [],
+      groups: Array.isArray((root as any).groups)
+        ? ((root as any).groups as CognitiveNotesGroup[])
+        : existing?.groups ?? [],
       child: Array.isArray(root.child)
         ? (root.child as CognitiveNotesFileNode[])
         : existing?.child ?? [],

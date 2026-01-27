@@ -108,6 +108,7 @@ export default function MindMap() {
   const createGroup = useMindMapStore((s) => s.createGroup);
   const removeGroup = useMindMapStore((s) => s.removeGroup);
   const removeNodeFromGroup = useMindMapStore((s) => s.removeNodeFromGroup);
+  const selectGroup = useMindMapStore((s) => s.selectGroup);
   const tabs = useMindMapStore((s) => s.tabs);
   const createTab = useMindMapStore((s) => s.createTab);
   const setActiveTab = useMindMapStore((s) => s.setActiveTab);
@@ -122,6 +123,7 @@ export default function MindMap() {
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
   const selectedNodeIds = activeTab?.selectedNodeIds ?? (selectedNodeId ? [selectedNodeId] : []);
+  const selectedGroupId = activeTab?.selectedGroupId ?? null;
   const nodeGroups = activeTab?.groups ?? [];
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
   const setNodesCollapsed = useMindMapStore((s) => s.setNodesCollapsed);
@@ -1551,6 +1553,7 @@ export default function MindMap() {
     discardPendingChildCreationIfSelected();
     selectEdge(null);
     clearSelectedNodes();
+    selectGroup(null);
   };
 
   const onEdgesDelete = (deleted: Edge[]) => {
@@ -1707,9 +1710,10 @@ export default function MindMap() {
     (event: React.MouseEvent, groupId: string) => {
       event.preventDefault();
       event.stopPropagation();
+      selectGroup(groupId);
       startGroupDrag(event.clientX, event.clientY, groupId);
     },
-    [startGroupDrag]
+    [selectGroup, startGroupDrag]
   );
 
   useEffect(() => {
@@ -1833,6 +1837,7 @@ export default function MindMap() {
       if (hitGroup) {
         event.preventDefault();
         event.stopPropagation();
+        selectGroup(hitGroup.id);
         startGroupDrag(event.clientX, event.clientY, hitGroup.id);
         return;
       }
@@ -3530,7 +3535,7 @@ export default function MindMap() {
                     }}
                   >
                     <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>
-                      {uiText.grouping.groupedNodes}
+                      {group.name?.trim() ? group.name : uiText.grouping.groupedNodes}
                     </span>
                     <button
                       type="button"
