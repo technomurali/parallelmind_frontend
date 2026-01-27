@@ -277,6 +277,9 @@ export interface AppSettings {
       cognitiveNotes: string;
     };
     cognitiveNotesDefaultNodeColor: string;
+    cognitiveNotesInputFileNodeColor: string;
+    cognitiveNotesFileNodeColor: string;
+    cognitiveNotesOutputNodeColor: string;
   };
   interaction: {
     lockNodePositions: boolean;
@@ -415,6 +418,9 @@ export const useMindMapStore = create<MindMapStore>((set) => {
           cognitiveNotes: "#7412b5",
         },
         cognitiveNotesDefaultNodeColor: "#4330d5",
+        cognitiveNotesInputFileNodeColor: "#ff0000",
+        cognitiveNotesFileNodeColor: "#faf200",
+        cognitiveNotesOutputNodeColor: "#8cff00",
       },
       interaction: {
         lockNodePositions: false,

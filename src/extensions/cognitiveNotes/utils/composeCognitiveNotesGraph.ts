@@ -11,6 +11,9 @@ export type CognitiveNotesComposeOptions = {
   columns?: number;
   columnGap?: number;
   rowGap?: number;
+  inputFileNodeColor?: string;
+  fileNodeColor?: string;
+  outputNodeColor?: string;
 };
 
 export type CognitiveNotesComposeResult = {
@@ -40,6 +43,19 @@ const normalizeRootId = (root: CognitiveNotesJson): string => {
   return `cn_root_${Date.now()}`;
 };
 
+const typeDefaultColor = (
+  renderType: "file" | "shieldFile" | "outputFile" | "fullImageNode",
+  options: CognitiveNotesComposeOptions
+): string | undefined => {
+  if (renderType === "shieldFile" && isValidHexColor(options.inputFileNodeColor))
+    return options.inputFileNodeColor!.trim();
+  if (renderType === "outputFile" && isValidHexColor(options.outputNodeColor))
+    return options.outputNodeColor!.trim();
+  if (renderType === "file" && isValidHexColor(options.fileNodeColor))
+    return options.fileNodeColor!.trim();
+  return undefined;
+};
+
 const buildRootNode = (
   root: CognitiveNotesJson,
   rootNodeId: string,
@@ -65,8 +81,12 @@ const buildNoteNode = (
   root: CognitiveNotesJson,
   note: CognitiveNotesFileNode,
   position: { x: number; y: number },
-  renderType: "file" | "shieldFile" | "outputFile" | "fullImageNode"
+  renderType: "file" | "shieldFile" | "outputFile" | "fullImageNode",
+  options: CognitiveNotesComposeOptions = {}
 ): Node => {
+  const saved = typeof root.node_colors?.[note.id] === "string" ? root.node_colors![note.id] : undefined;
+  const defaultByType = typeDefaultColor(renderType, options);
+  const node_color = isValidHexColor(saved) ? saved!.trim() : defaultByType;
   return {
     id: note.id,
     type: renderType,
@@ -76,10 +96,7 @@ const buildNoteNode = (
       name: typeof note.name === "string" ? note.name : "",
       purpose: typeof note.purpose === "string" ? note.purpose : "",
       level: 1,
-      node_color:
-        typeof root.node_colors?.[note.id] === "string"
-          ? root.node_colors[note.id]
-          : undefined,
+      node_color: node_color ?? undefined,
     },
   };
 };
@@ -233,19 +250,30 @@ export const composeCognitiveNotesGraph = (
       savedPosition && typeof savedPosition === "object"
         ? { x: savedPosition.x, y: savedPosition.y }
         : { x, y };
-    nodes.push(buildNoteNode(root, note, position, renderType));
+    nodes.push(buildNoteNode(root, note, position, renderType, options));
     nodeTypeById.set(note.id, renderType);
   });
 
   const flowchartNodes = Array.isArray(root.flowchart_nodes)
     ? root.flowchart_nodes
     : [];
+  const flowchartTypeDefault = (nodeType: string): string | undefined => {
+    if (nodeType === "shieldFile" && isValidHexColor(options.inputFileNodeColor))
+      return options.inputFileNodeColor!.trim();
+    if (nodeType === "outputFile" && isValidHexColor(options.outputNodeColor))
+      return options.outputNodeColor!.trim();
+    if (nodeType === "file" && isValidHexColor(options.fileNodeColor))
+      return options.fileNodeColor!.trim();
+    return undefined;
+  };
   flowchartNodes.forEach((flowNode, index) => {
     if (!flowNode || typeof flowNode !== "object") return;
     if (typeof flowNode.id !== "string" || !flowNode.id.trim()) return;
     if (typeof flowNode.type !== "string" || !flowNode.type.trim()) return;
     const savedPosition = storedPositions[flowNode.id];
     const savedColor = root.node_colors?.[flowNode.id];
+    const defaultByType = flowchartTypeDefault(flowNode.type);
+    const node_color = isValidHexColor(savedColor) ? savedColor.trim() : defaultByType;
     const position =
       savedPosition ??
       ({
@@ -262,7 +290,7 @@ export const composeCognitiveNotesGraph = (
         node_type: flowNode.type,
         name: typeof flowNode.name === "string" ? flowNode.name : "",
         purpose: typeof flowNode.purpose === "string" ? flowNode.purpose : "",
-        node_color: isValidHexColor(savedColor) ? savedColor : undefined,
+        node_color: node_color ?? undefined,
       },
     });
     nodeTypeById.set(flowNode.id, flowNode.type);

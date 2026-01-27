@@ -26,6 +26,11 @@ export default function Settings() {
     canvasAids: true,
     nodeColoring: true,
   });
+  const [nodeColorPickerOpen, setNodeColorPickerOpen] = useState<
+    "inputFile" | "file" | "output" | null
+  >(null);
+  const isValidHex = (v: string) =>
+    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test((v || "").trim());
 
   const navItems = useMemo(
     () =>
@@ -669,6 +674,568 @@ export default function Settings() {
                           }
                           aria-label="Cognitive Notes default node color"
                         />
+                      </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">
+                            Input File Node Color
+                          </div>
+                          <div className="pm-settings__rowDesc">
+                            Default color for input file nodes in Cognitive Notes.
+                          </div>
+                        </div>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={
+                              settings.appearance.cognitiveNotesInputFileNodeColor ??
+                              "#ff0000"
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value.trim();
+                              if (isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    cognitiveNotesInputFileNodeColor: v,
+                                  },
+                                });
+                            }}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (!isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    cognitiveNotesInputFileNodeColor: "#ff0000",
+                                  },
+                                });
+                            }}
+                            placeholder="#ff0000"
+                            aria-label="Input File Node Color hex"
+                            className="pm-settings__control"
+                            style={{
+                              width: 88,
+                              minWidth: 72,
+                              borderRadius: "var(--radius-md)",
+                              border: "1px solid var(--border)",
+                              padding: "6px 8px",
+                              background: "var(--surface-1)",
+                              color: "var(--text)",
+                              fontFamily: "var(--font-family)",
+                              fontSize: "0.8rem",
+                            }}
+                          />
+                          <div style={{ position: "relative" }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setNodeColorPickerOpen((prev) =>
+                                prev === "inputFile" ? null : "inputFile"
+                              )
+                            }
+                            aria-label="Input File Node Color"
+                            title="Input File Node Color"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              height: "var(--control-size-sm, 28px)",
+                              width: "var(--control-size-sm, 28px)",
+                              minWidth: 28,
+                              minHeight: 28,
+                              borderRadius: "var(--radius-md, 6px)",
+                              border: "none",
+                              background: "transparent",
+                              color: "var(--text)",
+                              cursor: "pointer",
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.background =
+                                "var(--surface-1)";
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.background =
+                                "transparent";
+                            }}
+                          >
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                width: 14,
+                                height: 14,
+                                borderRadius: 999,
+                                border: "1px solid var(--border)",
+                                background:
+                                  settings.appearance.cognitiveNotesInputFileNodeColor ??
+                                  "#ff0000",
+                                boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
+                              }}
+                            />
+                          </button>
+                          {nodeColorPickerOpen === "inputFile" ? (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: "calc(100% + 6px)",
+                                right: 0,
+                                zIndex: 60,
+                                padding: "10px",
+                                borderRadius: "var(--radius-md)",
+                                border: "1px solid var(--border)",
+                                background: "var(--surface-2)",
+                                boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+                                display: "grid",
+                                gap: "8px",
+                                minWidth: 180,
+                              }}
+                            >
+                              <input
+                                type="color"
+                                value={
+                                  isValidHex(
+                                    settings.appearance.cognitiveNotesInputFileNodeColor ?? ""
+                                  )
+                                    ? (settings.appearance.cognitiveNotesInputFileNodeColor ?? "#ff0000").trim()
+                                    : "#ff0000"
+                                }
+                                onChange={(e) =>
+                                  updateSettings({
+                                    appearance: {
+                                      ...settings.appearance,
+                                      cognitiveNotesInputFileNodeColor: e.target.value,
+                                    },
+                                  })
+                                }
+                                style={{
+                                  width: "100%",
+                                  height: 36,
+                                  padding: 0,
+                                  border: "none",
+                                  background: "transparent",
+                                  cursor: "pointer",
+                                }}
+                              />
+                              <input
+                                type="text"
+                                value={
+                                  settings.appearance.cognitiveNotesInputFileNodeColor ??
+                                  "#ff0000"
+                                }
+                                onChange={(e) => {
+                                  const v = e.target.value.trim();
+                                  if (isValidHex(v))
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        cognitiveNotesInputFileNodeColor: v,
+                                      },
+                                    });
+                                }}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim();
+                                  if (!isValidHex(v))
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        cognitiveNotesInputFileNodeColor: "#ff0000",
+                                      },
+                                    });
+                                }}
+                                placeholder="#ff0000"
+                                aria-label="Input File Node Color hex"
+                                style={{
+                                  width: "100%",
+                                  borderRadius: "var(--radius-md)",
+                                  border: "1px solid var(--border)",
+                                  padding: "6px 8px",
+                                  background: "var(--surface-1)",
+                                  color: "var(--text)",
+                                  fontFamily: "var(--font-family)",
+                                  fontSize: "0.8rem",
+                                }}
+                              />
+                            </div>
+                          ) : null}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">File Node Color</div>
+                          <div className="pm-settings__rowDesc">
+                            Default color for file nodes in Cognitive Notes.
+                          </div>
+                        </div>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={
+                              settings.appearance.cognitiveNotesFileNodeColor ??
+                              "#faf200"
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value.trim();
+                              if (isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    cognitiveNotesFileNodeColor: v,
+                                  },
+                                });
+                            }}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (!isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    cognitiveNotesFileNodeColor: "#faf200",
+                                  },
+                                });
+                            }}
+                            placeholder="#faf200"
+                            aria-label="File Node Color hex"
+                            className="pm-settings__control"
+                            style={{
+                              width: 88,
+                              minWidth: 72,
+                              borderRadius: "var(--radius-md)",
+                              border: "1px solid var(--border)",
+                              padding: "6px 8px",
+                              background: "var(--surface-1)",
+                              color: "var(--text)",
+                              fontFamily: "var(--font-family)",
+                              fontSize: "0.8rem",
+                            }}
+                          />
+                          <div style={{ position: "relative" }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setNodeColorPickerOpen((prev) =>
+                                prev === "file" ? null : "file"
+                              )
+                            }
+                            aria-label="File Node Color"
+                            title="File Node Color"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              height: "var(--control-size-sm, 28px)",
+                              width: "var(--control-size-sm, 28px)",
+                              minWidth: 28,
+                              minHeight: 28,
+                              borderRadius: "var(--radius-md, 6px)",
+                              border: "none",
+                              background: "transparent",
+                              color: "var(--text)",
+                              cursor: "pointer",
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.background =
+                                "var(--surface-1)";
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.background =
+                                "transparent";
+                            }}
+                          >
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                width: 14,
+                                height: 14,
+                                borderRadius: 999,
+                                border: "1px solid var(--border)",
+                                background:
+                                  settings.appearance.cognitiveNotesFileNodeColor ??
+                                  "#faf200",
+                                boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
+                              }}
+                            />
+                          </button>
+                          {nodeColorPickerOpen === "file" ? (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: "calc(100% + 6px)",
+                                right: 0,
+                                zIndex: 60,
+                                padding: "10px",
+                                borderRadius: "var(--radius-md)",
+                                border: "1px solid var(--border)",
+                                background: "var(--surface-2)",
+                                boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+                                display: "grid",
+                                gap: "8px",
+                                minWidth: 180,
+                              }}
+                            >
+                              <input
+                                type="color"
+                                value={
+                                  isValidHex(
+                                    settings.appearance.cognitiveNotesFileNodeColor ?? ""
+                                  )
+                                    ? (settings.appearance.cognitiveNotesFileNodeColor ?? "#faf200").trim()
+                                    : "#faf200"
+                                }
+                                onChange={(e) =>
+                                  updateSettings({
+                                    appearance: {
+                                      ...settings.appearance,
+                                      cognitiveNotesFileNodeColor: e.target.value,
+                                    },
+                                  })
+                                }
+                                style={{
+                                  width: "100%",
+                                  height: 36,
+                                  padding: 0,
+                                  border: "none",
+                                  background: "transparent",
+                                  cursor: "pointer",
+                                }}
+                              />
+                              <input
+                                type="text"
+                                value={
+                                  settings.appearance.cognitiveNotesFileNodeColor ??
+                                  "#faf200"
+                                }
+                                onChange={(e) => {
+                                  const v = e.target.value.trim();
+                                  if (isValidHex(v))
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        cognitiveNotesFileNodeColor: v,
+                                      },
+                                    });
+                                }}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim();
+                                  if (!isValidHex(v))
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        cognitiveNotesFileNodeColor: "#faf200",
+                                      },
+                                    });
+                                }}
+                                placeholder="#faf200"
+                                aria-label="File Node Color hex"
+                                style={{
+                                  width: "100%",
+                                  borderRadius: "var(--radius-md)",
+                                  border: "1px solid var(--border)",
+                                  padding: "6px 8px",
+                                  background: "var(--surface-1)",
+                                  color: "var(--text)",
+                                  fontFamily: "var(--font-family)",
+                                  fontSize: "0.8rem",
+                                }}
+                              />
+                            </div>
+                          ) : null}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pm-settings__divider" />
+
+                      <div className="pm-settings__row">
+                        <div className="pm-settings__rowText">
+                          <div className="pm-settings__rowTitle">
+                            Output Node Color
+                          </div>
+                          <div className="pm-settings__rowDesc">
+                            Default color for output nodes in Cognitive Notes.
+                          </div>
+                        </div>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={
+                              settings.appearance.cognitiveNotesOutputNodeColor ??
+                              "#8cff00"
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value.trim();
+                              if (isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    cognitiveNotesOutputNodeColor: v,
+                                  },
+                                });
+                            }}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (!isValidHex(v))
+                                updateSettings({
+                                  appearance: {
+                                    ...settings.appearance,
+                                    cognitiveNotesOutputNodeColor: "#8cff00",
+                                  },
+                                });
+                            }}
+                            placeholder="#8cff00"
+                            aria-label="Output Node Color hex"
+                            className="pm-settings__control"
+                            style={{
+                              width: 88,
+                              minWidth: 72,
+                              borderRadius: "var(--radius-md)",
+                              border: "1px solid var(--border)",
+                              padding: "6px 8px",
+                              background: "var(--surface-1)",
+                              color: "var(--text)",
+                              fontFamily: "var(--font-family)",
+                              fontSize: "0.8rem",
+                            }}
+                          />
+                          <div style={{ position: "relative" }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setNodeColorPickerOpen((prev) =>
+                                prev === "output" ? null : "output"
+                              )
+                            }
+                            aria-label="Output Node Color"
+                            title="Output Node Color"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              height: "var(--control-size-sm, 28px)",
+                              width: "var(--control-size-sm, 28px)",
+                              minWidth: 28,
+                              minHeight: 28,
+                              borderRadius: "var(--radius-md, 6px)",
+                              border: "none",
+                              background: "transparent",
+                              color: "var(--text)",
+                              cursor: "pointer",
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.background =
+                                "var(--surface-1)";
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.background =
+                                "transparent";
+                            }}
+                          >
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                width: 14,
+                                height: 14,
+                                borderRadius: 999,
+                                border: "1px solid var(--border)",
+                                background:
+                                  settings.appearance.cognitiveNotesOutputNodeColor ??
+                                  "#8cff00",
+                                boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
+                              }}
+                            />
+                          </button>
+                          {nodeColorPickerOpen === "output" ? (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: "calc(100% + 6px)",
+                                right: 0,
+                                zIndex: 60,
+                                padding: "10px",
+                                borderRadius: "var(--radius-md)",
+                                border: "1px solid var(--border)",
+                                background: "var(--surface-2)",
+                                boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+                                display: "grid",
+                                gap: "8px",
+                                minWidth: 180,
+                              }}
+                            >
+                              <input
+                                type="color"
+                                value={
+                                  isValidHex(
+                                    settings.appearance.cognitiveNotesOutputNodeColor ?? ""
+                                  )
+                                    ? (settings.appearance.cognitiveNotesOutputNodeColor ?? "#8cff00").trim()
+                                    : "#8cff00"
+                                }
+                                onChange={(e) =>
+                                  updateSettings({
+                                    appearance: {
+                                      ...settings.appearance,
+                                      cognitiveNotesOutputNodeColor: e.target.value,
+                                    },
+                                  })
+                                }
+                                style={{
+                                  width: "100%",
+                                  height: 36,
+                                  padding: 0,
+                                  border: "none",
+                                  background: "transparent",
+                                  cursor: "pointer",
+                                }}
+                              />
+                              <input
+                                type="text"
+                                value={
+                                  settings.appearance.cognitiveNotesOutputNodeColor ??
+                                  "#8cff00"
+                                }
+                                onChange={(e) => {
+                                  const v = e.target.value.trim();
+                                  if (isValidHex(v))
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        cognitiveNotesOutputNodeColor: v,
+                                      },
+                                    });
+                                }}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim();
+                                  if (!isValidHex(v))
+                                    updateSettings({
+                                      appearance: {
+                                        ...settings.appearance,
+                                        cognitiveNotesOutputNodeColor: "#8cff00",
+                                      },
+                                    });
+                                }}
+                                placeholder="#8cff00"
+                                aria-label="Output Node Color hex"
+                                style={{
+                                  width: "100%",
+                                  borderRadius: "var(--radius-md)",
+                                  border: "1px solid var(--border)",
+                                  padding: "6px 8px",
+                                  background: "var(--surface-1)",
+                                  color: "var(--text)",
+                                  fontFamily: "var(--font-family)",
+                                  fontSize: "0.8rem",
+                                }}
+                              />
+                            </div>
+                          ) : null}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="pm-settings__divider" />

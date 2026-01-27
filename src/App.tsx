@@ -165,6 +165,9 @@ function App() {
                 columns: settings.appearance.gridColumns,
                 columnGap: settings.appearance.gridColumnGap,
                 rowGap: settings.appearance.gridRowGap,
+                inputFileNodeColor: settings.appearance.cognitiveNotesInputFileNodeColor,
+                fileNodeColor: settings.appearance.cognitiveNotesFileNodeColor,
+                outputNodeColor: settings.appearance.cognitiveNotesOutputNodeColor,
               }
             )
             store.setNodes(nodes)

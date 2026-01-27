@@ -1686,7 +1686,7 @@ export default function RightPanel() {
     const tempNodeId = `tmp_shield_${Date.now()}_${Math.random()
       .toString(16)
       .slice(2)}`;
-    const defaultColor = settings.appearance.cognitiveNotesDefaultNodeColor ?? "";
+    const defaultColor = settings.appearance.cognitiveNotesInputFileNodeColor ?? "";
     const nodeColor =
       moduleType === "cognitiveNotes" &&
       /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(defaultColor.trim())
@@ -1757,7 +1757,7 @@ export default function RightPanel() {
     const tempNodeId = `tmp_output_${Date.now()}_${Math.random()
       .toString(16)
       .slice(2)}`;
-    const defaultColor = settings.appearance.cognitiveNotesDefaultNodeColor ?? "";
+    const defaultColor = settings.appearance.cognitiveNotesOutputNodeColor ?? "";
     const nodeColor =
       moduleType === "cognitiveNotes" &&
       /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(defaultColor.trim())
@@ -1963,7 +1963,13 @@ export default function RightPanel() {
       ? `e_${parentIdForDraft}_${draftNodeId}`
       : null;
     const defaultCognitiveNodeColor =
-      settings.appearance.cognitiveNotesDefaultNodeColor ?? "#4330d5";
+      nodeVariant === "shieldFile"
+        ? (settings.appearance.cognitiveNotesInputFileNodeColor ?? "#ff0000")
+        : nodeVariant === "outputShield"
+        ? (settings.appearance.cognitiveNotesOutputNodeColor ?? "#8cff00")
+        : nodeVariant === "file"
+        ? (settings.appearance.cognitiveNotesFileNodeColor ?? "#faf200")
+        : (settings.appearance.cognitiveNotesDefaultNodeColor ?? "#4330d5");
     const getNextNodeColors = () => {
       const existing = cognitiveNotesRoot?.node_colors ?? {};
       if (!defaultCognitiveNodeColor || !draftNodeId) return existing;
