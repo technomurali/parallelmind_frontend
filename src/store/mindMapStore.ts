@@ -375,6 +375,12 @@ const pushHistory = (tab: CanvasTab): CanvasTab => {
   };
 };
 
+const trimHistory = (items: TabSnapshot[]) =>
+  items.length > HISTORY_LIMIT ? items.slice(items.length - HISTORY_LIMIT) : items;
+
+const trimFuture = (items: TabSnapshot[]) =>
+  items.length > HISTORY_LIMIT ? items.slice(0, HISTORY_LIMIT) : items;
+
 /**
  * Application settings state
  */
@@ -1268,7 +1274,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
           moduleType: prev.moduleType,
           history: {
             past: nextPast,
-            future: [currentSnapshot, ...(current.history?.future ?? [])],
+            future: trimFuture([currentSnapshot, ...(current.history?.future ?? [])]),
           },
         })),
       };
@@ -1298,7 +1304,7 @@ export const useMindMapStore = create<MindMapStore>((set) => {
           title: next.title,
           moduleType: next.moduleType,
           history: {
-            past: [...(current.history?.past ?? []), currentSnapshot],
+            past: trimHistory([...(current.history?.past ?? []), currentSnapshot]),
             future: nextFuture,
           },
         })),
