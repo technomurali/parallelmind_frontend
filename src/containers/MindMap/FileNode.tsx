@@ -190,9 +190,9 @@ export default function FileNode({
       {/* Node content wrapper: Fixed-width container (130px) that holds the SVG shape and handles, with relative positioning for handle placement */}
       <div
         style={{
-          width: Math.round(125 * sizeScale),
-          minWidth: Math.round(125 * sizeScale),
-          maxWidth: Math.round(125 * sizeScale),
+          width: Math.round(125 * sizeScale * 1.3),
+          minWidth: Math.round(125 * sizeScale * 1.3),
+          maxWidth: Math.round(125 * sizeScale * 1.3),
           background: "transparent",
           display: "flex",
           flexDirection: "column",

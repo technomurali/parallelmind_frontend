@@ -1030,6 +1030,57 @@ export class FileManager {
     return { nodes: walk(nodes ?? []), updated };
   }
 
+  private updateNodeTextInTree(args: {
+    nodes: IndexNode[];
+    nodeId: string | null;
+    nodePath: string | null;
+    nextName: string;
+    nextPurpose: string;
+    now: string;
+  }): { nodes: IndexNode[]; updated: boolean } {
+    const { nodes, nodeId, nodePath, nextName, nextPurpose, now } = args;
+    let updated = false;
+
+    const walk = (list: IndexNode[]): IndexNode[] => {
+      return list.map((node) => {
+        const matchesId = !!nodeId && node.id === nodeId;
+        const matchesPath =
+          !!nodePath && typeof node.path === "string" && node.path === nodePath;
+        if (matchesId || matchesPath) {
+          const prevName = typeof node.name === "string" ? node.name : "";
+          const prevPurpose = typeof node.purpose === "string" ? node.purpose : "";
+          const shouldUpdate = prevName !== nextName || prevPurpose !== nextPurpose;
+          updated = updated || shouldUpdate;
+          if (this.isFolderNode(node)) {
+            return {
+              ...node,
+              name: nextName,
+              purpose: nextPurpose,
+              updated_on: shouldUpdate ? now : node.updated_on,
+              child: node.child ?? [],
+            };
+          }
+          return {
+            ...node,
+            name: nextName,
+            purpose: nextPurpose,
+            updated_on: shouldUpdate ? now : node.updated_on,
+          };
+        }
+
+        if (this.isFolderNode(node)) {
+          const nextChildren = walk(node.child ?? []);
+          if (nextChildren !== node.child) {
+            return { ...node, child: nextChildren };
+          }
+        }
+        return node;
+      });
+    };
+
+    return { nodes: walk(nodes ?? []), updated };
+  }
+
   private updateNodeTimestampInTree(args: {
     nodes: IndexNode[];
     nodeId: string | null;
@@ -2077,6 +2128,35 @@ export class FileManager {
     return updatedRoot;
   }
 
+  async updateNodeTextFromHandle(args: {
+    dirHandle: FileSystemDirectoryHandle;
+    existing: RootFolderJson;
+    nodeId: string | null;
+    nodePath: string | null;
+    nextName: string;
+    nextPurpose: string;
+  }): Promise<RootFolderJson> {
+    const { dirHandle, existing, nodeId, nodePath, nextName, nextPurpose } = args;
+    const now = this.nowIso();
+    const result = this.updateNodeTextInTree({
+      nodes: existing.child ?? [],
+      nodeId,
+      nodePath,
+      nextName,
+      nextPurpose,
+      now,
+    });
+    if (!result.updated) {
+      return existing;
+    }
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      child: result.nodes,
+    };
+    await this.writeRootFolderJson(dirHandle, updatedRoot);
+    return updatedRoot;
+  }
+
   async updateNodePurposeFromPath(args: {
     dirPath: string;
     existing: RootFolderJson;
@@ -2090,6 +2170,37 @@ export class FileManager {
       nodes: existing.child ?? [],
       nodeId,
       nodePath,
+      nextPurpose,
+      now,
+    });
+    if (!result.updated) {
+      return existing;
+    }
+    const updatedRoot: RootFolderJson = {
+      ...existing,
+      child: result.nodes,
+      path: dirPath,
+    };
+    const fileName = this.getIndexFileNameFromPath(dirPath);
+    await this.writeRootFolderJsonFromPathAtomic(dirPath, updatedRoot, fileName);
+    return updatedRoot;
+  }
+
+  async updateNodeTextFromPath(args: {
+    dirPath: string;
+    existing: RootFolderJson;
+    nodeId: string | null;
+    nodePath: string | null;
+    nextName: string;
+    nextPurpose: string;
+  }): Promise<RootFolderJson> {
+    const { dirPath, existing, nodeId, nodePath, nextName, nextPurpose } = args;
+    const now = this.nowIso();
+    const result = this.updateNodeTextInTree({
+      nodes: existing.child ?? [],
+      nodeId,
+      nodePath,
+      nextName,
       nextPurpose,
       now,
     });

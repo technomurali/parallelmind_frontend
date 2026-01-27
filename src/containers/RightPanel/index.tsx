@@ -823,7 +823,7 @@ export default function RightPanel() {
 
     // Always update in-memory node data (the UI is driven from centralized state).
     updateNodeData(selectedNodeId, {
-      ...(isDraftNode ? { name: draft.name.trim() } : {}),
+      name: draft.name.trim(),
       purpose: draft.purpose,
       details: draft.details,
       youtube_url: draft.youtube_url,
@@ -882,6 +882,41 @@ export default function RightPanel() {
     }
 
     if (isDecisionNode) {
+      setDirty(false);
+      setSaveStatus("saved");
+      return;
+    }
+
+    if (moduleType === "cognitiveNotes") {
+      if (!cognitiveNotesRoot) {
+        setDirty(true);
+        setSaveStatus("idle");
+        setCanvasSaveStatus("error");
+        return;
+      }
+      const nowIso = new Date().toISOString();
+      let found = false;
+      const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) => {
+        if (node?.id !== selectedNodeId) return node;
+        found = true;
+        return {
+          ...node,
+          name: draft.name.trim(),
+          purpose: draft.purpose,
+          updated_on: nowIso,
+        };
+      });
+      if (!found) {
+        setDirty(true);
+        setSaveStatus("idle");
+        setCanvasSaveStatus("error");
+        return;
+      }
+      await persistCognitiveNotesRoot({
+        ...cognitiveNotesRoot,
+        updated_on: nowIso,
+        child: nextChild,
+      });
       setDirty(false);
       setSaveStatus("saved");
       return;
@@ -977,18 +1012,20 @@ export default function RightPanel() {
       setCanvasSaveStatus("saving");
       try {
         const updatedRoot = hasDirectoryHandle
-          ? await fileManager.updateNodePurposeFromHandle({
+          ? await fileManager.updateNodeTextFromHandle({
               dirHandle: rootDirectoryHandle!,
               existing: rootFolderJson!,
               nodeId: selectedNodeId,
               nodePath: (selectedNode?.data as any)?.path ?? null,
+              nextName: draft.name.trim(),
               nextPurpose: draft.purpose,
             })
-          : await fileManager.updateNodePurposeFromPath({
+          : await fileManager.updateNodeTextFromPath({
               dirPath: rootFolderJson!.path,
               existing: rootFolderJson!,
               nodeId: selectedNodeId,
               nodePath: (selectedNode?.data as any)?.path ?? null,
+              nextName: draft.name.trim(),
               nextPurpose: draft.purpose,
             });
 
