@@ -110,12 +110,16 @@ const isValidHexColor = (value: unknown) =>
   typeof value === "string" &&
   /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim());
 
-const buildHandleStyle = (diameter: number): React.CSSProperties => ({
-  width: diameter,
-  height: diameter,
+const buildHandleStyle = (
+  width: number,
+  height: number,
+  borderRadius: string
+): React.CSSProperties => ({
+  width,
+  height,
   background: "var(--border)",
   border: "none",
-  borderRadius: 999,
+  borderRadius,
   opacity: 1,
   zIndex: 4,
 });
@@ -169,7 +173,7 @@ const formatSeconds = (value: number) => {
 const FlowchartNodeBase = (
   props: NodeProps<any> & { definition: (typeof FLOWCHART_NODE_DEFINITIONS)[number] }
 ) => {
-  const { data, selected, definition } = props;
+  const { data, selected, definition, id } = props;
   const settings = useMindMapStore((s) => s.settings);
   const activeTab = useMindMapStore(selectActiveTab);
   const isCognitiveNotes = activeTab?.moduleType === "cognitiveNotes";
@@ -198,8 +202,14 @@ const FlowchartNodeBase = (
   const fillColor =
     isCognitiveNotes && customNodeColor ? customNodeColor : "var(--surface-2)";
 
-  const handleDiameter = 12;
-  const handleStyleBase = buildHandleStyle(handleDiameter);
+  const handleWidth = 12;
+  const handleHeight = 6;
+  const sideHandleWidth = handleHeight;
+  const sideHandleHeight = handleWidth;
+  const topHandleStyle = buildHandleStyle(handleWidth, handleHeight, "9px 9px 0 0");
+  const bottomHandleStyle = buildHandleStyle(handleWidth, handleHeight, "0 0 9px 9px");
+  const leftHandleStyle = buildHandleStyle(sideHandleWidth, sideHandleHeight, "9px 0 0 9px");
+  const rightHandleStyle = buildHandleStyle(sideHandleWidth, sideHandleHeight, "0 9px 9px 0");
   const viewScale = Math.min(
     svgWidth / viewBoxWidth,
     svgHeight / viewBoxHeight
@@ -227,6 +237,10 @@ const FlowchartNodeBase = (
       : "";
   const fallbackLabel = definition.label;
   const displayName = nameValue || fallbackLabel;
+  const clipId = useMemo(() => {
+    const safe = String(id ?? "").replace(/[^a-zA-Z0-9_-]/g, "");
+    return `flow-clip-${safe || "node"}`;
+  }, [id]);
 
   return (
     <div
@@ -256,7 +270,7 @@ const FlowchartNodeBase = (
           position={Position.Top}
           id="target-top"
           style={{
-            ...handleStyleBase,
+            ...topHandleStyle,
             left: topHandleLeft,
             top: topHandleTop,
             transform: "translate(-50%, -50%)",
@@ -267,7 +281,7 @@ const FlowchartNodeBase = (
           position={Position.Bottom}
           id="source-bottom"
           style={{
-            ...handleStyleBase,
+            ...bottomHandleStyle,
             left: bottomHandleLeft,
             top: bottomHandleTop,
             transform: "translate(-50%, -50%)",
@@ -278,7 +292,7 @@ const FlowchartNodeBase = (
           position={Position.Left}
           id="source-left"
           style={{
-            ...handleStyleBase,
+            ...leftHandleStyle,
             left: leftHandleLeft,
             top: leftHandleTop,
             transform: "translate(-50%, -50%)",
@@ -289,7 +303,7 @@ const FlowchartNodeBase = (
           position={Position.Right}
           id="source-right"
           style={{
-            ...handleStyleBase,
+            ...rightHandleStyle,
             left: rightHandleLeft,
             top: rightHandleTop,
             transform: "translate(-50%, -50%)",
@@ -305,34 +319,61 @@ const FlowchartNodeBase = (
           aria-hidden="true"
           style={{ display: "block" }}
         >
+          <defs>
+            <clipPath id={clipId}>
+              <path d={definition.path} />
+            </clipPath>
+          </defs>
           <path
             d={definition.path}
             fill={fillColor}
             fillOpacity={0.98}
+            stroke="none"
+          />
+          <path
+            d={definition.path}
+            fill="none"
             stroke={stroke}
             strokeWidth={strokeWidth}
             strokeLinejoin="round"
             strokeLinecap="round"
+            clipPath={`url(#${clipId})`}
           />
         </svg>
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            textAlign: "center",
-            padding: "10px",
-            gap: "4px",
-            pointerEvents: "none",
-            lineHeight: 1.2,
-          }}
-        >
-          <div style={{ fontWeight: 700, fontSize: "0.85rem" }}>{displayName}</div>
+          <div
+            style={{
+              position: "absolute",
+              inset: Math.max(2, Math.round(2 * sizeScale)),
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              padding: "12px",
+              gap: "4px",
+              pointerEvents: "none",
+              lineHeight: 1.2,
+            }}
+          >
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+              lineHeight: 1.2,
+            }}
+          >
+            {displayName}
+          </div>
           {isExpanded && purposeValue ? (
-            <div style={{ fontSize: "0.75rem", opacity: 0.85 }}>{purposeValue}</div>
+            <div
+              style={{
+                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+                opacity: 0.85,
+                lineHeight: 1.25,
+              }}
+            >
+              {purposeValue}
+            </div>
           ) : null}
         </div>
       </div>
@@ -408,8 +449,14 @@ export const FlowchartYoutubeNode = (props: NodeProps<any>) => {
   const fillColor =
     isCognitiveNotes && customNodeColor ? customNodeColor : "var(--surface-2)";
 
-  const handleDiameter = 12;
-  const handleStyleBase = buildHandleStyle(handleDiameter);
+  const handleWidth = 12;
+  const handleHeight = 6;
+  const sideHandleWidth = handleHeight;
+  const sideHandleHeight = handleWidth;
+  const topHandleStyle = buildHandleStyle(handleWidth, handleHeight, "9px 9px 0 0");
+  const bottomHandleStyle = buildHandleStyle(handleWidth, handleHeight, "0 0 9px 9px");
+  const leftHandleStyle = buildHandleStyle(sideHandleWidth, sideHandleHeight, "9px 0 0 9px");
+  const rightHandleStyle = buildHandleStyle(sideHandleWidth, sideHandleHeight, "0 9px 9px 0");
   const toHandlePxX = (x: number) =>
     Math.round((x / viewBoxWidth) * svgWidth);
   const toHandlePxY = (y: number) =>
@@ -422,6 +469,10 @@ export const FlowchartYoutubeNode = (props: NodeProps<any>) => {
   const leftHandleTop = toHandlePxY(viewBoxHeight / 2);
   const rightHandleLeft = toHandlePxX(viewBoxWidth - 10);
   const rightHandleTop = toHandlePxY(viewBoxHeight / 2);
+  const clipId = useMemo(() => {
+    const safeId = String(id).replace(/[^a-zA-Z0-9_-]/g, "_");
+    return `yt-clip-${safeId || "node"}`;
+  }, [id]);
 
   const nameValue =
     typeof (data as any)?.name === "string" ? (data as any).name.trim() : "";
@@ -651,7 +702,7 @@ export const FlowchartYoutubeNode = (props: NodeProps<any>) => {
           position={Position.Top}
           id="target-top"
           style={{
-            ...handleStyleBase,
+            ...topHandleStyle,
             left: topHandleLeft,
             top: topHandleTop,
             transform: "translate(-50%, -50%)",
@@ -662,7 +713,7 @@ export const FlowchartYoutubeNode = (props: NodeProps<any>) => {
           position={Position.Bottom}
           id="source-bottom"
           style={{
-            ...handleStyleBase,
+            ...bottomHandleStyle,
             left: bottomHandleLeft,
             top: bottomHandleTop,
             transform: "translate(-50%, -50%)",
@@ -673,7 +724,7 @@ export const FlowchartYoutubeNode = (props: NodeProps<any>) => {
           position={Position.Left}
           id="source-left"
           style={{
-            ...handleStyleBase,
+            ...leftHandleStyle,
             left: leftHandleLeft,
             top: leftHandleTop,
             transform: "translate(-50%, -50%)",
@@ -684,7 +735,7 @@ export const FlowchartYoutubeNode = (props: NodeProps<any>) => {
           position={Position.Right}
           id="source-right"
           style={{
-            ...handleStyleBase,
+            ...rightHandleStyle,
             left: rightHandleLeft,
             top: rightHandleTop,
             transform: "translate(-50%, -50%)",
@@ -700,14 +751,25 @@ export const FlowchartYoutubeNode = (props: NodeProps<any>) => {
           aria-hidden="true"
           style={{ display: "block" }}
         >
+          <defs>
+            <clipPath id={clipId}>
+              <path d={definition.path} />
+            </clipPath>
+          </defs>
           <path
             d={definition.path}
             fill={fillColor}
             fillOpacity={0.98}
+            stroke="none"
+          />
+          <path
+            d={definition.path}
+            fill="none"
             stroke={stroke}
             strokeWidth={strokeWidth}
             strokeLinejoin="round"
             strokeLinecap="round"
+            clipPath={`url(#${clipId})`}
           />
         </svg>
         <div
@@ -715,7 +777,7 @@ export const FlowchartYoutubeNode = (props: NodeProps<any>) => {
           onMouseDown={(event) => event.stopPropagation()}
           style={{
             position: "absolute",
-            inset: Math.max(8, Math.round(10 * sizeScale)),
+            inset: Math.max(12, Math.round(14 * sizeScale)),
             display: "flex",
             flexDirection: "column",
             gap: Math.max(6, Math.round(6 * sizeScale)),
@@ -739,18 +801,19 @@ export const FlowchartYoutubeNode = (props: NodeProps<any>) => {
                   background: "#ff3d3d",
                 }}
               />
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: Math.max(10, Math.round(11 * sizeScale)),
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  maxWidth: "70%",
-                }}
-              >
-                {nameValue || "YouTube Player"}
-              </div>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: Math.max(5, Math.round(7 * sizeScale)),
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    maxWidth: "70%",
+                  }}
+                >
+                  {nameValue || "YouTube Player"}
+                </div>
             </div>
             <span
               style={{
@@ -929,9 +992,9 @@ export const FlowchartYoutubeNode = (props: NodeProps<any>) => {
               {purposeValue ? (
                 <div
                   style={{
-                    fontSize: Math.max(9, Math.round(9 * sizeScale)),
+                    fontSize: Math.max(5, Math.round(7 * sizeScale)),
                     opacity: 0.75,
-                    lineHeight: 1.3,
+                    lineHeight: 1.25,
                   }}
                 >
                   {purposeValue}
