@@ -404,6 +404,12 @@ export default function RightPanel() {
   const detailsOptOut = !!(selectedNode?.data as any)?.details_opt_out;
   const shouldOfferDetailsFile =
     isFlowchartNode || isShieldFileNode || isOutputFileNode || isImageNode;
+  const smartpadFilePath =
+    typeof (selectedNode?.data as any)?.path === "string"
+      ? String((selectedNode?.data as any)?.path).trim()
+      : "";
+  const canShowSmartPad =
+    (!!smartpadFilePath && isFileNode) || (!!detailsPath && !detailsOptOut);
   const youtubeSettings = draft.yt_settings ?? DEFAULT_YT_SETTINGS;
   const showSortIndex =
     moduleType === "cognitiveNotes" &&
@@ -4317,10 +4323,12 @@ export default function RightPanel() {
                   minHeight: 0,
                 }}
               >
-                <SmartPad
-                  selectedNode={selectedNode}
-                  rootDirectoryHandle={rootDirectoryHandle}
-                />
+                {canShowSmartPad && (
+                  <SmartPad
+                    selectedNode={selectedNode}
+                    rootDirectoryHandle={rootDirectoryHandle}
+                  />
+                )}
 
                 {/* Read-only timestamps (root only). Kept small and easy to scan. */}
                 {selectedNodeId === "00" && (
