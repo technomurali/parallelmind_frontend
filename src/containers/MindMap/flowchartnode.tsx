@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiExternalLink, FiPause, FiPlay, FiVolume2, FiVolumeX } from "react-icons/fi";
 import { Handle, Position, type NodeProps } from "reactflow";
+import { uiText } from "../../constants/uiText";
 import { selectActiveTab, useMindMapStore } from "../../store/mindMapStore";
 import { loadYouTubeIframeAPI, parseYouTubeVideoId } from "../../utils/youtube";
 
@@ -242,6 +243,20 @@ const FlowchartNodeBase = (
     return `flow-clip-${safe || "node"}`;
   }, [id]);
 
+  const useLabelLayout =
+    definition.type === "flowchart.roundRect" ||
+    definition.type === "flowchart.rect" ||
+    definition.type === "flowchart.parallelogram";
+  const headerFontSize =
+    settings.appearance.nodeHeaderFontSize ??
+    settings.appearance.nodeBodyFontSize ??
+    14;
+  const bodyFontSize = settings.appearance.nodeBodyFontSize ?? 18;
+  const headerFontPx = Math.max(6, Math.round(headerFontSize * sizeScale));
+  const bodyFontPx = Math.max(6, Math.round(bodyFontSize * sizeScale));
+  const labelOffsetPx = Math.round(20 * sizeScale);
+  const parallelogramOffsetPx = Math.round(25 * sizeScale);
+
   return (
     <div
       role="presentation"
@@ -287,7 +302,8 @@ const FlowchartNodeBase = (
             transform: "translate(-50%, -50%)",
           }}
         />
-        {definition.type !== "flowchart.triangle" && (
+        {definition.type !== "flowchart.triangle" &&
+          definition.type !== "flowchart.parallelogram" && (
           <>
             <Handle
               type="source"
@@ -350,36 +366,104 @@ const FlowchartNodeBase = (
               inset: Math.max(2, Math.round(2 * sizeScale)),
               display: "flex",
               flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              textAlign: "center",
+              alignItems: useLabelLayout ? "flex-start" : "center",
+              justifyContent: useLabelLayout ? "flex-start" : "center",
+              textAlign: useLabelLayout ? "left" : "center",
               padding: "12px",
+              paddingTop: useLabelLayout ? `${12 + labelOffsetPx}px` : "12px",
+              paddingLeft:
+                definition.type === "flowchart.parallelogram"
+                  ? `${12 + parallelogramOffsetPx}px`
+                  : "12px",
               gap: "4px",
               pointerEvents: "none",
               lineHeight: 1.2,
+              fontFamily: "var(--font-family)",
+              overflow: "hidden",
+              minWidth: 0,
+              minHeight: 0,
             }}
           >
-          <div
-            style={{
-              fontWeight: 700,
-              fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
-              lineHeight: 1.2,
-            }}
-          >
-            {displayName}
+            {useLabelLayout ? (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
+                  <div
+                    style={{
+                      opacity: 0.75,
+                      fontWeight: 600,
+                      fontSize: `${headerFontPx}px`,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {uiText.fields.nodeDetails.name}
+                  </div>
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      fontSize: `${bodyFontPx}px`,
+                      lineHeight: 1.8,
+                      minWidth: 0,
+                      overflow: "hidden",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {displayName}
+                  </div>
+                </div>
+                {isExpanded && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
+                    <div
+                      style={{
+                        opacity: 0.75,
+                        fontWeight: 600,
+                        fontSize: `${headerFontPx}px`,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {uiText.fields.nodeDetails.purpose}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: `${bodyFontPx}px`,
+                        lineHeight: 1.25,
+                        overflow: "hidden",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {purposeValue}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {displayName}
+                </div>
+                {isExpanded && purposeValue ? (
+                  <div
+                    style={{
+                      fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+                      opacity: 0.85,
+                      lineHeight: 1.25,
+                    }}
+                  >
+                    {purposeValue}
+                  </div>
+                ) : null}
+              </>
+            )}
           </div>
-          {isExpanded && purposeValue ? (
-            <div
-              style={{
-                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
-                opacity: 0.85,
-                lineHeight: 1.25,
-              }}
-            >
-              {purposeValue}
-            </div>
-          ) : null}
-        </div>
       </div>
     </div>
   );
