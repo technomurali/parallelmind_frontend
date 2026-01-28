@@ -224,6 +224,25 @@ export default function RightPanel() {
     return (groups ?? []).find((group: any) => group?.id === selectedGroupId) ?? null;
   }, [selectedGroupId, moduleType, cognitiveNotesRoot?.groups, groups]);
 
+  const groupMemberIds = useMemo(() => {
+    if (!selectedGroup) return [];
+    if (Array.isArray((selectedGroup as any).node_ids)) {
+      return (selectedGroup as any).node_ids.filter((id: any) => typeof id === "string");
+    }
+    if (Array.isArray((selectedGroup as any).nodeIds)) {
+      return (selectedGroup as any).nodeIds.filter((id: any) => typeof id === "string");
+    }
+    return [];
+  }, [selectedGroup]);
+
+  const groupMemberNodes = useMemo(
+    () =>
+      groupMemberIds
+        .map((id) => (nodes ?? []).find((node: any) => node?.id === id))
+        .filter(Boolean),
+    [groupMemberIds, nodes]
+  );
+
   const [groupDraft, setGroupDraft] = useState({
     name: "",
     purpose: "",
@@ -3860,6 +3879,82 @@ export default function RightPanel() {
                   gap: "var(--space-2)",
                 }}
               >
+                <div style={{ display: "grid", gap: "var(--space-2)" }}>
+                  <div style={{ fontWeight: 700 }}>{uiText.grouping.groupMembers}</div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "var(--space-2)",
+                    }}
+                  >
+                    {groupMemberNodes.map((node: any) => {
+                      const label =
+                        (node?.data as any)?.name ||
+                        (node?.data as any)?.label ||
+                        node?.id ||
+                        "";
+                      return (
+                        <div
+                          key={node.id}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "6px 8px",
+                            borderRadius: "999px",
+                            border: "var(--border-width) solid var(--border)",
+                            background: "var(--surface-2)",
+                            fontSize: "0.8rem",
+                            maxWidth: "100%",
+                          }}
+                        >
+                          <span
+                            style={{
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxWidth: 180,
+                            }}
+                            title={label}
+                          >
+                            {label}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={uiText.grouping.removeSelectedNode}
+                            title={uiText.grouping.removeSelectedNode}
+                            onClick={() => removeNodeFromGroup(node.id)}
+                            style={{
+                              height: 18,
+                              width: 18,
+                              borderRadius: "999px",
+                              border: "none",
+                              background: "transparent",
+                              color: "inherit",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "0.85rem",
+                              lineHeight: 1,
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.background =
+                                "var(--surface-1)";
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.background =
+                                "transparent";
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
                 <label style={{ display: "grid", gap: "var(--space-2)" }}>
                   <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
                     {uiText.fields.groupDetails.name}
@@ -3936,18 +4031,22 @@ export default function RightPanel() {
                   style={{
                     display: "grid",
                     gap: "var(--space-2)",
+                    width: "100%",
+                    minWidth: 0,
+                    boxSizing: "border-box",
+                    overflow: "hidden",
                     border: "var(--border-width) solid var(--border)",
                     borderRadius: "var(--radius-md)",
                     padding: "var(--space-2)",
                   }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                  <div style={{ fontWeight: 600, fontSize: "0.8rem", minWidth: 0 }}>
                     {groupDetailsPath
                       ? uiText.fields.groupDetails.associatedTextFileLabel
                       : uiText.fields.groupDetails.associatedTextFileQuestion}
                   </div>
                   {groupDetailsPath ? (
-                    <div style={{ display: "grid", gap: "var(--space-2)" }}>
+                    <div style={{ display: "grid", gap: "var(--space-2)", minWidth: 0, overflow: "hidden" }}>
                       <div style={{ fontSize: "0.8rem", opacity: 0.75 }}>
                         {groupDetailsFileStatus === "created"
                           ? uiText.fields.groupDetails.associatedTextFileCreated
@@ -3958,6 +4057,8 @@ export default function RightPanel() {
                           fontSize: "0.8rem",
                           opacity: 0.8,
                           wordBreak: "break-word",
+                          minWidth: 0,
+                          overflow: "hidden",
                         }}
                       >
                         {groupDetailsPath}
@@ -3979,21 +4080,6 @@ export default function RightPanel() {
                         }}
                       >
                         {uiText.fields.groupDetails.associatedTextFileCreate}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void skipGroupAssociatedTextFile()}
-                        style={{
-                          borderRadius: "var(--radius-md)",
-                          border: "var(--border-width) solid var(--border)",
-                          padding: "var(--space-1) var(--space-2)",
-                          background: "transparent",
-                          color: "inherit",
-                          cursor: "pointer",
-                          fontFamily: "var(--font-family)",
-                        }}
-                      >
-                        {uiText.fields.groupDetails.associatedTextFileSkip}
                       </button>
                     </div>
                   )}
@@ -4521,13 +4607,15 @@ export default function RightPanel() {
                               gap: "var(--space-2)",
                               width: "100%",
                               minWidth: 0,
+                              boxSizing: "border-box",
+                              overflow: "hidden",
                               border: "var(--border-width) solid var(--border)",
                               borderRadius: "var(--radius-md)",
                               padding: "var(--space-2)",
                               background: "var(--surface-1)",
                             }}
                           >
-                            <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                            <div style={{ fontWeight: 600, fontSize: "0.8rem", minWidth: 0 }}>
                               {detailsPath || detailsOptOut
                                 ? uiText.fields.nodeDetails.associatedTextFileLabel
                                 : uiText.fields.nodeDetails.associatedTextFileQuestion}
@@ -4539,9 +4627,11 @@ export default function RightPanel() {
                                   flexDirection: "column",
                                   gap: "var(--space-1)",
                                   fontSize: "0.8rem",
+                                  minWidth: 0,
+                                  overflow: "hidden",
                                 }}
                               >
-                                <div style={{ wordBreak: "break-all" }}>
+                                <div style={{ wordBreak: "break-all", minWidth: 0, overflow: "hidden" }}>
                                   {detailsPath}
                                 </div>
                                 {detailsFileStatus === "created" && (
@@ -4630,22 +4720,6 @@ export default function RightPanel() {
                                     }}
                                   >
                                     {uiText.fields.nodeDetails.associatedTextFileCreate}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => void skipAssociatedTextFile()}
-                                    style={{
-                                      borderRadius: "999px",
-                                      border: "var(--border-width) solid var(--border)",
-                                      background: "transparent",
-                                      color: "inherit",
-                                      padding: "4px 12px",
-                                      fontSize: "0.8rem",
-                                      fontWeight: 600,
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    {uiText.fields.nodeDetails.associatedTextFileSkip}
                                   </button>
                                 </div>
                                 {detailsFileStatus === "creating" && (

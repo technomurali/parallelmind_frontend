@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Node } from "reactflow";
-import { FiEye, FiEyeOff } from "react-icons/fi";
+import { FiCopy, FiEye, FiEyeOff } from "react-icons/fi";
 import { marked } from "marked";
 import { uiText } from "../constants/uiText";
 import { FileManager } from "../data/fileManager";
@@ -675,29 +675,35 @@ export default function SmartPad({
       >
         <button
           type="button"
-          aria-label={uiText.smartPad.copyPreviewText}
-          title={uiText.smartPad.copyPreviewText}
+          aria-label={
+            copyStatus === "copied"
+              ? "Copied"
+              : copyStatus === "error"
+              ? "Copy failed"
+              : "Copy"
+          }
+          title={
+            copyStatus === "copied"
+              ? "Copied"
+              : copyStatus === "error"
+              ? "Copy failed"
+              : "Copy"
+          }
           onClick={() => void copyPreviewText()}
           style={{
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
+            width: 28,
             height: 28,
-            padding: "0 8px",
             borderRadius: "var(--radius-sm)",
             border: "var(--border-width) solid var(--border)",
             background: "var(--surface-2)",
             color: "var(--text)",
             cursor: "pointer",
-            fontSize: "0.75rem",
-            fontWeight: 600,
           }}
         >
-          {copyStatus === "copied"
-            ? "Copied"
-            : copyStatus === "error"
-            ? "Copy failed"
-            : "Copy"}
+          <FiCopy aria-hidden="true" />
         </button>
         <button
           type="button"

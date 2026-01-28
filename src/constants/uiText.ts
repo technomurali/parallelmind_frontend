@@ -297,6 +297,7 @@ export const uiText = {
     groupedNodes: 'Grouped nodes',
     selectedNodes: 'Selected nodes',
     removeSelectedNode: 'Remove from selection',
+    groupMembers: 'Group members',
   },
 
   /**
