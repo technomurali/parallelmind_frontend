@@ -181,6 +181,7 @@ export default function SmartPad({
   const editableContentRef = useRef("");
   const [isContentEmpty, setIsContentEmpty] = useState(true);
   const [isPreview, setIsPreview] = useState(true);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [dirty, setDirty] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -197,6 +198,25 @@ export default function SmartPad({
     if (isDirty) {
       setSaveStatus("saving");
       setContentVersion((prev) => prev + 1);
+    }
+  };
+
+  const copyPreviewText = async () => {
+    const previewEl = previewEditableRef.current;
+    const text = previewEl?.innerText ?? "";
+    if (!text.trim()) {
+      setCopyStatus("error");
+      window.setTimeout(() => setCopyStatus("idle"), 1500);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyStatus("copied");
+      window.setTimeout(() => setCopyStatus("idle"), 1500);
+    } catch (error) {
+      console.error("[SmartPad] Failed to copy preview text:", error);
+      setCopyStatus("error");
+      window.setTimeout(() => setCopyStatus("idle"), 1500);
     }
   };
 
@@ -650,8 +670,35 @@ export default function SmartPad({
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-end",
+          gap: "6px",
         }}
       >
+        <button
+          type="button"
+          aria-label={uiText.smartPad.copyPreviewText}
+          title={uiText.smartPad.copyPreviewText}
+          onClick={() => void copyPreviewText()}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: 28,
+            padding: "0 8px",
+            borderRadius: "var(--radius-sm)",
+            border: "var(--border-width) solid var(--border)",
+            background: "var(--surface-2)",
+            color: "var(--text)",
+            cursor: "pointer",
+            fontSize: "0.75rem",
+            fontWeight: 600,
+          }}
+        >
+          {copyStatus === "copied"
+            ? "Copied"
+            : copyStatus === "error"
+            ? "Copy failed"
+            : "Copy"}
+        </button>
         <button
           type="button"
           aria-pressed={isPreview}

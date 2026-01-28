@@ -192,6 +192,7 @@ export const uiText = {
   smartPad: {
     previewToggleShow: 'Show markdown preview',
     previewToggleCode: 'Show markdown code',
+    copyPreviewText: 'Copy preview text',
   },
   appFooter: {
     desktopMode: 'Desktop mode',
