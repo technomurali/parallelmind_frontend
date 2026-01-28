@@ -837,9 +837,18 @@ export default function RightPanel() {
   }, [isImageNode, selectedNode, rootDirectoryHandle, fileManager]);
 
   useEffect(() => {
-    const shouldOpen = !!selectedNodeId && isDraftNode;
+    const hasAssociatedTextFile = !!detailsPath || detailsOptOut;
+    const shouldOpen =
+      !!selectedNodeId &&
+      (isDraftNode || (shouldOfferDetailsFile && !hasAssociatedTextFile));
     setFileDetailsExpanded(shouldOpen);
-  }, [selectedNodeId, isDraftNode]);
+  }, [
+    selectedNodeId,
+    isDraftNode,
+    shouldOfferDetailsFile,
+    detailsPath,
+    detailsOptOut,
+  ]);
 
   // Save callback: updates in-memory state and persists only when we already have a persistence mechanism.
   const commitSave = async () => {
