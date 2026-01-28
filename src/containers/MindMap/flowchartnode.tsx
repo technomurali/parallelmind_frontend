@@ -432,6 +432,7 @@ const FlowchartNodeBase = (
                         lineHeight: 1.25,
                         overflow: "hidden",
                         wordBreak: "break-word",
+                        whiteSpace: "pre-wrap",
                       }}
                     >
                       {purposeValue}
@@ -456,6 +457,7 @@ const FlowchartNodeBase = (
                       fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
                       opacity: 0.85,
                       lineHeight: 1.25,
+                      whiteSpace: "pre-wrap",
                     }}
                   >
                     {purposeValue}
