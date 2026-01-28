@@ -287,28 +287,32 @@ const FlowchartNodeBase = (
             transform: "translate(-50%, -50%)",
           }}
         />
-        <Handle
-          type="source"
-          position={Position.Left}
-          id="source-left"
-          style={{
-            ...leftHandleStyle,
-            left: leftHandleLeft,
-            top: leftHandleTop,
-            transform: "translate(-50%, -50%)",
-          }}
-        />
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="source-right"
-          style={{
-            ...rightHandleStyle,
-            left: rightHandleLeft,
-            top: rightHandleTop,
-            transform: "translate(-50%, -50%)",
-          }}
-        />
+        {definition.type !== "flowchart.triangle" && (
+          <>
+            <Handle
+              type="source"
+              position={Position.Left}
+              id="source-left"
+              style={{
+                ...leftHandleStyle,
+                left: leftHandleLeft,
+                top: leftHandleTop,
+                transform: "translate(-50%, -50%)",
+              }}
+            />
+            <Handle
+              type="source"
+              position={Position.Right}
+              id="source-right"
+              style={{
+                ...rightHandleStyle,
+                left: rightHandleLeft,
+                top: rightHandleTop,
+                transform: "translate(-50%, -50%)",
+              }}
+            />
+          </>
+        )}
         <svg
           width="100%"
           height="100%"
