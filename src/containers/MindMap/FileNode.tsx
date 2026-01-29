@@ -135,6 +135,7 @@ export default function FileNode({
   const contentPadding = Math.max(4, Math.round(8 * sizeScale));
   const contentPaddingTop = Math.max(6, Math.round(13 * sizeScale));
   const headerRightPadding = Math.max(18, Math.round(26 * sizeScale));
+  const purposeOffset = Math.max(4, Math.round(5 * sizeScale)) + 5;
   const pctX = (x: number) => `${((x - viewBoxMinX) / viewBoxWidth) * 100}%`;
   const pctY = (y: number) => `${((y - viewBoxMinY) / viewBoxHeight) * 100}%`;
 
@@ -464,7 +465,7 @@ export default function FileNode({
                 position: "absolute",
                 left: pctX(bodyLeftX),
                 right: `calc(100% - ${pctX(bodyRightX)})`,
-                top: pctY(bodyTopY),
+                top: `calc(${pctY(bodyTopY)} + ${purposeOffset}px)`,
                 opacity: isExpanded ? 1 : 0,
                 maxHeight: isExpanded ? "200px" : "0px",
                 overflow: "hidden",
