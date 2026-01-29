@@ -11,12 +11,12 @@ const turndownService = new TurndownService({
 turndownService.use(gfm);
 
 turndownService.addRule("fencedCodeBlock", {
-  filter: (node) => {
+  filter: (node: Node) => {
     if (node.nodeName !== "PRE") return false;
     const first = node.firstChild as HTMLElement | null;
     return !!first && first.nodeName === "CODE";
   },
-  replacement: (_content, node) => {
+  replacement: (_content: string, node: Node) => {
     const codeElement = (node.firstChild as HTMLElement) ?? null;
     const rawCode = codeElement?.textContent ?? "";
     const className = codeElement?.getAttribute("class") ?? "";

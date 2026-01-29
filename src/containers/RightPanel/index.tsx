@@ -54,11 +54,13 @@ const normalizeYoutubeSettings = (value: unknown): YoutubeSettings => {
   if (!value || typeof value !== "object") return { ...DEFAULT_YT_SETTINGS };
   const settings = value as Partial<YoutubeSettings>;
   const startSeconds =
-    typeof settings.startSeconds === "number" && Number.isFinite(settings.startSeconds)
+    typeof settings.startSeconds === "number" &&
+    Number.isFinite(settings.startSeconds)
       ? Math.max(0, settings.startSeconds)
       : DEFAULT_YT_SETTINGS.startSeconds;
   const endSeconds =
-    typeof settings.endSeconds === "number" && Number.isFinite(settings.endSeconds)
+    typeof settings.endSeconds === "number" &&
+    Number.isFinite(settings.endSeconds)
       ? Math.max(0, settings.endSeconds)
       : DEFAULT_YT_SETTINGS.endSeconds;
   return {
@@ -104,17 +106,17 @@ export default function RightPanel() {
   const setCanvasSaveStatus = useMindMapStore((s) => s.setCanvasSaveStatus);
   const pendingChildCreation = activeTab?.pendingChildCreation ?? null;
   const finalizePendingChildCreation = useMindMapStore(
-    (s) => s.finalizePendingChildCreation
+    (s) => s.finalizePendingChildCreation,
   );
   const setPendingChildCreation = useMindMapStore(
-    (s) => s.setPendingChildCreation
+    (s) => s.setPendingChildCreation,
   );
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
   const lastCanvasPosition = activeTab?.lastCanvasPosition ?? null;
   const canvasCenter = activeTab?.canvasCenter ?? null;
   const updateCognitiveNotesRoot = useMindMapStore(
-    (s) => s.updateCognitiveNotesRoot
+    (s) => s.updateCognitiveNotesRoot,
   );
   const setRoot = useMindMapStore((s) => s.setRoot);
   const updateRootFolderJson = useMindMapStore((s) => s.updateRootFolderJson);
@@ -165,7 +167,7 @@ export default function RightPanel() {
     yt_settings: DEFAULT_YT_SETTINGS,
   });
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
-    "idle"
+    "idle",
   );
   const [groupSaveStatus, setGroupSaveStatus] = useState<
     "idle" | "saving" | "saved"
@@ -195,13 +197,15 @@ export default function RightPanel() {
   const [sortIndexSaveStatus, setSortIndexSaveStatus] = useState<
     "idle" | "saving" | "saved"
   >("idle");
-  const [notesFeedSourceId, setNotesFeedSourceId] = useState<string | null>(null);
+  const [notesFeedSourceId, setNotesFeedSourceId] = useState<string | null>(
+    null,
+  );
   const [notesFeedItems, setNotesFeedItems] = useState<
     { id: string; title: string; contentHtml: string }[]
   >([]);
   const [notesFeedLoading, setNotesFeedLoading] = useState(false);
   const [notesFeedHiddenIds, setNotesFeedHiddenIds] = useState<Set<string>>(
-    () => new Set()
+    () => new Set(),
   );
 
   const hasMultiSelection = selectedNodeIds.length > 1;
@@ -211,26 +215,32 @@ export default function RightPanel() {
       (selectedNodeIds ?? [])
         .map((id) => (nodes ?? []).find((node: any) => node?.id === id))
         .filter(Boolean),
-    [nodes, selectedNodeIds]
+    [nodes, selectedNodeIds],
   );
 
   const selectedGroup = useMemo(() => {
     if (!selectedGroupId) return null;
     if (moduleType === "cognitiveNotes") {
       return (cognitiveNotesRoot?.groups ?? []).find(
-        (group: any) => group?.id === selectedGroupId
+        (group: any) => group?.id === selectedGroupId,
       );
     }
-    return (groups ?? []).find((group: any) => group?.id === selectedGroupId) ?? null;
+    return (
+      (groups ?? []).find((group: any) => group?.id === selectedGroupId) ?? null
+    );
   }, [selectedGroupId, moduleType, cognitiveNotesRoot?.groups, groups]);
 
   const groupMemberIds = useMemo(() => {
     if (!selectedGroup) return [];
     if (Array.isArray((selectedGroup as any).node_ids)) {
-      return (selectedGroup as any).node_ids.filter((id: any) => typeof id === "string");
+      return (selectedGroup as any).node_ids.filter(
+        (id: any) => typeof id === "string",
+      );
     }
     if (Array.isArray((selectedGroup as any).nodeIds)) {
-      return (selectedGroup as any).nodeIds.filter((id: any) => typeof id === "string");
+      return (selectedGroup as any).nodeIds.filter(
+        (id: any) => typeof id === "string",
+      );
     }
     return [];
   }, [selectedGroup]);
@@ -238,9 +248,9 @@ export default function RightPanel() {
   const groupMemberNodes = useMemo(
     () =>
       groupMemberIds
-        .map((id) => (nodes ?? []).find((node: any) => node?.id === id))
+        .map((id: string) => (nodes ?? []).find((node: any) => node?.id === id))
         .filter(Boolean),
-    [groupMemberIds, nodes]
+    [groupMemberIds, nodes],
   );
 
   const [groupDraft, setGroupDraft] = useState({
@@ -252,7 +262,9 @@ export default function RightPanel() {
   const [groupDetailsFileStatus, setGroupDetailsFileStatus] = useState<
     "idle" | "creating" | "created" | "error"
   >("idle");
-  const [groupDetailsFileError, setGroupDetailsFileError] = useState<string | null>(null);
+  const [groupDetailsFileError, setGroupDetailsFileError] = useState<
+    string | null
+  >(null);
 
   const removeSelectedNodeChip = (nodeId: string) => {
     if (!nodeId) return;
@@ -261,8 +273,15 @@ export default function RightPanel() {
     setSelectedNodeIds(nextIds);
   };
 
-  const persistGroupMeta = async (payload: { name?: string; purpose?: string }) => {
-    if (!selectedGroupId || moduleType !== "cognitiveNotes" || !cognitiveNotesRoot) {
+  const persistGroupMeta = async (payload: {
+    name?: string;
+    purpose?: string;
+  }) => {
+    if (
+      !selectedGroupId ||
+      moduleType !== "cognitiveNotes" ||
+      !cognitiveNotesRoot
+    ) {
       return;
     }
     const nowIso = new Date().toISOString();
@@ -271,7 +290,8 @@ export default function RightPanel() {
       return {
         ...group,
         name: typeof payload.name === "string" ? payload.name : group.name,
-        purpose: typeof payload.purpose === "string" ? payload.purpose : group.purpose,
+        purpose:
+          typeof payload.purpose === "string" ? payload.purpose : group.purpose,
         updated_on: nowIso,
       };
     });
@@ -282,7 +302,8 @@ export default function RightPanel() {
     });
     updateGroupData(selectedGroupId, {
       name: typeof payload.name === "string" ? payload.name : undefined,
-      purpose: typeof payload.purpose === "string" ? payload.purpose : undefined,
+      purpose:
+        typeof payload.purpose === "string" ? payload.purpose : undefined,
       updatedOn: nowIso,
     });
   };
@@ -330,12 +351,15 @@ export default function RightPanel() {
     }
     setGroupDraft({
       name: typeof selectedGroup.name === "string" ? selectedGroup.name : "",
-      purpose: typeof selectedGroup.purpose === "string" ? selectedGroup.purpose : "",
+      purpose:
+        typeof selectedGroup.purpose === "string" ? selectedGroup.purpose : "",
     });
     setGroupDetailsPath(
-      typeof selectedGroup.details_path === "string" ? selectedGroup.details_path : ""
+      typeof (selectedGroup as any).details_path === "string"
+        ? (selectedGroup as any).details_path
+        : "",
     );
-    setGroupDetailsOptOut(!!selectedGroup.details_opt_out);
+    setGroupDetailsOptOut(!!(selectedGroup as any).details_opt_out);
     setGroupDetailsFileStatus("idle");
     setGroupDetailsFileError(null);
     setGroupDirty(false);
@@ -344,7 +368,10 @@ export default function RightPanel() {
 
   useEffect(() => {
     if (!selectedNodeId) return;
-    if (rightPanelMode === "notesFeed" && selectedNodeId === notesFeedSourceId) {
+    if (
+      rightPanelMode === "notesFeed" &&
+      selectedNodeId === notesFeedSourceId
+    ) {
       return;
     }
     setRightPanelMode("nodeDetails");
@@ -394,7 +421,9 @@ export default function RightPanel() {
     const node = (nodes ?? []).find((n: any) => n?.id === selectedNodeId);
     const data = (node?.data ?? {}) as any;
     const isFile =
-      data?.node_type === "file" || data?.type === "file" || node?.type === "file";
+      data?.node_type === "file" ||
+      data?.type === "file" ||
+      node?.type === "file";
     const isImage =
       data?.node_type === "polaroidImage" ||
       data?.type === "polaroidImage" ||
@@ -405,19 +434,20 @@ export default function RightPanel() {
     const baseName = typeof data.name === "string" ? data.name : "";
     const ext = typeof data.extension === "string" ? data.extension : "";
     const caption = typeof data.caption === "string" ? data.caption : "";
-    const hydratedName = isFile && baseName
-      ? ext
-        ? `${baseName}.${ext}`
-        : baseName
-      : isImage && caption
-      ? caption
-      : baseName;
+    const hydratedName =
+      isFile && baseName
+        ? ext
+          ? `${baseName}.${ext}`
+          : baseName
+        : isImage && caption
+          ? caption
+          : baseName;
     const youtubeUrl =
       typeof data.youtube_url === "string" ? data.youtube_url : "";
     const youtubeVideoId =
       typeof data.youtube_video_id === "string"
         ? data.youtube_video_id
-        : parseYouTubeVideoId(youtubeUrl) ?? "";
+        : (parseYouTubeVideoId(youtubeUrl) ?? "");
     const ytSettings = normalizeYoutubeSettings(data.yt_settings);
 
     // If the selection changed, re-hydrate and reset editing state.
@@ -455,7 +485,7 @@ export default function RightPanel() {
   }, [nodes, selectedNodeId]);
 
   const selectedEdge = selectedEdgeId
-    ? (edges ?? []).find((edge: any) => edge?.id === selectedEdgeId) ?? null
+    ? ((edges ?? []).find((edge: any) => edge?.id === selectedEdgeId) ?? null)
     : null;
 
   useEffect(() => {
@@ -513,7 +543,12 @@ export default function RightPanel() {
         ? (cognitiveNotesRoot?.flowchart_nodes ?? [])
         : (rootFolderJson?.flowchart_nodes ?? []);
     return (list as any[]).some((node: any) => node?.id === selectedNodeId);
-  }, [selectedNodeId, moduleType, cognitiveNotesRoot?.flowchart_nodes, rootFolderJson?.flowchart_nodes]);
+  }, [
+    selectedNodeId,
+    moduleType,
+    cognitiveNotesRoot?.flowchart_nodes,
+    rootFolderJson?.flowchart_nodes,
+  ]);
   const isYoutubeNode = flowchartType === "flowchart.youtube";
   const isNonPersistentNode = !!(selectedNode?.data as any)?.nonPersistent;
   const parentIdForDraft =
@@ -570,7 +605,10 @@ export default function RightPanel() {
     const used = new Set<number>();
     (cognitiveNotesRoot.child ?? []).forEach((node: any) => {
       if (!node || node.id === selectedNodeId) return;
-      if (typeof node.sort_index === "number" && Number.isFinite(node.sort_index)) {
+      if (
+        typeof node.sort_index === "number" &&
+        Number.isFinite(node.sort_index)
+      ) {
         used.add(node.sort_index);
       }
     });
@@ -604,7 +642,7 @@ export default function RightPanel() {
   };
 
   const splitDraftFileName = (
-    rawValue: string
+    rawValue: string,
   ): { name: string; extension: string; fullName: string } => {
     const normalized = normalizeDraftFileName(rawValue);
     const lastDot = normalized.lastIndexOf(".");
@@ -620,7 +658,7 @@ export default function RightPanel() {
 
   const findFolderNodeById = (
     list: any[],
-    nodeId: string
+    nodeId: string,
   ): { child?: any[] } | null => {
     for (const item of list ?? []) {
       if (!item || typeof item !== "object") continue;
@@ -675,15 +713,18 @@ export default function RightPanel() {
     if (parentIdForDraft && rootFolderJson) {
       const siblings =
         parentIdForDraft === "00"
-          ? rootFolderJson.child ?? []
-          : findFolderNodeById(rootFolderJson.child ?? [], parentIdForDraft)
-              ?.child ?? [];
+          ? (rootFolderJson.child ?? [])
+          : (findFolderNodeById(rootFolderJson.child ?? [], parentIdForDraft)
+              ?.child ?? []);
       const conflict = siblings.some((sibling: any) => {
-        const siblingName = typeof sibling?.name === "string" ? sibling.name : "";
+        const siblingName =
+          typeof sibling?.name === "string" ? sibling.name : "";
         const siblingExt =
           typeof sibling?.extension === "string" ? sibling.extension : "";
         const siblingFull =
-          siblingExt && siblingName ? `${siblingName}.${siblingExt}` : siblingName;
+          siblingExt && siblingName
+            ? `${siblingName}.${siblingExt}`
+            : siblingName;
         // For image nodes, compare against the effective filename (caption + extension from clipboard)
         if (isImageNode) {
           // We'll check the actual filename that will be created (caption + extension)
@@ -740,8 +781,8 @@ export default function RightPanel() {
       typeof (selectedNode?.data as any)?.imageSrc === "string"
         ? (selectedNode.data as any).imageSrc
         : typeof (selectedNode?.data as any)?.path === "string"
-        ? (selectedNode.data as any).path
-        : "";
+          ? (selectedNode.data as any).path
+          : "";
 
     const source = (rawImageSource ?? "").trim();
     if (!source) {
@@ -800,7 +841,8 @@ export default function RightPanel() {
     };
 
     const resolveFromPath = async () => {
-      const isTauri = typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
+      const isTauri =
+        typeof (window as any).__TAURI_INTERNALS__ !== "undefined";
       if (!isTauri) return false;
       try {
         const { readFile } = await import("@tauri-apps/plugin-fs");
@@ -891,7 +933,9 @@ export default function RightPanel() {
     if (isFlowchartNode) {
       const nowIso = new Date().toISOString();
       const flowType =
-        (selectedNode?.data as any)?.node_type ?? (selectedNode as any)?.type ?? "";
+        (selectedNode?.data as any)?.node_type ??
+        (selectedNode as any)?.type ??
+        "";
       if (moduleType === "cognitiveNotes") {
         if (cognitiveNotesRoot) {
           const nextFlowNodes = upsertFlowchartNode(
@@ -905,7 +949,7 @@ export default function RightPanel() {
               youtube_video_id: draft.youtube_video_id,
               yt_settings: draft.yt_settings,
               updated_on: nowIso,
-            }
+            },
           );
           await persistCognitiveNotesRoot({
             ...cognitiveNotesRoot,
@@ -925,7 +969,7 @@ export default function RightPanel() {
             youtube_video_id: draft.youtube_video_id,
             yt_settings: draft.yt_settings,
             updated_on: nowIso,
-          }
+          },
         );
         await persistParallelmindRoot({
           ...rootFolderJson,
@@ -993,7 +1037,7 @@ export default function RightPanel() {
           {
             rootDirectoryHandle,
             rootFolderJsonPath: rootFolderJson?.path,
-          }
+          },
         );
         setDirty(true); // Keep dirty state so user knows save failed
         setSaveStatus("idle");
@@ -1013,7 +1057,8 @@ export default function RightPanel() {
         created_on: rootFolderJson?.created_on ?? "",
         updated_on: nowIso,
         // Views logic handled later; keep as-is.
-        last_viewed_on: rootFolderJson?.last_viewed_on ?? rootFolderJson?.created_on ?? "",
+        last_viewed_on:
+          rootFolderJson?.last_viewed_on ?? rootFolderJson?.created_on ?? "",
         views: rootFolderJson?.views ?? 0,
         notifications: rootFolderJson?.notifications ?? [],
         recommendations: rootFolderJson?.recommendations ?? [],
@@ -1028,11 +1073,11 @@ export default function RightPanel() {
         // Browser mode: write via directory handle.
         if (hasDirectoryHandle) {
           console.log(
-            "[RightPanel] Saving via directory handle (browser mode)"
+            "[RightPanel] Saving via directory handle (browser mode)",
           );
           await fileManager.writeRootFolderJson(
             rootDirectoryHandle!,
-            payload as any
+            payload as any,
           );
         }
 
@@ -1042,7 +1087,7 @@ export default function RightPanel() {
           console.log("[RightPanel] Saving via path (Tauri mode):", savePath);
           await fileManager.writeRootFolderJsonFromPath(
             savePath,
-            payload as any
+            payload as any,
           );
         }
 
@@ -1059,7 +1104,9 @@ export default function RightPanel() {
       }
     } else {
       const hasDirectoryHandle = !!rootDirectoryHandle;
-      const hasPath = !!(rootFolderJson?.path && rootFolderJson.path.trim() !== "");
+      const hasPath = !!(
+        rootFolderJson?.path && rootFolderJson.path.trim() !== ""
+      );
       if (!hasDirectoryHandle && !hasPath) {
         setDirty(true);
         setSaveStatus("idle");
@@ -1133,14 +1180,14 @@ export default function RightPanel() {
       if (cognitiveNotesDirectoryHandle) {
         await cognitiveNotesManager.writeCognitiveNotesJson(
           cognitiveNotesDirectoryHandle,
-          nextRoot
+          nextRoot,
         );
       } else {
         const targetPath = cognitiveNotesFolderPath ?? nextRoot.path ?? "";
         if (targetPath) {
           await cognitiveNotesManager.writeCognitiveNotesJsonFromPath(
             targetPath,
-            nextRoot
+            nextRoot,
           );
         }
       }
@@ -1189,11 +1236,7 @@ export default function RightPanel() {
         yt_settings: payload.yt_settings ?? existing.yt_settings,
         updated_on: payload.updated_on,
       };
-      return [
-        ...list.slice(0, index),
-        updated,
-        ...list.slice(index + 1),
-      ];
+      return [...list.slice(0, index), updated, ...list.slice(index + 1)];
     }
     return [
       ...list,
@@ -1227,7 +1270,7 @@ export default function RightPanel() {
       selectedNodeId,
       dirty,
     ],
-    dirty
+    dirty,
   );
 
   useAutoSave(
@@ -1236,7 +1279,7 @@ export default function RightPanel() {
     },
     3000,
     [groupDraft.name, groupDraft.purpose, selectedGroupId, groupDirty],
-    groupDirty
+    groupDirty,
   );
 
   useAutoSave(
@@ -1250,20 +1293,22 @@ export default function RightPanel() {
                 ...edge,
                 data: { ...(edge.data ?? {}), purpose: nextPurpose },
               }
-            : edge
-        )
+            : edge,
+        ),
       );
       if (cognitiveNotesRoot) {
-        const updatedChild = (cognitiveNotesRoot.child ?? []).map((node: any) => ({
-          ...node,
-          related_nodes: Array.isArray(node.related_nodes)
-            ? node.related_nodes.map((rel: any) =>
-                rel?.edge_id === selectedEdgeId
-                  ? { ...rel, purpose: nextPurpose }
-                  : rel
-              )
-            : [],
-        }));
+        const updatedChild = (cognitiveNotesRoot.child ?? []).map(
+          (node: any) => ({
+            ...node,
+            related_nodes: Array.isArray(node.related_nodes)
+              ? node.related_nodes.map((rel: any) =>
+                  rel?.edge_id === selectedEdgeId
+                    ? { ...rel, purpose: nextPurpose }
+                    : rel,
+                )
+              : [],
+          }),
+        );
         useMindMapStore.getState().setCognitiveNotesRoot({
           ...cognitiveNotesRoot,
           child: updatedChild,
@@ -1274,7 +1319,7 @@ export default function RightPanel() {
     },
     3000,
     [edgeDraft.purpose, selectedEdgeId, edgeDirty, edges],
-    edgeDirty
+    edgeDirty,
   );
 
   useAutoSave(
@@ -1293,15 +1338,18 @@ export default function RightPanel() {
                 ...node,
                 data: { ...(node.data ?? {}), sort_index: nextSortIndex },
               }
-            : node
-        )
+            : node,
+        ),
       );
       const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) =>
         node?.id === selectedNodeId
           ? { ...node, sort_index: nextSortIndex }
-          : node
+          : node,
       );
-      void persistCognitiveNotesRoot({ ...cognitiveNotesRoot, child: nextChild });
+      void persistCognitiveNotesRoot({
+        ...cognitiveNotesRoot,
+        child: nextChild,
+      });
       setSortIndexDirty(false);
       setSortIndexSaveStatus("saved");
     },
@@ -1314,7 +1362,7 @@ export default function RightPanel() {
       cognitiveNotesRoot,
       nodes,
     ],
-    sortIndexDirty
+    sortIndexDirty,
   );
 
   const onFieldChange =
@@ -1376,7 +1424,7 @@ export default function RightPanel() {
         ...node,
         related_nodes: Array.isArray(node.related_nodes)
           ? node.related_nodes.filter(
-              (rel: any) => rel?.edge_id !== selectedEdgeId
+              (rel: any) => rel?.edge_id !== selectedEdgeId,
             )
           : [],
       }));
@@ -1390,20 +1438,20 @@ export default function RightPanel() {
   const updateFlowchartNodeDetails = (
     list: any[],
     nodeId: string,
-    details: { details_path?: string; details_opt_out?: boolean }
+    details: { details_path?: string; details_opt_out?: boolean },
   ): any[] => {
     const updatedAt = new Date().toISOString();
     return (list ?? []).map((node) =>
       node?.id === nodeId
         ? { ...node, ...details, updated_on: updatedAt }
-        : node
+        : node,
     );
   };
 
   const updateFileNodeDetails = (
     list: any[],
     nodeId: string,
-    details: { details_path?: string; details_opt_out?: boolean }
+    details: { details_path?: string; details_opt_out?: boolean },
   ): { nodes: any[]; updated: boolean } => {
     let updated = false;
     const next = (list ?? []).map((node) => {
@@ -1427,7 +1475,7 @@ export default function RightPanel() {
   const updateCognitiveNotesChildDetails = (
     list: any[],
     nodeId: string,
-    details: { details_path?: string; details_opt_out?: boolean }
+    details: { details_path?: string; details_opt_out?: boolean },
   ): { nodes: any[]; updated: boolean } => {
     let updated = false;
     const next = (list ?? []).map((node) => {
@@ -1459,7 +1507,7 @@ export default function RightPanel() {
           {
             details_path: payload.detailsPath,
             details_opt_out: payload.detailsOptOut,
-          }
+          },
         );
         await persistCognitiveNotesRoot({
           ...cognitiveNotesRoot,
@@ -1472,7 +1520,7 @@ export default function RightPanel() {
           {
             details_path: payload.detailsPath,
             details_opt_out: payload.detailsOptOut,
-          }
+          },
         );
         await persistParallelmindRoot({
           ...rootFolderJson,
@@ -1489,7 +1537,7 @@ export default function RightPanel() {
         {
           details_path: payload.detailsPath,
           details_opt_out: payload.detailsOptOut,
-        }
+        },
       );
       if (updatedList.updated) {
         await persistCognitiveNotesRoot({
@@ -1507,7 +1555,7 @@ export default function RightPanel() {
         {
           details_path: payload.detailsPath,
           details_opt_out: payload.detailsOptOut,
-        }
+        },
       );
       if (updatedTree.updated) {
         await persistParallelmindRoot({
@@ -1522,7 +1570,11 @@ export default function RightPanel() {
     detailsPath?: string;
     detailsOptOut?: boolean;
   }) => {
-    if (!selectedGroupId || moduleType !== "cognitiveNotes" || !cognitiveNotesRoot) {
+    if (
+      !selectedGroupId ||
+      moduleType !== "cognitiveNotes" ||
+      !cognitiveNotesRoot
+    ) {
       return;
     }
     const nowIso = new Date().toISOString();
@@ -1562,7 +1614,9 @@ export default function RightPanel() {
       const { exists } = await import("@tauri-apps/plugin-fs");
       const baseName = splitDraftFileName(trimmedName).name;
       const fileName =
-        isShieldFileNode || isOutputFileNode ? `${baseName}.notes.md` : `${baseName}.md`;
+        isShieldFileNode || isOutputFileNode
+          ? `${baseName}.notes.md`
+          : `${baseName}.md`;
       if (isShieldFileNode || isOutputFileNode) {
         let targetPath = "";
         if (moduleType === "cognitiveNotes") {
@@ -1570,10 +1624,11 @@ export default function RightPanel() {
             targetPath = fileName;
             await ensureTextFileExistsFromHandle(
               cognitiveNotesDirectoryHandle,
-              targetPath
+              targetPath,
             );
           } else {
-            const basePath = cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
+            const basePath =
+              cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
             if (!basePath) {
               throw new Error("Cognitive Notes folder path is missing.");
             }
@@ -1586,7 +1641,10 @@ export default function RightPanel() {
         } else {
           if (rootDirectoryHandle) {
             targetPath = fileName;
-            await ensureTextFileExistsFromHandle(rootDirectoryHandle, targetPath);
+            await ensureTextFileExistsFromHandle(
+              rootDirectoryHandle,
+              targetPath,
+            );
           } else {
             const basePath = rootFolderJson?.path ?? "";
             if (!basePath) {
@@ -1615,10 +1673,11 @@ export default function RightPanel() {
             targetPath = fileName;
             await ensureTextFileExistsFromHandle(
               cognitiveNotesDirectoryHandle,
-              targetPath
+              targetPath,
             );
           } else {
-            const basePath = cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
+            const basePath =
+              cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
             if (!basePath) {
               throw new Error("Cognitive Notes folder path is missing.");
             }
@@ -1631,7 +1690,10 @@ export default function RightPanel() {
         } else {
           if (rootDirectoryHandle) {
             targetPath = fileName;
-            await ensureTextFileExistsFromHandle(rootDirectoryHandle, targetPath);
+            await ensureTextFileExistsFromHandle(
+              rootDirectoryHandle,
+              targetPath,
+            );
           } else {
             const basePath = rootFolderJson?.path ?? "";
             if (!basePath) {
@@ -1660,10 +1722,11 @@ export default function RightPanel() {
             targetPath = fileName;
             await ensureTextFileExistsFromHandle(
               cognitiveNotesDirectoryHandle,
-              targetPath
+              targetPath,
             );
           } else {
-            const basePath = cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
+            const basePath =
+              cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
             if (!basePath) {
               throw new Error("Cognitive Notes folder path is missing.");
             }
@@ -1676,7 +1739,10 @@ export default function RightPanel() {
         } else {
           if (rootDirectoryHandle) {
             targetPath = fileName;
-            await ensureTextFileExistsFromHandle(rootDirectoryHandle, targetPath);
+            await ensureTextFileExistsFromHandle(
+              rootDirectoryHandle,
+              targetPath,
+            );
           } else {
             const basePath = rootFolderJson?.path ?? "";
             if (!basePath) {
@@ -1697,22 +1763,32 @@ export default function RightPanel() {
         setDetailsFileStatus("created");
       }
     } catch (error) {
-      console.error("[RightPanel] Failed to create associated text file:", error);
+      console.error(
+        "[RightPanel] Failed to create associated text file:",
+        error,
+      );
       setDetailsFileStatus("error");
       setDetailsFileError(
         error instanceof Error
           ? error.message
-          : "Failed to create associated text file."
+          : "Failed to create associated text file.",
       );
     }
   };
 
   const createGroupAssociatedTextFile = async () => {
-    if (!selectedGroupId || moduleType !== "cognitiveNotes" || !cognitiveNotesRoot) return;
+    if (
+      !selectedGroupId ||
+      moduleType !== "cognitiveNotes" ||
+      !cognitiveNotesRoot
+    )
+      return;
     const trimmedName = groupDraft.name.trim();
     if (!trimmedName) {
       setGroupDetailsFileStatus("error");
-      setGroupDetailsFileError("Group name is required before creating a text file.");
+      setGroupDetailsFileError(
+        "Group name is required before creating a text file.",
+      );
       return;
     }
     setGroupDetailsFileStatus("creating");
@@ -1724,9 +1800,13 @@ export default function RightPanel() {
       let targetPath = "";
       if (cognitiveNotesDirectoryHandle) {
         targetPath = fileName;
-        await ensureTextFileExistsFromHandle(cognitiveNotesDirectoryHandle, targetPath);
+        await ensureTextFileExistsFromHandle(
+          cognitiveNotesDirectoryHandle,
+          targetPath,
+        );
       } else {
-        const basePath = cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "";
+        const basePath =
+          cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "";
         if (!basePath) {
           throw new Error("Cognitive Notes folder path is missing.");
         }
@@ -1747,23 +1827,11 @@ export default function RightPanel() {
       console.error("[RightPanel] Failed to create group text file:", error);
       setGroupDetailsFileStatus("error");
       setGroupDetailsFileError(
-        error instanceof Error ? error.message : "Failed to create associated text file."
+        error instanceof Error
+          ? error.message
+          : "Failed to create associated text file.",
       );
     }
-  };
-
-  const skipGroupAssociatedTextFile = async () => {
-    setGroupDetailsFileStatus("idle");
-    setGroupDetailsFileError(null);
-    await persistGroupDetailsLink({ detailsOptOut: true, detailsPath: "" });
-    setGroupDetailsOptOut(true);
-    setGroupDetailsPath("");
-  };
-
-  const skipAssociatedTextFile = async () => {
-    setDetailsFileStatus("idle");
-    setDetailsFileError(null);
-    await persistDetailsLink({ detailsOptOut: true, detailsPath: "" });
   };
 
   const joinPath = (dirPath: string, fileName: string): string => {
@@ -1809,33 +1877,43 @@ export default function RightPanel() {
 
   const writeCognitiveNotesFile = async (fileName: string, content: string) => {
     if (cognitiveNotesDirectoryHandle) {
-      const fileHandle = await cognitiveNotesDirectoryHandle.getFileHandle(fileName, {
-        create: true,
-      });
+      const fileHandle = await cognitiveNotesDirectoryHandle.getFileHandle(
+        fileName,
+        {
+          create: true,
+        },
+      );
       const writable = await (fileHandle as any).createWritable?.();
       if (!writable) throw new Error("Failed to create cognitive notes file.");
       await writable.write(content);
       await writable.close();
       return;
     }
-    const targetPath = cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
+    const targetPath =
+      cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
     if (!targetPath) throw new Error("Cognitive Notes folder path is missing.");
     const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-    await writeTextFile(joinPath(targetPath, fileName), content, { create: true });
+    await writeTextFile(joinPath(targetPath, fileName), content, {
+      create: true,
+    });
   };
 
   const writeCognitiveNotesImage = async (fileName: string, file: File) => {
     if (cognitiveNotesDirectoryHandle) {
-      const fileHandle = await cognitiveNotesDirectoryHandle.getFileHandle(fileName, {
-        create: true,
-      });
+      const fileHandle = await cognitiveNotesDirectoryHandle.getFileHandle(
+        fileName,
+        {
+          create: true,
+        },
+      );
       const writable = await (fileHandle as any).createWritable?.();
       if (!writable) throw new Error("Failed to create cognitive notes image.");
       await writable.write(file);
       await writable.close();
       return;
     }
-    const targetPath = cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
+    const targetPath =
+      cognitiveNotesFolderPath ?? cognitiveNotesRoot?.path ?? "";
     if (!targetPath) throw new Error("Cognitive Notes folder path is missing.");
     const { writeFile } = await import("@tauri-apps/plugin-fs");
     const buffer = await file.arrayBuffer();
@@ -1899,7 +1977,8 @@ export default function RightPanel() {
       .toString(16)
       .slice(2)}`;
     const nowIso = new Date().toISOString();
-    const defaultColor = settings.appearance.cognitiveNotesDefaultNodeColor ?? "";
+    const defaultColor =
+      settings.appearance.cognitiveNotesDefaultNodeColor ?? "";
     const nodeColor =
       moduleType === "cognitiveNotes" &&
       /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(defaultColor.trim())
@@ -1963,7 +2042,8 @@ export default function RightPanel() {
     const tempNodeId = `tmp_shield_${Date.now()}_${Math.random()
       .toString(16)
       .slice(2)}`;
-    const defaultColor = settings.appearance.cognitiveNotesInputFileNodeColor ?? "";
+    const defaultColor =
+      settings.appearance.cognitiveNotesInputFileNodeColor ?? "";
     const nodeColor =
       moduleType === "cognitiveNotes" &&
       /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(defaultColor.trim())
@@ -1996,18 +2076,18 @@ export default function RightPanel() {
       moduleType === "cognitiveNotes"
         ? edges
         : (edges ?? []).some((edge: any) => edge?.id === edgeId)
-        ? edges
-        : [
-            ...(edges ?? []),
-            {
-              id: edgeId,
-              source: parentNodeId,
-              target: tempNodeId,
-              type: "default",
-              style: { opacity: 1, transition: "opacity 180ms ease" },
-              data: { isDraft: true, nonPersistent: true },
-            },
-          ];
+          ? edges
+          : [
+              ...(edges ?? []),
+              {
+                id: edgeId,
+                source: parentNodeId,
+                target: tempNodeId,
+                type: "default",
+                style: { opacity: 1, transition: "opacity 180ms ease" },
+                data: { isDraft: true, nonPersistent: true },
+              },
+            ];
     const next = [
       ...existing.map((n: any) => ({
         ...n,
@@ -2034,7 +2114,8 @@ export default function RightPanel() {
     const tempNodeId = `tmp_output_${Date.now()}_${Math.random()
       .toString(16)
       .slice(2)}`;
-    const defaultColor = settings.appearance.cognitiveNotesOutputNodeColor ?? "";
+    const defaultColor =
+      settings.appearance.cognitiveNotesOutputNodeColor ?? "";
     const nodeColor =
       moduleType === "cognitiveNotes" &&
       /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(defaultColor.trim())
@@ -2067,18 +2148,18 @@ export default function RightPanel() {
       moduleType === "cognitiveNotes"
         ? edges
         : (edges ?? []).some((edge: any) => edge?.id === edgeId)
-        ? edges
-        : [
-            ...(edges ?? []),
-            {
-              id: edgeId,
-              source: parentNodeId,
-              target: tempNodeId,
-              type: "default",
-              style: { opacity: 1, transition: "opacity 180ms ease" },
-              data: { isDraft: true, nonPersistent: true },
-            },
-          ];
+          ? edges
+          : [
+              ...(edges ?? []),
+              {
+                id: edgeId,
+                source: parentNodeId,
+                target: tempNodeId,
+                type: "default",
+                style: { opacity: 1, transition: "opacity 180ms ease" },
+                data: { isDraft: true, nonPersistent: true },
+              },
+            ];
     const next = [
       ...existing.map((n: any) => ({
         ...n,
@@ -2108,7 +2189,8 @@ export default function RightPanel() {
       const draftNodeId = selectedNodeId;
       const nextRecord = {
         id: draftNodeId,
-        type: (selectedNode?.data as any)?.node_type ?? (selectedNode as any)?.type,
+        type:
+          (selectedNode?.data as any)?.node_type ?? (selectedNode as any)?.type,
         name: trimmedName,
         purpose: draft.purpose,
         youtube_url: draft.youtube_url,
@@ -2167,8 +2249,8 @@ export default function RightPanel() {
                     nonPersistent: false,
                   },
                 }
-              : node
-          )
+              : node,
+          ),
         );
         await persistCognitiveNotesRoot(nextRoot);
       } else {
@@ -2209,8 +2291,8 @@ export default function RightPanel() {
                     nonPersistent: false,
                   },
                 }
-              : node
-          )
+              : node,
+          ),
         );
         await persistParallelmindRoot(nextRoot);
       }
@@ -2243,10 +2325,10 @@ export default function RightPanel() {
       nodeVariant === "shieldFile"
         ? (settings.appearance.cognitiveNotesInputFileNodeColor ?? "#ff0000")
         : nodeVariant === "outputShield"
-        ? (settings.appearance.cognitiveNotesOutputNodeColor ?? "#8cff00")
-        : nodeVariant === "file"
-        ? (settings.appearance.cognitiveNotesFileNodeColor ?? "#faf200")
-        : (settings.appearance.cognitiveNotesDefaultNodeColor ?? "#4330d5");
+          ? (settings.appearance.cognitiveNotesOutputNodeColor ?? "#8cff00")
+          : nodeVariant === "file"
+            ? (settings.appearance.cognitiveNotesFileNodeColor ?? "#faf200")
+            : (settings.appearance.cognitiveNotesDefaultNodeColor ?? "#4330d5");
     const getNextNodeColors = () => {
       const existing = cognitiveNotesRoot?.node_colors ?? {};
       if (!defaultCognitiveNodeColor || !draftNodeId) return existing;
@@ -2266,38 +2348,54 @@ export default function RightPanel() {
         }
         // Canvas-only nodes: do NOT create any files on "Create".
         // Files are created only when the user clicks the associated text file "Yes, create" button.
-        if (isImageNode || nodeVariant === "shieldFile" || nodeVariant === "outputShield") {
+        if (
+          isImageNode ||
+          nodeVariant === "shieldFile" ||
+          nodeVariant === "outputShield"
+        ) {
           const nowIso = new Date().toISOString();
           const nodePosition = (selectedNode as any)?.position ?? null;
           const nextPositions = {
             ...(cognitiveNotesRoot.node_positions ?? {}),
           };
           if (nodePosition) {
-            nextPositions[draftNodeId] = { x: nodePosition.x, y: nodePosition.y };
+            nextPositions[draftNodeId] = {
+              x: nodePosition.x,
+              y: nodePosition.y,
+            };
           }
           const nextNodeColors = getNextNodeColors();
 
-          const draftNode = (nodes ?? []).find((n: any) => n?.id === draftNodeId);
-          const clipboardFile = (draftNode?.data as any)?.clipboardFile as File | null;
-          const clipboardMimeType = (draftNode?.data as any)?.clipboardMimeType as string | null;
+          const draftNode = (nodes ?? []).find(
+            (n: any) => n?.id === draftNodeId,
+          );
+          const clipboardFile = (draftNode?.data as any)
+            ?.clipboardFile as File | null;
+          const clipboardMimeType = (draftNode?.data as any)
+            ?.clipboardMimeType as string | null;
 
           const fileToDataUrl = (file: File) =>
             new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
               reader.onload = () =>
                 resolve(typeof reader.result === "string" ? reader.result : "");
-              reader.onerror = () => reject(new Error("Failed to read image data."));
+              reader.onerror = () =>
+                reject(new Error("Failed to read image data."));
               reader.readAsDataURL(file);
             });
 
           const imageDataUrl =
-            isImageNode && clipboardFile ? await fileToDataUrl(clipboardFile) : "";
+            isImageNode && clipboardFile
+              ? await fileToDataUrl(clipboardFile)
+              : "";
           const ext =
             isImageNode && clipboardMimeType
               ? getExtensionFromMimeType(clipboardMimeType)
               : "";
 
-          const flowType = (selectedNode as any)?.type ?? (selectedNode?.data as any)?.node_type;
+          const flowType =
+            (selectedNode as any)?.type ??
+            (selectedNode?.data as any)?.node_type;
           const nextRecord: any = {
             id: draftNodeId,
             type: flowType,
@@ -2307,7 +2405,8 @@ export default function RightPanel() {
             updated_on: nowIso,
           };
           if (isImageNode) {
-            nextRecord.imageSrc = imageDataUrl || (draftNode?.data as any)?.imageSrc || "";
+            nextRecord.imageSrc =
+              imageDataUrl || (draftNode?.data as any)?.imageSrc || "";
             nextRecord.caption = trimmedCaption;
             nextRecord.extension = ext;
             nextRecord.imageWidth = (draftNode?.data as any)?.imageWidth;
@@ -2316,10 +2415,14 @@ export default function RightPanel() {
             nextRecord.nodeHeight = (draftNode?.data as any)?.nodeHeight;
           }
 
-          const nextFlowNodes = [...(cognitiveNotesRoot.flowchart_nodes ?? []), nextRecord];
+          const nextFlowNodes = [
+            ...(cognitiveNotesRoot.flowchart_nodes ?? []),
+            nextRecord,
+          ];
           const existingFlowEdges = cognitiveNotesRoot.flowchart_edges ?? [];
           const edgesTouchingDraft = (edges ?? []).filter(
-            (e: any) => e && (e.source === draftNodeId || e.target === draftNodeId)
+            (e: any) =>
+              e && (e.source === draftNodeId || e.target === draftNodeId),
           );
           const draftEdgeById = new Map(
             edgesTouchingDraft.map((e: any) => [
@@ -2332,7 +2435,7 @@ export default function RightPanel() {
                 target_handle: e.targetHandle ?? undefined,
                 purpose: (e.data as any)?.purpose,
               },
-            ])
+            ]),
           );
           existingFlowEdges.forEach((e: any) => {
             if (e && e.id && !draftEdgeById.has(e.id))
@@ -2359,18 +2462,18 @@ export default function RightPanel() {
           await persistCognitiveNotesRoot(newRoot);
           updateCognitiveNotesRoot(newRoot);
 
-          const { nodes: composedNodes, edges: composedEdges } = composeCognitiveNotesGraph(
-            newRoot,
-            {
+          const { nodes: composedNodes, edges: composedEdges } =
+            composeCognitiveNotesGraph(newRoot, {
               nodeSize: settings.appearance.nodeSize,
               columns: settings.appearance.gridColumns,
               columnGap: settings.appearance.gridColumnGap,
               rowGap: settings.appearance.gridRowGap,
-              inputFileNodeColor: settings.appearance.cognitiveNotesInputFileNodeColor,
+              inputFileNodeColor:
+                settings.appearance.cognitiveNotesInputFileNodeColor,
               fileNodeColor: settings.appearance.cognitiveNotesFileNodeColor,
-              outputNodeColor: settings.appearance.cognitiveNotesOutputNodeColor,
-            }
-          );
+              outputNodeColor:
+                settings.appearance.cognitiveNotesOutputNodeColor,
+            });
           setNodes(composedNodes);
           setEdges(composedEdges);
 
@@ -2382,23 +2485,33 @@ export default function RightPanel() {
           return;
         }
         if (isImageNode) {
-          const draftNode = (nodes ?? []).find((n: any) => n?.id === draftNodeId);
-          const clipboardFile = (draftNode?.data as any)?.clipboardFile as File | null;
-          const clipboardMimeType = (draftNode?.data as any)?.clipboardMimeType as string | null;
+          const draftNode = (nodes ?? []).find(
+            (n: any) => n?.id === draftNodeId,
+          );
+          const clipboardFile = (draftNode?.data as any)
+            ?.clipboardFile as File | null;
+          const clipboardMimeType = (draftNode?.data as any)
+            ?.clipboardMimeType as string | null;
           if (!clipboardFile) {
-            setCreateError("Image file not found. Please paste an image again.");
+            setCreateError(
+              "Image file not found. Please paste an image again.",
+            );
             setSaveStatus("idle");
             return;
           }
-          const ext = clipboardMimeType ? getExtensionFromMimeType(clipboardMimeType) : "png";
+          const ext = clipboardMimeType
+            ? getExtensionFromMimeType(clipboardMimeType)
+            : "png";
           const fileName = trimmedCaption
             ? `${trimmedCaption}.${ext}`
             : `image_${Date.now()}.${ext}`;
           await writeCognitiveNotesImage(fileName, clipboardFile);
-          const nodePath = cognitiveNotesDirectoryHandle ? fileName : joinPath(
-            cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "",
-            fileName
-          );
+          const nodePath = cognitiveNotesDirectoryHandle
+            ? fileName
+            : joinPath(
+                cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "",
+                fileName,
+              );
           const nextNodeColors = getNextNodeColors();
           setNodes(
             (nodes ?? []).map((node: any) =>
@@ -2420,8 +2533,8 @@ export default function RightPanel() {
                       nonPersistent: false,
                     },
                   }
-                : node
-            )
+                : node,
+            ),
           );
           const nextChild = [
             ...(cognitiveNotesRoot.child ?? []),
@@ -2449,10 +2562,12 @@ export default function RightPanel() {
         } else {
           const nextFileName = splitDraftFileName(trimmedName).fullName;
           await writeCognitiveNotesFile(nextFileName, "");
-          const nodePath = cognitiveNotesDirectoryHandle ? nextFileName : joinPath(
-            cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "",
-            nextFileName
-          );
+          const nodePath = cognitiveNotesDirectoryHandle
+            ? nextFileName
+            : joinPath(
+                cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "",
+                nextFileName,
+              );
           const nextNodeColors = getNextNodeColors();
           setNodes(
             (nodes ?? []).map((node: any) =>
@@ -2474,8 +2589,8 @@ export default function RightPanel() {
                       nonPersistent: false,
                     },
                   }
-                : node
-            )
+                : node,
+            ),
           );
           const nextChild = [
             ...(cognitiveNotesRoot.child ?? []),
@@ -2522,7 +2637,11 @@ export default function RightPanel() {
 
       // Canvas-only nodes: do NOT create any files on "Create".
       // Files are created only when the user clicks the associated text file "Yes, create" button.
-      if (isImageNode || nodeVariant === "shieldFile" || nodeVariant === "outputShield") {
+      if (
+        isImageNode ||
+        nodeVariant === "shieldFile" ||
+        nodeVariant === "outputShield"
+      ) {
         const nowIso = new Date().toISOString();
         const nodePosition = (selectedNode as any)?.position ?? null;
         const nextPositions = {
@@ -2533,26 +2652,32 @@ export default function RightPanel() {
         }
 
         const draftNode = (nodes ?? []).find((n: any) => n?.id === draftNodeId);
-        const clipboardFile = (draftNode?.data as any)?.clipboardFile as File | null;
-        const clipboardMimeType = (draftNode?.data as any)?.clipboardMimeType as string | null;
+        const clipboardFile = (draftNode?.data as any)
+          ?.clipboardFile as File | null;
+        const clipboardMimeType = (draftNode?.data as any)
+          ?.clipboardMimeType as string | null;
 
         const fileToDataUrl = (file: File) =>
           new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () =>
               resolve(typeof reader.result === "string" ? reader.result : "");
-            reader.onerror = () => reject(new Error("Failed to read image data."));
+            reader.onerror = () =>
+              reject(new Error("Failed to read image data."));
             reader.readAsDataURL(file);
           });
 
         const imageDataUrl =
-          isImageNode && clipboardFile ? await fileToDataUrl(clipboardFile) : "";
+          isImageNode && clipboardFile
+            ? await fileToDataUrl(clipboardFile)
+            : "";
         const ext =
           isImageNode && clipboardMimeType
             ? getExtensionFromMimeType(clipboardMimeType)
             : "";
 
-        const flowType = (selectedNode as any)?.type ?? (selectedNode?.data as any)?.node_type;
+        const flowType =
+          (selectedNode as any)?.type ?? (selectedNode?.data as any)?.node_type;
         const nextRecord: any = {
           id: draftNodeId,
           type: flowType,
@@ -2562,7 +2687,8 @@ export default function RightPanel() {
           updated_on: nowIso,
         };
         if (isImageNode) {
-          nextRecord.imageSrc = imageDataUrl || (draftNode?.data as any)?.imageSrc || "";
+          nextRecord.imageSrc =
+            imageDataUrl || (draftNode?.data as any)?.imageSrc || "";
           nextRecord.caption = trimmedCaption;
           nextRecord.extension = ext;
           nextRecord.imageWidth = (draftNode?.data as any)?.imageWidth;
@@ -2571,16 +2697,21 @@ export default function RightPanel() {
           nextRecord.nodeHeight = (draftNode?.data as any)?.nodeHeight;
         }
 
-        const nextFlowNodes = [...(rootFolderJson.flowchart_nodes ?? []), nextRecord];
+        const nextFlowNodes = [
+          ...(rootFolderJson.flowchart_nodes ?? []),
+          nextRecord,
+        ];
         const nextFlowEdges =
           edgeId && parentIdForDraft
-            ? (rootFolderJson.flowchart_edges ?? []).some((e: any) => e?.id === edgeId)
-              ? rootFolderJson.flowchart_edges ?? []
+            ? (rootFolderJson.flowchart_edges ?? []).some(
+                (e: any) => e?.id === edgeId,
+              )
+              ? (rootFolderJson.flowchart_edges ?? [])
               : [
                   ...(rootFolderJson.flowchart_edges ?? []),
                   { id: edgeId, source: parentIdForDraft, target: draftNodeId },
                 ]
-            : rootFolderJson.flowchart_edges ?? [];
+            : (rootFolderJson.flowchart_edges ?? []);
 
         // Fade out the draft node + edge before removing them.
         setNodes(
@@ -2595,7 +2726,9 @@ export default function RightPanel() {
                 imageSrc: isImageNode
                   ? imageDataUrl || (node.data as any)?.imageSrc
                   : (node.data as any)?.imageSrc,
-                caption: isImageNode ? trimmedCaption : (node.data as any)?.caption,
+                caption: isImageNode
+                  ? trimmedCaption
+                  : (node.data as any)?.caption,
                 extension: isImageNode ? ext : (node.data as any)?.extension,
                 isDraft: false,
                 nonPersistent: false,
@@ -2607,7 +2740,7 @@ export default function RightPanel() {
                 transition: "opacity 180ms ease",
               },
             };
-          })
+          }),
         );
         if (edgeId) {
           setEdges(
@@ -2622,7 +2755,7 @@ export default function RightPanel() {
                   transition: "opacity 180ms ease",
                 },
               };
-            })
+            }),
           );
         }
 
@@ -2656,15 +2789,21 @@ export default function RightPanel() {
       if (isImageNode) {
         // Image node: get clipboard file and MIME type from draft node data
         const draftNode = (nodes ?? []).find((n: any) => n?.id === draftNodeId);
-        const clipboardFile = (draftNode?.data as any)?.clipboardFile as File | null;
-        const clipboardMimeType = (draftNode?.data as any)?.clipboardMimeType as string | null;
+        const clipboardFile = (draftNode?.data as any)
+          ?.clipboardFile as File | null;
+        const clipboardMimeType = (draftNode?.data as any)
+          ?.clipboardMimeType as string | null;
         if (!clipboardFile) {
           setCreateError("Image file not found. Please paste an image again.");
           setSaveStatus("idle");
           return;
         }
-        const ext = clipboardMimeType ? getExtensionFromMimeType(clipboardMimeType) : "png";
-        const fileName = trimmedCaption ? `${trimmedCaption}.${ext}` : `image_${Date.now()}.${ext}`;
+        const ext = clipboardMimeType
+          ? getExtensionFromMimeType(clipboardMimeType)
+          : "png";
+        const fileName = trimmedCaption
+          ? `${trimmedCaption}.${ext}`
+          : `image_${Date.now()}.${ext}`;
         result = rootDirectoryHandle
           ? await fileManager.createImageFileChildFromHandle({
               dirHandle: rootDirectoryHandle,
@@ -2713,20 +2852,20 @@ export default function RightPanel() {
                     : undefined,
               })
           : rootDirectoryHandle
-          ? await fileManager.createFolderChildFromHandle({
-              dirHandle: rootDirectoryHandle,
-              existing: rootFolderJson,
-              parentNodeId: parentIdForDraft,
-              name: trimmedName,
-              purpose: draft.purpose,
-            })
-          : await fileManager.createFolderChildFromPath({
-              dirPath: rootFolderJson.path,
-              existing: rootFolderJson,
-              parentNodeId: parentIdForDraft,
-              name: trimmedName,
-              purpose: draft.purpose,
-            });
+            ? await fileManager.createFolderChildFromHandle({
+                dirHandle: rootDirectoryHandle,
+                existing: rootFolderJson,
+                parentNodeId: parentIdForDraft,
+                name: trimmedName,
+                purpose: draft.purpose,
+              })
+            : await fileManager.createFolderChildFromPath({
+                dirPath: rootFolderJson.path,
+                existing: rootFolderJson,
+                parentNodeId: parentIdForDraft,
+                name: trimmedName,
+                purpose: draft.purpose,
+              });
       }
       // Fade out the draft node + edge before removing them.
       setNodes(
@@ -2741,7 +2880,7 @@ export default function RightPanel() {
               transition: "opacity 180ms ease",
             },
           };
-        })
+        }),
       );
       if (edgeId) {
         setEdges(
@@ -2756,7 +2895,7 @@ export default function RightPanel() {
                 transition: "opacity 180ms ease",
               },
             };
-          })
+          }),
         );
       }
       setRoot(rootDirectoryHandle ?? null, result.root);
@@ -2807,7 +2946,9 @@ export default function RightPanel() {
       try {
         const nowIso = new Date().toISOString();
         const flowType =
-          (selectedNode?.data as any)?.node_type ?? (selectedNode as any)?.type ?? "";
+          (selectedNode?.data as any)?.node_type ??
+          (selectedNode as any)?.type ??
+          "";
         if (moduleType === "cognitiveNotes") {
           if (cognitiveNotesRoot) {
             const nextFlowNodes = upsertFlowchartNode(
@@ -2818,7 +2959,7 @@ export default function RightPanel() {
                 name: draft.name.trim(),
                 purpose: draft.purpose,
                 updated_on: nowIso,
-              }
+              },
             );
             await persistCognitiveNotesRoot({
               ...cognitiveNotesRoot,
@@ -2835,7 +2976,7 @@ export default function RightPanel() {
               name: draft.name.trim(),
               purpose: draft.purpose,
               updated_on: nowIso,
-            }
+            },
           );
           await persistParallelmindRoot({
             ...rootFolderJson,
@@ -2874,7 +3015,7 @@ export default function RightPanel() {
           return;
         }
         const target = (cognitiveNotesRoot.child ?? []).find(
-          (node: any) => node?.id === selectedNodeId
+          (node: any) => node?.id === selectedNodeId,
         );
         if (!target) throw new Error("Cognitive Notes node not found.");
         const currentExt =
@@ -2888,28 +3029,39 @@ export default function RightPanel() {
             : `image.${currentExt}`
           : splitDraftFileName(trimmedName).fullName;
         const targetPath = typeof target.path === "string" ? target.path : "";
-        if (!targetPath) throw new Error("Cognitive Notes file path not found.");
+        if (!targetPath)
+          throw new Error("Cognitive Notes file path not found.");
         if (cognitiveNotesDirectoryHandle) {
           const oldName = targetPath.split(/[\\/]/).pop() ?? targetPath;
-          const oldHandle = await cognitiveNotesDirectoryHandle.getFileHandle(oldName);
+          const oldHandle =
+            await cognitiveNotesDirectoryHandle.getFileHandle(oldName);
           const oldFile = await oldHandle.getFile();
-          const newHandle = await cognitiveNotesDirectoryHandle.getFileHandle(nextFileName, {
-            create: true,
-          });
+          const newHandle = await cognitiveNotesDirectoryHandle.getFileHandle(
+            nextFileName,
+            {
+              create: true,
+            },
+          );
           const writable = await (newHandle as any).createWritable?.();
-          if (!writable) throw new Error("Failed to rename Cognitive Notes file.");
+          if (!writable)
+            throw new Error("Failed to rename Cognitive Notes file.");
           await writable.write(oldFile);
           await writable.close();
           await cognitiveNotesDirectoryHandle.removeEntry(oldName);
         } else {
           const { rename } = await import("@tauri-apps/plugin-fs");
-          const basePath = cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "";
-          if (!basePath) throw new Error("Cognitive Notes folder path is missing.");
+          const basePath =
+            cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "";
+          if (!basePath)
+            throw new Error("Cognitive Notes folder path is missing.");
           await rename(targetPath, joinPath(basePath, nextFileName));
         }
         const nextPath = cognitiveNotesDirectoryHandle
           ? nextFileName
-          : joinPath(cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "", nextFileName);
+          : joinPath(
+              cognitiveNotesFolderPath ?? cognitiveNotesRoot.path ?? "",
+              nextFileName,
+            );
         const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) => {
           if (node?.id !== selectedNodeId) return node;
           const nextName = isImageNode
@@ -2937,10 +3089,13 @@ export default function RightPanel() {
                     path: nextPath,
                   },
                 }
-              : node
-          )
+              : node,
+          ),
         );
-        await persistCognitiveNotesRoot({ ...cognitiveNotesRoot, child: nextChild });
+        await persistCognitiveNotesRoot({
+          ...cognitiveNotesRoot,
+          child: nextChild,
+        });
       } else {
         if (!rootFolderJson?.path) {
           setActionError(uiText.alerts.errorCreateFailed);
@@ -2950,10 +3105,13 @@ export default function RightPanel() {
         let result: any;
         if (isImageNode) {
           // For images: rename the file using caption as base name, preserve extension
-          const target = (nodes ?? []).find((n: any) => n?.id === selectedNodeId);
-          const currentExt = typeof (target?.data as any)?.extension === "string"
-            ? (target.data as any).extension
-            : "png";
+          const target = (nodes ?? []).find(
+            (n: any) => n?.id === selectedNodeId,
+          );
+          const currentExt =
+            typeof (target?.data as any)?.extension === "string"
+              ? (target.data as any).extension
+              : "png";
           const newFileName = draft.name.trim()
             ? `${draft.name.trim()}.${currentExt}`
             : `image.${currentExt}`;
@@ -2995,12 +3153,16 @@ export default function RightPanel() {
     !isRootNode &&
     (isDraftNode
       ? true
-      : (isFolderNode || isFileNode || isImageNode || isFlowchartNode || isNonPersistentNode) &&
+      : (isFolderNode ||
+          isFileNode ||
+          isImageNode ||
+          isFlowchartNode ||
+          isNonPersistentNode) &&
         (isNonPersistentNode
           ? true
           : moduleType === "cognitiveNotes"
-          ? !!cognitiveNotesRoot
-          : !!rootFolderJson));
+            ? !!cognitiveNotesRoot
+            : !!rootFolderJson));
 
   const fileDetailsTitle =
     isFileNode || isImageNode
@@ -3016,12 +3178,13 @@ export default function RightPanel() {
       setNodes((nodes ?? []).filter((node: any) => node?.id !== draftId));
       setEdges(
         (edges ?? []).filter((edge: any) => {
-          if (edge?.source === draftId || edge?.target === draftId) return false;
+          if (edge?.source === draftId || edge?.target === draftId)
+            return false;
           if (draftParentId && edge?.id === `e_${draftParentId}_${draftId}`) {
             return false;
           }
           return true;
-        })
+        }),
       );
       setPendingChildCreation(null);
       setDeleteConfirmOpen(false);
@@ -3042,7 +3205,7 @@ export default function RightPanel() {
     return () => {
       window.removeEventListener(
         "pm-request-delete-selected-node",
-        onDeleteRequest
+        onDeleteRequest,
       );
     };
   }, [selectedNodeId, onDeleteItem]);
@@ -3050,7 +3213,7 @@ export default function RightPanel() {
   const deleteCognitiveNotesNode = async () => {
     if (!cognitiveNotesRoot || !selectedNodeId) return;
     const target = (cognitiveNotesRoot.child ?? []).find(
-      (node: any) => node?.id === selectedNodeId
+      (node: any) => node?.id === selectedNodeId,
     );
     if (!target) throw new Error("Cognitive Notes node not found.");
     const targetPath = typeof target.path === "string" ? target.path : "";
@@ -3078,8 +3241,8 @@ export default function RightPanel() {
         (edge: any) =>
           !removedEdgeIds.has(edge?.id) &&
           !removedIds.has(edge?.source) &&
-          !removedIds.has(edge?.target)
-      )
+          !removedIds.has(edge?.target),
+      ),
     );
     selectNode(null);
     selectEdge(null);
@@ -3092,12 +3255,12 @@ export default function RightPanel() {
           ? node.related_nodes.filter(
               (rel: any) =>
                 !removedIds.has(rel?.target_id) &&
-                !removedEdgeIds.has(rel?.edge_id)
+                !removedEdgeIds.has(rel?.edge_id),
             )
           : [],
       }));
     const nextFlowEdges = (cognitiveNotesRoot.flowchart_edges ?? []).filter(
-      (edge) => !removedIds.has(edge.source) && !removedIds.has(edge.target)
+      (edge) => !removedIds.has(edge.source) && !removedIds.has(edge.target),
     );
     await persistCognitiveNotesRoot({
       ...cognitiveNotesRoot,
@@ -3114,8 +3277,8 @@ export default function RightPanel() {
       setNodes((nodes ?? []).filter((node: any) => node?.id !== nodeId));
       setEdges(
         (edges ?? []).filter(
-          (edge: any) => edge?.source !== nodeId && edge?.target !== nodeId
-        )
+          (edge: any) => edge?.source !== nodeId && edge?.target !== nodeId,
+        ),
       );
       selectNode(null);
       selectEdge(null);
@@ -3132,23 +3295,27 @@ export default function RightPanel() {
         setNodes((nodes ?? []).filter((node: any) => node?.id !== nodeId));
         setEdges(
           (edges ?? []).filter(
-            (edge: any) => edge?.source !== nodeId && edge?.target !== nodeId
-          )
+            (edge: any) => edge?.source !== nodeId && edge?.target !== nodeId,
+          ),
         );
         selectNode(null);
         selectEdge(null);
         const nowIso = new Date().toISOString();
         if (moduleType === "cognitiveNotes") {
           if (cognitiveNotesRoot) {
-            const nextPositions = { ...(cognitiveNotesRoot.node_positions ?? {}) };
+            const nextPositions = {
+              ...(cognitiveNotesRoot.node_positions ?? {}),
+            };
             const nextSizes = { ...(cognitiveNotesRoot.node_size ?? {}) };
             delete nextPositions[nodeId];
             delete nextSizes[nodeId];
-            const nextFlowNodes = (cognitiveNotesRoot.flowchart_nodes ?? []).filter(
-              (node) => node.id !== nodeId
-            );
-            const nextFlowEdges = (cognitiveNotesRoot.flowchart_edges ?? []).filter(
-              (edge) => edge.source !== nodeId && edge.target !== nodeId
+            const nextFlowNodes = (
+              cognitiveNotesRoot.flowchart_nodes ?? []
+            ).filter((node) => node.id !== nodeId);
+            const nextFlowEdges = (
+              cognitiveNotesRoot.flowchart_edges ?? []
+            ).filter(
+              (edge) => edge.source !== nodeId && edge.target !== nodeId,
             );
             await persistCognitiveNotesRoot({
               ...cognitiveNotesRoot,
@@ -3165,10 +3332,10 @@ export default function RightPanel() {
           delete nextPositions[nodeId];
           delete nextSizes[nodeId];
           const nextFlowNodes = (rootFolderJson.flowchart_nodes ?? []).filter(
-            (node) => node.id !== nodeId
+            (node) => node.id !== nodeId,
           );
           const nextFlowEdges = (rootFolderJson.flowchart_edges ?? []).filter(
-            (edge) => edge.source !== nodeId && edge.target !== nodeId
+            (edge) => edge.source !== nodeId && edge.target !== nodeId,
           );
           await persistParallelmindRoot({
             ...rootFolderJson,
@@ -3217,17 +3384,18 @@ export default function RightPanel() {
     setSaveStatus("saving");
     try {
       // Both file and image nodes use deleteFileChildFromPath (images are stored as IndexFileNode)
-      const result = (isFileNode || isImageNode)
-        ? await fileManager.deleteFileChildFromPath({
-            dirPath: rootFolderJson.path,
-            existing: rootFolderJson,
-            nodeId: selectedNodeId,
-          })
-        : await fileManager.deleteFolderChildFromPath({
-            dirPath: rootFolderJson.path,
-            existing: rootFolderJson,
-            nodeId: selectedNodeId,
-          });
+      const result =
+        isFileNode || isImageNode
+          ? await fileManager.deleteFileChildFromPath({
+              dirPath: rootFolderJson.path,
+              existing: rootFolderJson,
+              nodeId: selectedNodeId,
+            })
+          : await fileManager.deleteFolderChildFromPath({
+              dirPath: rootFolderJson.path,
+              existing: rootFolderJson,
+              nodeId: selectedNodeId,
+            });
       setRoot(null, result.root);
       setDirty(false);
       setSaveStatus("saved");
@@ -3307,7 +3475,7 @@ export default function RightPanel() {
         const dx = dd.latestX - dd.startX;
         const next = Math.max(
           MIN_WIDTH,
-          Math.min(MAX_WIDTH, dd.startWidth - dx)
+          Math.min(MAX_WIDTH, dd.startWidth - dx),
         );
         setRightPanelWidth(next);
         dd.raf = null;
@@ -3339,12 +3507,12 @@ export default function RightPanel() {
     rightPanelMode === "nodeSelector"
       ? uiText.panels.nodeSelector
       : rightPanelMode === "notesFeed"
-      ? uiText.panels.notesFeed
-      : selectedGroupId
-      ? uiText.panels.group
-      : selectedEdgeId && !selectedNodeId
-      ? uiText.panels.edge
-      : uiText.panels.node;
+        ? uiText.panels.notesFeed
+        : selectedGroupId
+          ? uiText.panels.group
+          : selectedEdgeId && !selectedNodeId
+            ? uiText.panels.edge
+            : uiText.panels.node;
 
   const TEXT_EXTENSIONS = new Set([
     "txt",
@@ -3405,9 +3573,15 @@ export default function RightPanel() {
       setNotesFeedSourceId(nodeId);
       setRightPanelMode("notesFeed");
     };
-    window.addEventListener("pm-open-notes-feed", onOpenNotesFeed as EventListener);
+    window.addEventListener(
+      "pm-open-notes-feed",
+      onOpenNotesFeed as EventListener,
+    );
     return () => {
-      window.removeEventListener("pm-open-notes-feed", onOpenNotesFeed as EventListener);
+      window.removeEventListener(
+        "pm-open-notes-feed",
+        onOpenNotesFeed as EventListener,
+      );
     };
   }, [activeTab?.id, cognitiveNotesRoot, setRightPanelMode]);
 
@@ -3477,7 +3651,8 @@ export default function RightPanel() {
         const title = ext ? `${name}.${ext}` : name || "Untitled";
         const rawPath = typeof node.path === "string" ? node.path : "";
         const basePath =
-          typeof cognitiveNotesFolderPath === "string" && cognitiveNotesFolderPath
+          typeof cognitiveNotesFolderPath === "string" &&
+          cognitiveNotesFolderPath
             ? cognitiveNotesFolderPath
             : cognitiveNotesRoot.path;
         const absPath =
@@ -3489,7 +3664,11 @@ export default function RightPanel() {
         if (TEXT_EXTENSIONS.has(extension)) {
           try {
             let content = "";
-            if (rawPath && !isAbsolutePath(rawPath) && cognitiveNotesDirectoryHandle) {
+            if (
+              rawPath &&
+              !isAbsolutePath(rawPath) &&
+              cognitiveNotesDirectoryHandle
+            ) {
               const result = await fileManager.readTextFileFromHandle({
                 rootHandle: cognitiveNotesDirectoryHandle,
                 relPath: rawPath,
@@ -3553,9 +3732,7 @@ export default function RightPanel() {
             gap: "var(--space-2)",
           }}
         >
-          {!isReduced && (
-            <div className="pm-panel__title">{panelTitle}</div>
-          )}
+          {!isReduced && <div className="pm-panel__title">{panelTitle}</div>}
           <button
             type="button"
             onClick={togglePanel}
@@ -3604,17 +3781,19 @@ export default function RightPanel() {
                 fontSize: "0.85rem",
               }}
             >
-              <div style={{ fontWeight: 600 }}>{uiText.panels.nodeSelector}</div>
-              <div style={{ opacity: 0.75 }}>
-                {uiText.nodeSelector.intro}
+              <div style={{ fontWeight: 600 }}>
+                {uiText.panels.nodeSelector}
               </div>
+              <div style={{ opacity: 0.75 }}>{uiText.nodeSelector.intro}</div>
               <div
                 style={{
                   display: "grid",
                   gap: "var(--space-2)",
                 }}
               >
-                <div style={{ fontWeight: 600 }}>{uiText.nodeSelector.flowchartTitle}</div>
+                <div style={{ fontWeight: 600 }}>
+                  {uiText.nodeSelector.flowchartTitle}
+                </div>
                 <div style={{ opacity: 0.75 }}>
                   {uiText.nodeSelector.flowchartDescription}
                 </div>
@@ -3635,18 +3814,22 @@ export default function RightPanel() {
                         border: "var(--border-width) solid var(--border)",
                         background: "var(--surface-2)",
                         color: "inherit",
-                        cursor: canAddFlowchartNodes ? "pointer" : "not-allowed",
+                        cursor: canAddFlowchartNodes
+                          ? "pointer"
+                          : "not-allowed",
                         opacity: canAddFlowchartNodes ? 1 : 0.6,
                         textAlign: "left",
                       }}
                       onMouseEnter={(e) => {
                         if (!canAddFlowchartNodes) return;
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "var(--surface-1)";
+                        (
+                          e.currentTarget as HTMLButtonElement
+                        ).style.background = "var(--surface-1)";
                       }}
                       onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "var(--surface-2)";
+                        (
+                          e.currentTarget as HTMLButtonElement
+                        ).style.background = "var(--surface-2)";
                       }}
                     >
                       <span aria-hidden="true">
@@ -3654,7 +3837,9 @@ export default function RightPanel() {
                       </span>
                       <span style={{ display: "grid", gap: 2 }}>
                         <span style={{ fontWeight: 600 }}>{item.name}</span>
-                        <span style={{ opacity: 0.75 }}>{item.description}</span>
+                        <span style={{ opacity: 0.75 }}>
+                          {item.description}
+                        </span>
                       </span>
                     </button>
                   ))}
@@ -3794,73 +3979,76 @@ export default function RightPanel() {
                 <div style={{ opacity: 0.7 }}>Loading notes...</div>
               )}
               {!notesFeedLoading &&
-                notesFeedItems.filter((item) => !notesFeedHiddenIds.has(item.id))
-                  .length === 0 && (
-                <div style={{ opacity: 0.7 }}>No notes found.</div>
-              )}
+                notesFeedItems.filter(
+                  (item) => !notesFeedHiddenIds.has(item.id),
+                ).length === 0 && (
+                  <div style={{ opacity: 0.7 }}>No notes found.</div>
+                )}
               {!notesFeedLoading &&
                 notesFeedItems
                   .filter((item) => !notesFeedHiddenIds.has(item.id))
                   .map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      borderRadius: "var(--radius-md)",
-                      border: "var(--border-width) solid var(--border)",
-                      background: "var(--surface-2)",
-                      padding: "var(--space-2)",
-                      display: "grid",
-                      gap: "var(--space-2)",
-                    }}
-                  >
                     <div
+                      key={item.id}
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
+                        borderRadius: "var(--radius-md)",
+                        border: "var(--border-width) solid var(--border)",
+                        background: "var(--surface-2)",
+                        padding: "var(--space-2)",
+                        display: "grid",
                         gap: "var(--space-2)",
                       }}
                     >
-                      <div style={{ fontWeight: 700 }}>{item.title}</div>
-                      <button
-                        type="button"
-                        aria-label="Hide note"
-                        title="Hide note"
-                        onClick={() => hideNotesFeedItem(item.id)}
+                      <div
                         style={{
-                          height: "var(--control-size-sm)",
-                          width: "var(--control-size-sm)",
-                          borderRadius: "var(--radius-sm)",
-                          border: "none",
-                          background: "transparent",
-                          color: "inherit",
-                          cursor: "pointer",
-                          display: "inline-flex",
+                          display: "flex",
                           alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "0.95rem",
-                          lineHeight: 1,
-                        }}
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            "var(--surface-1)";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            "transparent";
+                          justifyContent: "space-between",
+                          gap: "var(--space-2)",
                         }}
                       >
-                        ×
-                      </button>
+                        <div style={{ fontWeight: 700 }}>{item.title}</div>
+                        <button
+                          type="button"
+                          aria-label="Hide note"
+                          title="Hide note"
+                          onClick={() => hideNotesFeedItem(item.id)}
+                          style={{
+                            height: "var(--control-size-sm)",
+                            width: "var(--control-size-sm)",
+                            borderRadius: "var(--radius-sm)",
+                            border: "none",
+                            background: "transparent",
+                            color: "inherit",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "0.95rem",
+                            lineHeight: 1,
+                          }}
+                          onMouseEnter={(e) => {
+                            (
+                              e.currentTarget as HTMLButtonElement
+                            ).style.background = "var(--surface-1)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (
+                              e.currentTarget as HTMLButtonElement
+                            ).style.background = "transparent";
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {item.contentHtml ? (
+                        <div
+                          style={{ fontSize: "0.85rem", lineHeight: 1.5 }}
+                          dangerouslySetInnerHTML={{ __html: item.contentHtml }}
+                        />
+                      ) : null}
                     </div>
-                    {item.contentHtml ? (
-                      <div
-                        style={{ fontSize: "0.85rem", lineHeight: 1.5 }}
-                        dangerouslySetInnerHTML={{ __html: item.contentHtml }}
-                      />
-                    ) : null}
-                  </div>
-                ))}
+                  ))}
             </div>
           ) : hasGroupSelection ? (
             <div
@@ -3889,7 +4077,9 @@ export default function RightPanel() {
                 }}
               >
                 <div style={{ display: "grid", gap: "var(--space-2)" }}>
-                  <div style={{ fontWeight: 700 }}>{uiText.grouping.groupMembers}</div>
+                  <div style={{ fontWeight: 700 }}>
+                    {uiText.grouping.groupMembers}
+                  </div>
                   <div
                     style={{
                       display: "flex",
@@ -3949,12 +4139,14 @@ export default function RightPanel() {
                               lineHeight: 1,
                             }}
                             onMouseEnter={(e) => {
-                              (e.currentTarget as HTMLButtonElement).style.background =
-                                "var(--surface-1)";
+                              (
+                                e.currentTarget as HTMLButtonElement
+                              ).style.background = "var(--surface-1)";
                             }}
                             onMouseLeave={(e) => {
-                              (e.currentTarget as HTMLButtonElement).style.background =
-                                "transparent";
+                              (
+                                e.currentTarget as HTMLButtonElement
+                              ).style.background = "transparent";
                             }}
                           >
                             ×
@@ -3971,7 +4163,10 @@ export default function RightPanel() {
                   <input
                     value={groupDraft.name}
                     onChange={(e) => {
-                      setGroupDraft((prev) => ({ ...prev, name: e.target.value }));
+                      setGroupDraft((prev) => ({
+                        ...prev,
+                        name: e.target.value,
+                      }));
                       setGroupDirty(true);
                       setGroupSaveStatus("saving");
                     }}
@@ -4000,7 +4195,10 @@ export default function RightPanel() {
                   <textarea
                     value={groupDraft.purpose}
                     onChange={(e) => {
-                      setGroupDraft((prev) => ({ ...prev, purpose: e.target.value }));
+                      setGroupDraft((prev) => ({
+                        ...prev,
+                        purpose: e.target.value,
+                      }));
                       setGroupDirty(true);
                       setGroupSaveStatus("saving");
                     }}
@@ -4033,8 +4231,8 @@ export default function RightPanel() {
                   {groupSaveStatus === "saving"
                     ? uiText.statusMessages.saving
                     : groupSaveStatus === "saved"
-                    ? uiText.statusMessages.saved
-                    : uiText.statusMessages.idle}
+                      ? uiText.statusMessages.saved
+                      : uiText.statusMessages.idle}
                 </div>
                 <div
                   style={{
@@ -4049,13 +4247,22 @@ export default function RightPanel() {
                     padding: "var(--space-2)",
                   }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "0.8rem", minWidth: 0 }}>
+                  <div
+                    style={{ fontWeight: 600, fontSize: "0.8rem", minWidth: 0 }}
+                  >
                     {groupDetailsPath
                       ? uiText.fields.groupDetails.associatedTextFileLabel
                       : uiText.fields.groupDetails.associatedTextFileQuestion}
                   </div>
                   {groupDetailsPath ? (
-                    <div style={{ display: "grid", gap: "var(--space-2)", minWidth: 0, overflow: "hidden" }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: "var(--space-2)",
+                        minWidth: 0,
+                        overflow: "hidden",
+                      }}
+                    >
                       <div style={{ fontSize: "0.8rem", opacity: 0.75 }}>
                         {groupDetailsFileStatus === "created"
                           ? uiText.fields.groupDetails.associatedTextFileCreated
@@ -4092,11 +4299,17 @@ export default function RightPanel() {
                       </button>
                     </div>
                   )}
-                  {groupDetailsFileStatus === "error" && groupDetailsFileError && (
-                    <div style={{ fontSize: "0.8rem", color: "var(--danger, #e5484d)" }}>
-                      {groupDetailsFileError}
-                    </div>
-                  )}
+                  {groupDetailsFileStatus === "error" &&
+                    groupDetailsFileError && (
+                      <div
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "var(--danger, #e5484d)",
+                        }}
+                      >
+                        {groupDetailsFileError}
+                      </div>
+                    )}
                   {groupDetailsOptOut && (
                     <div style={{ fontSize: "0.8rem", opacity: 0.75 }}>
                       {uiText.fields.groupDetails.associatedTextFileSkipped}
@@ -4121,7 +4334,9 @@ export default function RightPanel() {
                 fontSize: "0.85rem",
               }}
             >
-              <div style={{ fontWeight: 700 }}>{uiText.grouping.selectedNodes}</div>
+              <div style={{ fontWeight: 700 }}>
+                {uiText.grouping.selectedNodes}
+              </div>
               <div
                 style={{
                   display: "flex",
@@ -4181,12 +4396,14 @@ export default function RightPanel() {
                           lineHeight: 1,
                         }}
                         onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            "var(--surface-1)";
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "var(--surface-1)";
                         }}
                         onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            "transparent";
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "transparent";
                         }}
                       >
                         ×
@@ -4238,7 +4455,9 @@ export default function RightPanel() {
                   </label>
                   <textarea
                     value={edgeDraft.purpose}
-                    onChange={(event) => onEdgePurposeChange(event.target.value)}
+                    onChange={(event) =>
+                      onEdgePurposeChange(event.target.value)
+                    }
                     placeholder={uiText.fields.edgeDetails.purpose}
                     style={{
                       width: "100%",
@@ -4264,8 +4483,8 @@ export default function RightPanel() {
                     {edgeSaveStatus === "saving"
                       ? uiText.statusMessages.saving
                       : edgeSaveStatus === "saved"
-                      ? uiText.statusMessages.saved
-                      : ""}
+                        ? uiText.statusMessages.saved
+                        : ""}
                   </div>
                   <div
                     style={{
@@ -4420,19 +4639,37 @@ export default function RightPanel() {
                               minWidth: 0,
                             }}
                           >
-                            <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
-                              {isImageNode ? uiText.fields.nodeDetails.caption : uiText.fields.nodeDetails.name}
+                            <div
+                              style={{ fontWeight: 600, fontSize: "0.8rem" }}
+                            >
+                              {isImageNode
+                                ? uiText.fields.nodeDetails.caption
+                                : uiText.fields.nodeDetails.name}
                             </div>
                             <input
                               ref={nameInputRef}
                               value={draft.name}
-                              onChange={(e) => onFieldChange("name")(e.target.value)}
+                              onChange={(e) =>
+                                onFieldChange("name")(e.target.value)
+                              }
                               onBlur={() => {
                                 void commitSave();
                               }}
-                              placeholder={isImageNode ? "Enter caption" : uiText.placeholders.nodeName}
-                              aria-label={isImageNode ? uiText.fields.nodeDetails.caption : uiText.fields.nodeDetails.name}
-                              disabled={!isDraftNode && !renameActive && !isFlowchartNode}
+                              placeholder={
+                                isImageNode
+                                  ? "Enter caption"
+                                  : uiText.placeholders.nodeName
+                              }
+                              aria-label={
+                                isImageNode
+                                  ? uiText.fields.nodeDetails.caption
+                                  : uiText.fields.nodeDetails.name
+                              }
+                              disabled={
+                                !isDraftNode &&
+                                !renameActive &&
+                                !isFlowchartNode
+                              }
                               style={{
                                 // Input fills 100% of its label container.
                                 width: "100%",
@@ -4441,18 +4678,21 @@ export default function RightPanel() {
                                 boxSizing: "border-box",
                                 borderRadius: "var(--radius-md)",
                                 // Visually highlight the required field for draft nodes.
-                                border: isDraftNode || renameActive
-                                  ? "var(--border-width) solid var(--primary-color)"
-                                  : "var(--border-width) solid var(--border)",
+                                border:
+                                  isDraftNode || renameActive
+                                    ? "var(--border-width) solid var(--primary-color)"
+                                    : "var(--border-width) solid var(--border)",
                                 padding: "var(--space-2)",
-                                background: isDraftNode || renameActive
-                                  ? "var(--surface-1)"
-                                  : "var(--surface-2)",
+                                background:
+                                  isDraftNode || renameActive
+                                    ? "var(--surface-1)"
+                                    : "var(--surface-2)",
                                 color: "var(--text)",
                                 fontFamily: "var(--font-family)",
-                                boxShadow: isDraftNode || renameActive
-                                  ? "0 0 0 2px rgba(100, 108, 255, 0.2)"
-                                  : "none",
+                                boxShadow:
+                                  isDraftNode || renameActive
+                                    ? "0 0 0 2px rgba(100, 108, 255, 0.2)"
+                                    : "none",
                                 cursor:
                                   isDraftNode || renameActive
                                     ? "text"
@@ -4484,18 +4724,27 @@ export default function RightPanel() {
                               minWidth: 0,
                             }}
                           >
-                            <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                            <div
+                              style={{ fontWeight: 600, fontSize: "0.8rem" }}
+                            >
                               {uiText.fields.nodeDetails.sortOrder}
                             </div>
                             <select
-                              value={sortIndexDraft === "" ? "" : String(sortIndexDraft)}
-                              onChange={(e) => onSortIndexChange(e.target.value)}
+                              value={
+                                sortIndexDraft === ""
+                                  ? ""
+                                  : String(sortIndexDraft)
+                              }
+                              onChange={(e) =>
+                                onSortIndexChange(e.target.value)
+                              }
                               style={{
                                 width: "100%",
                                 minWidth: 0,
                                 boxSizing: "border-box",
                                 borderRadius: "var(--radius-md)",
-                                border: "var(--border-width) solid var(--border)",
+                                border:
+                                  "var(--border-width) solid var(--border)",
                                 padding: "var(--space-2)",
                                 background: "var(--surface-1)",
                                 color: "var(--text)",
@@ -4518,8 +4767,8 @@ export default function RightPanel() {
                               {sortIndexSaveStatus === "saving"
                                 ? uiText.statusMessages.saving
                                 : sortIndexSaveStatus === "saved"
-                                ? uiText.statusMessages.saved
-                                : ""}
+                                  ? uiText.statusMessages.saved
+                                  : ""}
                             </div>
                           </label>
                         )}
@@ -4563,7 +4812,8 @@ export default function RightPanel() {
                                 minWidth: 0,
                                 boxSizing: "border-box",
                                 borderRadius: "var(--radius-md)",
-                                border: "var(--border-width) solid var(--border)",
+                                border:
+                                  "var(--border-width) solid var(--border)",
                                 padding: "var(--space-2)",
                                 background: "var(--surface-1)",
                                 color: "var(--text)",
@@ -4600,7 +4850,8 @@ export default function RightPanel() {
                                 resize: "none",
                                 overflow: "hidden",
                                 borderRadius: "var(--radius-md)",
-                                border: "var(--border-width) solid var(--border)",
+                                border:
+                                  "var(--border-width) solid var(--border)",
                                 padding: "var(--space-2)",
                                 background: "var(--surface-1)",
                                 color: "var(--text)",
@@ -4624,10 +4875,18 @@ export default function RightPanel() {
                               background: "var(--surface-1)",
                             }}
                           >
-                            <div style={{ fontWeight: 600, fontSize: "0.8rem", minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                fontSize: "0.8rem",
+                                minWidth: 0,
+                              }}
+                            >
                               {detailsPath || detailsOptOut
-                                ? uiText.fields.nodeDetails.associatedTextFileLabel
-                                : uiText.fields.nodeDetails.associatedTextFileQuestion}
+                                ? uiText.fields.nodeDetails
+                                    .associatedTextFileLabel
+                                : uiText.fields.nodeDetails
+                                    .associatedTextFileQuestion}
                             </div>
                             {detailsPath ? (
                               <div
@@ -4640,12 +4899,23 @@ export default function RightPanel() {
                                   overflow: "hidden",
                                 }}
                               >
-                                <div style={{ wordBreak: "break-all", minWidth: 0, overflow: "hidden" }}>
+                                <div
+                                  style={{
+                                    wordBreak: "break-all",
+                                    minWidth: 0,
+                                    overflow: "hidden",
+                                  }}
+                                >
                                   {detailsPath}
                                 </div>
                                 {detailsFileStatus === "created" && (
-                                  <div style={{ color: "var(--success, #2f9e44)" }}>
-                                    {uiText.fields.nodeDetails.associatedTextFileCreated}
+                                  <div
+                                    style={{ color: "var(--success, #2f9e44)" }}
+                                  >
+                                    {
+                                      uiText.fields.nodeDetails
+                                        .associatedTextFileCreated
+                                    }
                                   </div>
                                 )}
                               </div>
@@ -4659,18 +4929,24 @@ export default function RightPanel() {
                                 }}
                               >
                                 <div style={{ opacity: 0.7 }}>
-                                  {uiText.fields.nodeDetails.associatedTextFileSkipped}
+                                  {
+                                    uiText.fields.nodeDetails
+                                      .associatedTextFileSkipped
+                                  }
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => void createAssociatedTextFile()}
+                                  onClick={() =>
+                                    void createAssociatedTextFile()
+                                  }
                                   disabled={
                                     detailsFileStatus === "creating" ||
                                     !draft.name.trim()
                                   }
                                   style={{
                                     borderRadius: "999px",
-                                    border: "var(--border-width) solid var(--border)",
+                                    border:
+                                      "var(--border-width) solid var(--border)",
                                     background: "var(--surface-2)",
                                     color: "var(--text)",
                                     padding: "4px 12px",
@@ -4689,7 +4965,10 @@ export default function RightPanel() {
                                     width: "fit-content",
                                   }}
                                 >
-                                  {uiText.fields.nodeDetails.associatedTextFileCreate}
+                                  {
+                                    uiText.fields.nodeDetails
+                                      .associatedTextFileCreate
+                                  }
                                 </button>
                               </div>
                             ) : (
@@ -4703,14 +4982,17 @@ export default function RightPanel() {
                                 >
                                   <button
                                     type="button"
-                                    onClick={() => void createAssociatedTextFile()}
+                                    onClick={() =>
+                                      void createAssociatedTextFile()
+                                    }
                                     disabled={
                                       detailsFileStatus === "creating" ||
                                       !draft.name.trim()
                                     }
                                     style={{
                                       borderRadius: "999px",
-                                      border: "var(--border-width) solid var(--border)",
+                                      border:
+                                        "var(--border-width) solid var(--border)",
                                       background: "var(--surface-2)",
                                       color: "var(--text)",
                                       padding: "4px 12px",
@@ -4728,29 +5010,38 @@ export default function RightPanel() {
                                           : 1,
                                     }}
                                   >
-                                    {uiText.fields.nodeDetails.associatedTextFileCreate}
+                                    {
+                                      uiText.fields.nodeDetails
+                                        .associatedTextFileCreate
+                                    }
                                   </button>
                                 </div>
                                 {detailsFileStatus === "creating" && (
-                                  <div style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+                                  <div
+                                    style={{ fontSize: "0.8rem", opacity: 0.7 }}
+                                  >
                                     {uiText.statusMessages.saving}
                                   </div>
                                 )}
-                                {detailsFileStatus === "error" && detailsFileError && (
-                                  <div
-                                    style={{
-                                      fontSize: "0.8rem",
-                                      color: "var(--danger, #e5484d)",
-                                    }}
-                                  >
-                                    {detailsFileError}
-                                  </div>
-                                )}
+                                {detailsFileStatus === "error" &&
+                                  detailsFileError && (
+                                    <div
+                                      style={{
+                                        fontSize: "0.8rem",
+                                        color: "var(--danger, #e5484d)",
+                                      }}
+                                    >
+                                      {detailsFileError}
+                                    </div>
+                                  )}
                               </>
                             )}
                           </div>
                         )}
-                        {(isDraftNode || canRenameItem || canDeleteItem || actionError) && (
+                        {(isDraftNode ||
+                          canRenameItem ||
+                          canDeleteItem ||
+                          actionError) && (
                           <div
                             style={{
                               display: "flex",
@@ -4766,7 +5057,8 @@ export default function RightPanel() {
                                 disabled={!canCreateDraft}
                                 style={{
                                   borderRadius: "999px",
-                                  border: "var(--border-width) solid var(--border)",
+                                  border:
+                                    "var(--border-width) solid var(--border)",
                                   background: canCreateDraft
                                     ? "var(--surface-1)"
                                     : "var(--surface-2)",
@@ -4774,7 +5066,9 @@ export default function RightPanel() {
                                   padding: "4px 12px",
                                   fontSize: "0.8rem",
                                   fontWeight: 600,
-                                  cursor: canCreateDraft ? "pointer" : "not-allowed",
+                                  cursor: canCreateDraft
+                                    ? "pointer"
+                                    : "not-allowed",
                                   opacity: canCreateDraft ? 1 : 0.6,
                                 }}
                               >
@@ -4787,7 +5081,8 @@ export default function RightPanel() {
                                 onClick={() => void onRenameItem()}
                                 style={{
                                   borderRadius: "999px",
-                                  border: "var(--border-width) solid var(--border)",
+                                  border:
+                                    "var(--border-width) solid var(--border)",
                                   background: renameActive
                                     ? "var(--surface-1)"
                                     : "var(--surface-2)",
@@ -4798,7 +5093,9 @@ export default function RightPanel() {
                                   cursor: "pointer",
                                 }}
                               >
-                                {renameActive ? uiText.buttons.save : uiText.buttons.rename}
+                                {renameActive
+                                  ? uiText.buttons.save
+                                  : uiText.buttons.rename}
                               </button>
                             )}
                             {canDeleteItem && (
@@ -4808,13 +5105,16 @@ export default function RightPanel() {
                                 disabled={deleteInProgress}
                                 style={{
                                   borderRadius: "999px",
-                                  border: "var(--border-width) solid var(--border)",
+                                  border:
+                                    "var(--border-width) solid var(--border)",
                                   background: "var(--surface-2)",
                                   color: "var(--danger, #e5484d)",
                                   padding: "4px 12px",
                                   fontSize: "0.8rem",
                                   fontWeight: 600,
-                                  cursor: deleteInProgress ? "not-allowed" : "pointer",
+                                  cursor: deleteInProgress
+                                    ? "not-allowed"
+                                    : "pointer",
                                   opacity: deleteInProgress ? 0.6 : 1,
                                 }}
                               >
@@ -4862,23 +5162,30 @@ export default function RightPanel() {
                                 minWidth: 0,
                               }}
                             >
-                              <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                              <div
+                                style={{ fontWeight: 600, fontSize: "0.8rem" }}
+                              >
                                 {uiText.fields.nodeDetails.youtubeLink}
                               </div>
                               <input
                                 value={draft.youtube_url}
-                                onChange={(e) => onYoutubeUrlChange(e.target.value)}
+                                onChange={(e) =>
+                                  onYoutubeUrlChange(e.target.value)
+                                }
                                 onBlur={() => {
                                   void commitSave();
                                 }}
                                 placeholder={uiText.placeholders.youtubeLink}
-                                aria-label={uiText.fields.nodeDetails.youtubeLink}
+                                aria-label={
+                                  uiText.fields.nodeDetails.youtubeLink
+                                }
                                 style={{
                                   width: "100%",
                                   minWidth: 0,
                                   boxSizing: "border-box",
                                   borderRadius: "var(--radius-md)",
-                                  border: "var(--border-width) solid var(--border)",
+                                  border:
+                                    "var(--border-width) solid var(--border)",
                                   padding: "var(--space-2)",
                                   background: "var(--surface-1)",
                                   color: "var(--text)",
@@ -4894,11 +5201,14 @@ export default function RightPanel() {
                                 minWidth: 0,
                                 padding: "var(--space-2)",
                                 borderRadius: "var(--radius-md)",
-                                border: "var(--border-width) solid var(--border)",
+                                border:
+                                  "var(--border-width) solid var(--border)",
                                 background: "var(--surface-1)",
                               }}
                             >
-                              <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+                              <div
+                                style={{ fontWeight: 600, fontSize: "0.8rem" }}
+                              >
                                 {uiText.fields.nodeDetails.youtubeSettings}
                               </div>
                               <div
@@ -4909,7 +5219,12 @@ export default function RightPanel() {
                                 }}
                               >
                                 <label style={{ display: "grid", gap: 6 }}>
-                                  <span style={{ fontSize: "0.75rem", opacity: 0.8 }}>
+                                  <span
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      opacity: 0.8,
+                                    }}
+                                  >
                                     {uiText.fields.nodeDetails.youtubeStart}
                                   </span>
                                   <input
@@ -4920,7 +5235,9 @@ export default function RightPanel() {
                                     onChange={(e) => {
                                       const next = Number(e.target.value);
                                       onYoutubeSettingsChange({
-                                        startSeconds: Number.isFinite(next) ? Math.max(0, next) : 0,
+                                        startSeconds: Number.isFinite(next)
+                                          ? Math.max(0, next)
+                                          : 0,
                                       });
                                     }}
                                     onBlur={() => {
@@ -4929,7 +5246,8 @@ export default function RightPanel() {
                                     style={{
                                       width: "100%",
                                       borderRadius: "var(--radius-md)",
-                                      border: "var(--border-width) solid var(--border)",
+                                      border:
+                                        "var(--border-width) solid var(--border)",
                                       padding: "var(--space-2)",
                                       background: "var(--surface-2)",
                                       color: "var(--text)",
@@ -4938,7 +5256,12 @@ export default function RightPanel() {
                                   />
                                 </label>
                                 <label style={{ display: "grid", gap: 6 }}>
-                                  <span style={{ fontSize: "0.75rem", opacity: 0.8 }}>
+                                  <span
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      opacity: 0.8,
+                                    }}
+                                  >
                                     {uiText.fields.nodeDetails.youtubeEnd}
                                   </span>
                                   <input
@@ -4949,7 +5272,9 @@ export default function RightPanel() {
                                     onChange={(e) => {
                                       const next = Number(e.target.value);
                                       onYoutubeSettingsChange({
-                                        endSeconds: Number.isFinite(next) ? Math.max(0, next) : 0,
+                                        endSeconds: Number.isFinite(next)
+                                          ? Math.max(0, next)
+                                          : 0,
                                       });
                                     }}
                                     onBlur={() => {
@@ -4958,7 +5283,8 @@ export default function RightPanel() {
                                     style={{
                                       width: "100%",
                                       borderRadius: "var(--radius-md)",
-                                      border: "var(--border-width) solid var(--border)",
+                                      border:
+                                        "var(--border-width) solid var(--border)",
                                       padding: "var(--space-2)",
                                       background: "var(--surface-2)",
                                       color: "var(--text)",
@@ -4970,7 +5296,8 @@ export default function RightPanel() {
                               <div
                                 style={{
                                   display: "grid",
-                                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                                  gridTemplateColumns:
+                                    "repeat(3, minmax(0, 1fr))",
                                   gap: "var(--space-2)",
                                 }}
                               >
@@ -4986,7 +5313,9 @@ export default function RightPanel() {
                                     type="checkbox"
                                     checked={!!youtubeSettings.loop}
                                     onChange={(e) =>
-                                      onYoutubeSettingsChange({ loop: e.target.checked })
+                                      onYoutubeSettingsChange({
+                                        loop: e.target.checked,
+                                      })
                                     }
                                   />
                                   {uiText.fields.nodeDetails.youtubeLoop}
@@ -5003,7 +5332,9 @@ export default function RightPanel() {
                                     type="checkbox"
                                     checked={!!youtubeSettings.mute}
                                     onChange={(e) =>
-                                      onYoutubeSettingsChange({ mute: e.target.checked })
+                                      onYoutubeSettingsChange({
+                                        mute: e.target.checked,
+                                      })
                                     }
                                   />
                                   {uiText.fields.nodeDetails.youtubeMute}
@@ -5020,7 +5351,9 @@ export default function RightPanel() {
                                     type="checkbox"
                                     checked={!!youtubeSettings.controls}
                                     onChange={(e) =>
-                                      onYoutubeSettingsChange({ controls: e.target.checked })
+                                      onYoutubeSettingsChange({
+                                        controls: e.target.checked,
+                                      })
                                     }
                                   />
                                   {uiText.fields.nodeDetails.youtubeControls}
@@ -5114,8 +5447,8 @@ export default function RightPanel() {
                       (saveStatus === "saving"
                         ? uiText.statusMessages.saving
                         : saveStatus === "saved"
-                        ? uiText.statusMessages.saved
-                        : uiText.statusMessages.idle)}
+                          ? uiText.statusMessages.saved
+                          : uiText.statusMessages.idle)}
                   </div>
                 </div>
 
@@ -5134,14 +5467,14 @@ export default function RightPanel() {
                     <textarea
                       ref={detailsTextareaRef}
                       value={draft.details}
-                      onChange={(e) =>
-                        onFieldChange("details")(e.target.value)
-                      }
+                      onChange={(e) => onFieldChange("details")(e.target.value)}
                       onBlur={() => {
                         void commitSave();
                       }}
                       placeholder={uiText.placeholders.nodeDecisionDetails}
-                      aria-label={uiText.fields.nodeDetails.decisionDetailsLabel}
+                      aria-label={
+                        uiText.fields.nodeDetails.decisionDetailsLabel
+                      }
                       rows={2}
                       style={{
                         width: "100%",
@@ -5197,7 +5530,6 @@ export default function RightPanel() {
                     </div>
                   </div>
                 )}
-
               </div>
             </div>
           )}
@@ -5212,8 +5544,8 @@ export default function RightPanel() {
             isFlowchartNode
               ? uiText.alerts.confirmDelete
               : isFileNode
-              ? uiText.alerts.confirmDeleteFile
-              : uiText.alerts.confirmDeleteFolder
+                ? uiText.alerts.confirmDeleteFile
+                : uiText.alerts.confirmDeleteFolder
           }
           style={{
             position: "absolute",
@@ -5242,8 +5574,8 @@ export default function RightPanel() {
               {isFlowchartNode
                 ? uiText.alerts.confirmDelete
                 : isFileNode
-                ? uiText.alerts.confirmDeleteFile
-                : uiText.alerts.confirmDeleteFolder}
+                  ? uiText.alerts.confirmDeleteFile
+                  : uiText.alerts.confirmDeleteFolder}
             </div>
             <div
               style={{

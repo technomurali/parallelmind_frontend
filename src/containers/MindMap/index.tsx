@@ -11,7 +11,14 @@
  * - Provides accessibility labels for screen readers
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import ReactFlow, {
   addEdge,
   applyEdgeChanges,
@@ -93,21 +100,22 @@ export default function MindMap() {
   const moduleTypeValue = String(activeTab?.moduleType ?? "");
   const isCognitiveNotes = moduleTypeValue === "cognitiveNotes";
   const cognitiveNotesRoot = activeTab?.cognitiveNotesRoot ?? null;
-  const cognitiveNotesDirectoryHandle = activeTab?.cognitiveNotesDirectoryHandle ?? null;
+  const cognitiveNotesDirectoryHandle =
+    activeTab?.cognitiveNotesDirectoryHandle ?? null;
   const cognitiveNotesFolderPath = activeTab?.cognitiveNotesFolderPath ?? null;
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
-  const updateCognitiveNotesRoot = useMindMapStore((s) => s.updateCognitiveNotesRoot);
+  const updateCognitiveNotesRoot = useMindMapStore(
+    (s) => s.updateCognitiveNotesRoot,
+  );
   const rootFolderJson = activeTab?.rootFolderJson ?? null;
   const settings = useMindMapStore((s) => s.settings);
   const updateSettings = useMindMapStore((s) => s.updateSettings);
   const setInlineEditNodeId = useMindMapStore((s) => s.setInlineEditNodeId);
   const selectNode = useMindMapStore((s) => s.selectNode);
-  const setSelectedNodeIds = useMindMapStore((s) => s.setSelectedNodeIds);
   const toggleSelectedNode = useMindMapStore((s) => s.toggleSelectedNode);
   const clearSelectedNodes = useMindMapStore((s) => s.clearSelectedNodes);
   const createGroup = useMindMapStore((s) => s.createGroup);
   const removeGroup = useMindMapStore((s) => s.removeGroup);
-  const removeNodeFromGroup = useMindMapStore((s) => s.removeNodeFromGroup);
   const selectGroup = useMindMapStore((s) => s.selectGroup);
   const updateGroupData = useMindMapStore((s) => s.updateGroupData);
   const tabs = useMindMapStore((s) => s.tabs);
@@ -123,16 +131,16 @@ export default function MindMap() {
   const setRightPanelMode = useMindMapStore((s) => s.setRightPanelMode);
   const rootDirectoryHandle = activeTab?.rootDirectoryHandle ?? null;
   const selectedNodeId = activeTab?.selectedNodeId ?? null;
-  const selectedNodeIds = activeTab?.selectedNodeIds ?? (selectedNodeId ? [selectedNodeId] : []);
-  const selectedGroupId = activeTab?.selectedGroupId ?? null;
+  const selectedNodeIds =
+    activeTab?.selectedNodeIds ?? (selectedNodeId ? [selectedNodeId] : []);
   const nodeGroups = activeTab?.groups ?? [];
   const areNodesCollapsed = activeTab?.areNodesCollapsed ?? false;
   const setNodesCollapsed = useMindMapStore((s) => s.setNodesCollapsed);
   const setPendingChildCreation = useMindMapStore(
-    (s) => s.setPendingChildCreation
+    (s) => s.setPendingChildCreation,
   );
   const discardPendingChildCreationIfSelected = useMindMapStore(
-    (s) => s.discardPendingChildCreationIfSelected
+    (s) => s.discardPendingChildCreationIfSelected,
   );
   const setEdgeStyle = useMindMapStore((s) => s.setEdgeStyle);
   const setLastCanvasPosition = useMindMapStore((s) => s.setLastCanvasPosition);
@@ -155,15 +163,23 @@ export default function MindMap() {
   } | null>(null);
   const lastFitRootIdRef = useRef<string | null>(null);
   const lastRestoredTabIdRef = useRef<string | null>(null);
-  const lastSavedViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(
-    null
-  );
+  const lastSavedViewportRef = useRef<{
+    x: number;
+    y: number;
+    zoom: number;
+  } | null>(null);
   const viewportSaveRafRef = useRef<number | null>(null);
-  const pendingViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(
-    null
-  );
+  const pendingViewportRef = useRef<{
+    x: number;
+    y: number;
+    zoom: number;
+  } | null>(null);
   const [rf, setRf] = useState<ReactFlowInstance | null>(null);
-  const [viewport, setViewport] = useState<{ x: number; y: number; zoom: number }>({
+  const [viewport, setViewport] = useState<{
+    x: number;
+    y: number;
+    zoom: number;
+  }>({
     x: 0,
     y: 0,
     zoom: 1,
@@ -182,7 +198,9 @@ export default function MindMap() {
 
   useEffect(() => {
     const prev = prevGroupsRef.current;
-    const current = new Map((nodeGroups ?? []).map((group) => [group.id, group.nodeIds]));
+    const current = new Map(
+      (nodeGroups ?? []).map((group) => [group.id, group.nodeIds]),
+    );
     if (rf && typeof (rf as any).updateNodeInternals === "function") {
       prev.forEach((prevNodes, groupId) => {
         const currentNodes = current.get(groupId);
@@ -192,7 +210,9 @@ export default function MindMap() {
           }
           return;
         }
-        const removedNodes = prevNodes.filter((id) => !currentNodes.includes(id));
+        const removedNodes = prevNodes.filter(
+          (id) => !currentNodes.includes(id),
+        );
         if (removedNodes.length > 0) {
           (rf as any).updateNodeInternals(removedNodes);
         }
@@ -215,9 +235,13 @@ export default function MindMap() {
     return new Set(
       (list as any[])
         .map((node: any) => (typeof node?.id === "string" ? node.id : ""))
-        .filter(Boolean)
+        .filter(Boolean),
     );
-  }, [isCognitiveNotes, cognitiveNotesRoot?.flowchart_nodes, rootFolderJson?.flowchart_nodes]);
+  }, [
+    isCognitiveNotes,
+    cognitiveNotesRoot?.flowchart_nodes,
+    rootFolderJson?.flowchart_nodes,
+  ]);
 
   const isCanvasNode = (node: any) =>
     !!node &&
@@ -258,36 +282,37 @@ export default function MindMap() {
   const edgeStyle = activeTab?.edgeStyle ?? "default";
   const [showParentPath, setShowParentPath] = useState(false);
   const [showChildrenPath, setShowChildrenPath] = useState(false);
-  const [pendingNodePositions, setPendingNodePositions] = useState<
-    Record<string, { x: number; y: number }> | null
-  >(null);
+  const [pendingNodePositions, setPendingNodePositions] = useState<Record<
+    string,
+    { x: number; y: number }
+  > | null>(null);
   const [pendingFlowchartEdges, setPendingFlowchartEdges] = useState<
-    {
-      id: string;
-      source: string;
-      target: string;
-      source_handle?: string;
-      target_handle?: string;
-      purpose?: string;
-    }[] | null
+    | {
+        id: string;
+        source: string;
+        target: string;
+        source_handle?: string;
+        target_handle?: string;
+        purpose?: string;
+      }[]
+    | null
   >(null);
   const layoutStatusMessage =
     layoutSaveStatus === "saving"
       ? uiText.statusMessages.layoutSaving
       : layoutSaveStatus === "saved"
-      ? uiText.statusMessages.layoutSaved
-      : layoutSaveStatus === "error"
-      ? uiText.statusMessages.layoutSaveFailed
-      : "";
+        ? uiText.statusMessages.layoutSaved
+        : layoutSaveStatus === "error"
+          ? uiText.statusMessages.layoutSaveFailed
+          : "";
   const canvasStatusMessage =
     canvasSaveStatus === "saving"
       ? uiText.statusMessages.saving
       : canvasSaveStatus === "saved"
-      ? uiText.statusMessages.saved
-      : canvasSaveStatus === "error"
-      ? uiText.statusMessages.saveFailed
-      : "";
-
+        ? uiText.statusMessages.saved
+        : canvasSaveStatus === "error"
+          ? uiText.statusMessages.saveFailed
+          : "";
 
   const persistNodePositions = async () => {
     if (!pendingNodePositions || !rootFolderJson) return;
@@ -303,7 +328,7 @@ export default function MindMap() {
       } else if (rootFolderJson.path) {
         await fileManager.writeRootFolderJsonFromPath(
           rootFolderJson.path,
-          nextRoot
+          nextRoot,
         );
       } else {
         setLayoutSaveStatus("error");
@@ -329,7 +354,10 @@ export default function MindMap() {
       if (rootDirectoryHandle) {
         await fileManager.writeRootFolderJson(rootDirectoryHandle, nextRoot);
       } else if (rootFolderJson.path) {
-        await fileManager.writeRootFolderJsonFromPath(rootFolderJson.path, nextRoot);
+        await fileManager.writeRootFolderJsonFromPath(
+          rootFolderJson.path,
+          nextRoot,
+        );
       } else {
         setCanvasSaveStatus("error");
         return;
@@ -356,7 +384,7 @@ export default function MindMap() {
     const normalizeHandle = (
       handle: unknown,
       nodeType: string | undefined,
-      kind: "source" | "target"
+      kind: "source" | "target",
     ) => {
       if (typeof handle === "string" && handle.trim()) {
         return handle;
@@ -382,7 +410,7 @@ export default function MindMap() {
     const childById = new Map(
       (cognitiveNotesRoot.child ?? [])
         .filter((node: any) => node?.id)
-        .map((node: any) => [node.id, node])
+        .map((node: any) => [node.id, node]),
     );
     const nodeTypeById = new Map<string, string>();
     (nodes ?? []).forEach((node: any) => {
@@ -416,7 +444,10 @@ export default function MindMap() {
         source_handle: normalizeHandle(edge.sourceHandle, sourceType, "source"),
         target_handle: normalizeHandle(edge.targetHandle, targetType, "target"),
       };
-      relationMap.set(edge.source, [...(relationMap.get(edge.source) ?? []), relSource]);
+      relationMap.set(edge.source, [
+        ...(relationMap.get(edge.source) ?? []),
+        relSource,
+      ]);
     });
 
     const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) => ({
@@ -439,12 +470,16 @@ export default function MindMap() {
       if (cognitiveNotesDirectoryHandle) {
         await cognitiveNotesManager.writeCognitiveNotesJson(
           cognitiveNotesDirectoryHandle,
-          nextRoot
+          nextRoot,
         );
       } else {
         const targetPath = cognitiveNotesFolderPath ?? nextRoot.path ?? "";
-        if (!targetPath) throw new Error("Cognitive Notes folder path is missing.");
-        await cognitiveNotesManager.writeCognitiveNotesJsonFromPath(targetPath, nextRoot);
+        if (!targetPath)
+          throw new Error("Cognitive Notes folder path is missing.");
+        await cognitiveNotesManager.writeCognitiveNotesJsonFromPath(
+          targetPath,
+          nextRoot,
+        );
       }
       setCanvasSaveStatus("saved");
       setCognitiveNotesDirty(false);
@@ -465,7 +500,7 @@ export default function MindMap() {
       rootFolderJson?.path,
       rootDirectoryHandle,
     ],
-    !!pendingNodePositions
+    !!pendingNodePositions,
   );
 
   useAutoSave(
@@ -479,7 +514,7 @@ export default function MindMap() {
       rootFolderJson?.path,
       rootDirectoryHandle,
     ],
-    !!pendingFlowchartEdges
+    !!pendingFlowchartEdges,
   );
 
   useEffect(() => {
@@ -518,8 +553,9 @@ export default function MindMap() {
   }, [rf, setCanvasCenter]);
   const nodeTypes = NODE_TYPES;
   const selectedNode = useMemo(
-    () => (nodes ?? []).find((node: any) => node?.id === selectedNodeId) ?? null,
-    [nodes, selectedNodeId]
+    () =>
+      (nodes ?? []).find((node: any) => node?.id === selectedNodeId) ?? null,
+    [nodes, selectedNodeId],
   );
   const selectedNodeColor =
     typeof (selectedNode?.data as any)?.node_color === "string" &&
@@ -556,8 +592,8 @@ export default function MindMap() {
                 node_color: nextColor ?? undefined,
               },
             }
-          : node
-      )
+          : node,
+      ),
     );
     updateCognitiveNotesRoot({
       ...cognitiveNotesRoot,
@@ -642,7 +678,7 @@ export default function MindMap() {
             strokeWidth: 3,
             strokeDasharray: "8 6",
             filter: "drop-shadow(0 0 6px rgba(57, 255, 235, 0.8))",
-          opacity: 1,
+            opacity: 1,
           }
         : null;
       const markerColor =
@@ -663,7 +699,8 @@ export default function MindMap() {
           collapsedNodeIds.has(edge?.source) ||
           collapsedNodeIds.has(edge?.target) ||
           (cognitiveRootId &&
-            (edge?.source === cognitiveRootId || edge?.target === cognitiveRootId)),
+            (edge?.source === cognitiveRootId ||
+              edge?.target === cognitiveRootId)),
         markerEnd: {
           type: MarkerType.ArrowClosed,
           width: 18,
@@ -690,7 +727,9 @@ export default function MindMap() {
   const FULL_IMAGE_CONTROL_STRIP_HEIGHT = 16;
 
   const getPolaroidDimensions = (width: number, height: number) => {
-    const maxWidth = Math.round(FILE_NODE_BASE_WIDTH * DEFAULT_IMAGE_WIDTH_RATIO);
+    const maxWidth = Math.round(
+      FILE_NODE_BASE_WIDTH * DEFAULT_IMAGE_WIDTH_RATIO,
+    );
     const padding = 12;
     const captionGap = 12;
     const captionHeight = 28;
@@ -708,7 +747,9 @@ export default function MindMap() {
   };
 
   const getFullImageDimensions = (width: number, height: number) => {
-    const maxWidth = Math.round(FILE_NODE_BASE_WIDTH * DEFAULT_IMAGE_WIDTH_RATIO);
+    const maxWidth = Math.round(
+      FILE_NODE_BASE_WIDTH * DEFAULT_IMAGE_WIDTH_RATIO,
+    );
     const padding = FULL_IMAGE_FRAME_PADDING;
     const safeWidth = Math.max(1, width);
     const safeHeight = Math.max(1, height);
@@ -792,7 +833,9 @@ export default function MindMap() {
           node_type: nodeType,
         },
         hidden: isHidden,
-        style: highlightStyle ? { ...(sizeStyle ?? {}), ...highlightStyle } : sizeStyle,
+        style: highlightStyle
+          ? { ...(sizeStyle ?? {}), ...highlightStyle }
+          : sizeStyle,
       };
     });
   }, [nodes, parentPath.nodeIds, childrenPath.nodeIds, collapsedNodeIds]);
@@ -859,14 +902,14 @@ export default function MindMap() {
 
   const closeContextMenu = () =>
     setContextMenu((s) =>
-      s.open ? { open: false, x: 0, y: 0, node: null } : s
+      s.open ? { open: false, x: 0, y: 0, node: null } : s,
     );
 
   const closePaneMenu = () =>
     setPaneMenu((s) =>
       s.open
         ? { open: false, x: 0, y: 0, flowPos: null, parentNodeId: null }
-        : s
+        : s,
     );
 
   const toggleCanvasMenu = () =>
@@ -906,7 +949,7 @@ export default function MindMap() {
 
   const getDescendantIds = (
     root: RootFolderJson | null,
-    folderId: string
+    folderId: string,
   ): string[] => {
     if (!root) return [];
     const stack: IndexNode[] = [root as unknown as IndexNode];
@@ -943,7 +986,7 @@ export default function MindMap() {
   const updateFolderNodeInRoot = (
     root: RootFolderJson,
     nodeId: string,
-    updater: (node: IndexNode) => IndexNode
+    updater: (node: IndexNode) => IndexNode,
   ): RootFolderJson => {
     let updated = false;
     const updateList = (list: IndexNode[]): IndexNode[] =>
@@ -977,7 +1020,7 @@ export default function MindMap() {
       } else if (rootFolderJson?.path) {
         await fileManager.writeRootFolderJsonFromPath(
           rootFolderJson.path,
-          nextRoot
+          nextRoot,
         );
       }
     } catch (err) {
@@ -1002,7 +1045,7 @@ export default function MindMap() {
       lastSavedViewportRef.current = { x, y, zoom };
       setLastViewport({ x, y, zoom });
     },
-    [setLastViewport]
+    [setLastViewport],
   );
 
   const queueViewportSave = useCallback(
@@ -1016,7 +1059,7 @@ export default function MindMap() {
         if (next) persistViewport(next);
       });
     },
-    [persistViewport]
+    [persistViewport],
   );
 
   const showAllNodesInCanvas = () => {
@@ -1105,10 +1148,14 @@ export default function MindMap() {
         : null;
     const columns =
       providedColumns ??
-      (providedRows ? Math.max(1, Math.ceil(otherNodes.length / providedRows)) : 5);
+      (providedRows
+        ? Math.max(1, Math.ceil(otherNodes.length / providedRows))
+        : 5);
     const rows =
       providedRows ??
-      (providedColumns ? Math.max(1, Math.ceil(otherNodes.length / providedColumns)) : 5);
+      (providedColumns
+        ? Math.max(1, Math.ceil(otherNodes.length / providedColumns))
+        : 5);
     const gridWidth = columns * columnWidth - columnGap;
     const startX = centerFlow.x - gridWidth / 2;
     const startY = rootPosition.y + rootSize.height + rowGap * 2;
@@ -1143,7 +1190,7 @@ export default function MindMap() {
     const nextNodes = nodes.map((node) =>
       nextPositions[node.id]
         ? { ...node, position: nextPositions[node.id] }
-        : node
+        : node,
     );
 
     setNodes(nextNodes);
@@ -1221,7 +1268,7 @@ export default function MindMap() {
 
   const maxDepth = useMemo(
     () => getMaxDepthFromRoot(rootFolderJson),
-    [rootFolderJson]
+    [rootFolderJson],
   );
   const displayLevels = Math.min(5, Math.max(0, maxDepth));
   const defaultLevelGap = Math.round(settings.appearance.nodeSize * 1.4);
@@ -1267,7 +1314,7 @@ export default function MindMap() {
    */
   const onNodesChange = (changes: NodeChange[]) => {
     const hasPositionChange = changes.some(
-      (change) => change.type === "position"
+      (change) => change.type === "position",
     );
     if (isCognitiveNotes && hasPositionChange) {
       setCognitiveNotesDirty(true);
@@ -1288,7 +1335,7 @@ export default function MindMap() {
       const movedIds = new Set(
         changes
           .filter((change) => change.type === "position")
-          .map((change) => change.id)
+          .map((change) => change.id),
       );
       const descendantDeltaMap = new Map<string, { x: number; y: number }>();
 
@@ -1369,7 +1416,7 @@ export default function MindMap() {
       const movedIds = new Set(
         changes
           .filter((change) => change.type === "position")
-          .map((change) => change.id)
+          .map((change) => change.id),
       );
       const relatedDeltaMap = new Map<string, { x: number; y: number }>();
 
@@ -1461,10 +1508,10 @@ export default function MindMap() {
     if (connection.source === connection.target) return;
 
     const sourceNode = (nodes ?? []).find(
-      (node: any) => node?.id === connection.source
+      (node: any) => node?.id === connection.source,
     );
     const targetNode = (nodes ?? []).find(
-      (node: any) => node?.id === connection.target
+      (node: any) => node?.id === connection.target,
     );
     const isFlowchartEdge =
       isCanvasNode(sourceNode) ||
@@ -1481,7 +1528,7 @@ export default function MindMap() {
         type: "default",
         data: { purpose: "" },
       },
-      edges
+      edges,
     );
     setEdges(nextEdges);
 
@@ -1586,7 +1633,7 @@ export default function MindMap() {
     }
     const deletedIds = new Set(deleted.map((edge) => edge.id));
     const nextEdges = (edges ?? []).filter(
-      (edge: any) => !deletedIds.has(edge?.id)
+      (edge: any) => !deletedIds.has(edge?.id),
     );
     setEdges(nextEdges);
     selectEdge(null);
@@ -1594,7 +1641,9 @@ export default function MindMap() {
       const nextChild = (cognitiveNotesRoot.child ?? []).map((node: any) => ({
         ...node,
         related_nodes: Array.isArray(node.related_nodes)
-          ? node.related_nodes.filter((rel: any) => !deletedIds.has(rel?.edge_id))
+          ? node.related_nodes.filter(
+              (rel: any) => !deletedIds.has(rel?.edge_id),
+            )
           : [],
       }));
       const nextFlowchartEdges = buildFlowchartEdges(nextEdges, nodes);
@@ -1619,20 +1668,9 @@ export default function MindMap() {
 
   const selectedNodeIdSet = useMemo(
     () => new Set(selectedNodeIds ?? []),
-    [selectedNodeIds]
+    [selectedNodeIds],
   );
   const isMultiSelect = selectedNodeIds.length > 1;
-
-  const findGroupIdForNode = useCallback(
-    (nodeId: string): string | null => {
-      if (!nodeId) return null;
-      const match = (nodeGroups ?? []).find((group) =>
-        group.nodeIds.includes(nodeId)
-      );
-      return match?.id ?? null;
-    },
-    [nodeGroups]
-  );
 
   const getNodeBounds = useCallback(
     (node: any) => {
@@ -1641,18 +1679,18 @@ export default function MindMap() {
         typeof node?.width === "number"
           ? node.width
           : typeof node?.data?.nodeWidth === "number"
-          ? node.data.nodeWidth
-          : typeof node?.style?.width === "number"
-          ? node.style.width
-          : settings.appearance.nodeSize ?? 200;
+            ? node.data.nodeWidth
+            : typeof node?.style?.width === "number"
+              ? node.style.width
+              : (settings.appearance.nodeSize ?? 200);
       const height =
         typeof node?.height === "number"
           ? node.height
           : typeof node?.data?.nodeHeight === "number"
-          ? node.data.nodeHeight
-          : typeof node?.style?.height === "number"
-          ? node.style.height
-          : settings.appearance.nodeSize ?? 200;
+            ? node.data.nodeHeight
+            : typeof node?.style?.height === "number"
+              ? node.style.height
+              : (settings.appearance.nodeSize ?? 200);
       return {
         x: position.x,
         y: position.y,
@@ -1660,13 +1698,13 @@ export default function MindMap() {
         height,
       };
     },
-    [settings.appearance.nodeSize]
+    [settings.appearance.nodeSize],
   );
 
   const getGroupBounds = useCallback(
     (group: { nodeIds: string[] }) => {
       const members = (nodesRef.current ?? []).filter((node: any) =>
-        group.nodeIds.includes(node?.id)
+        group.nodeIds.includes(node?.id),
       );
       if (!members.length) return null;
       const bounds = members.map(getNodeBounds);
@@ -1685,7 +1723,7 @@ export default function MindMap() {
         padding,
       };
     },
-    [getNodeBounds]
+    [getNodeBounds],
   );
 
   const getGroupBaseSizes = useCallback(
@@ -1699,9 +1737,13 @@ export default function MindMap() {
         if (!group.nodeIds.includes(node?.id)) return;
         const data = node.data ?? {};
         const nodeWidth =
-          typeof (data as any).nodeWidth === "number" ? (data as any).nodeWidth : undefined;
+          typeof (data as any).nodeWidth === "number"
+            ? (data as any).nodeWidth
+            : undefined;
         const nodeHeight =
-          typeof (data as any).nodeHeight === "number" ? (data as any).nodeHeight : undefined;
+          typeof (data as any).nodeHeight === "number"
+            ? (data as any).nodeHeight
+            : undefined;
         if (typeof nodeWidth === "number" && typeof nodeHeight === "number") {
           baseSizes[node.id] = {
             nodeWidth: nodeWidth / fallbackScale,
@@ -1718,7 +1760,7 @@ export default function MindMap() {
       });
       return baseSizes;
     },
-    [settings.appearance.nodeSize]
+    [settings.appearance.nodeSize],
   );
 
   const getGroupBasePositions = useCallback((group: { nodeIds: string[] }) => {
@@ -1737,8 +1779,12 @@ export default function MindMap() {
       if (!group) return;
       const currentScale = typeof group.scale === "number" ? group.scale : 1;
       const step = 0.1;
-      const nextScaleRaw = direction === "up" ? currentScale + step : currentScale - step;
-      const nextScale = Math.min(2, Math.max(0.5, Number(nextScaleRaw.toFixed(2))));
+      const nextScaleRaw =
+        direction === "up" ? currentScale + step : currentScale - step;
+      const nextScale = Math.min(
+        2,
+        Math.max(0.5, Number(nextScaleRaw.toFixed(2))),
+      );
       if (nextScale === currentScale) return;
       const baseSizes =
         group.baseSizes ??
@@ -1794,7 +1840,13 @@ export default function MindMap() {
         updatedOn: new Date().toISOString(),
       });
     },
-    [getGroupBasePositions, getGroupBaseSizes, nodeGroups, setNodes, updateGroupData]
+    [
+      getGroupBasePositions,
+      getGroupBaseSizes,
+      nodeGroups,
+      setNodes,
+      updateGroupData,
+    ],
   );
 
   const getPreviewPosition = (clientX: number, clientY: number) => {
@@ -1804,13 +1856,15 @@ export default function MindMap() {
   };
 
   const onNodeMouseEnter = (event: any, node: Node) => {
-    if (!showDetailsActive || isNodeDragging || !isDetailsPreviewNode(node)) return;
+    if (!showDetailsActive || isNodeDragging || !isDetailsPreviewNode(node))
+      return;
     const pos = getPreviewPosition(event.clientX, event.clientY);
     setDetailsPreview({ node, ...pos });
   };
 
   const onNodeMouseMove = (event: any, node: Node) => {
-    if (!showDetailsActive || isNodeDragging || !isDetailsPreviewNode(node)) return;
+    if (!showDetailsActive || isNodeDragging || !isDetailsPreviewNode(node))
+      return;
     const pos = getPreviewPosition(event.clientX, event.clientY);
     setDetailsPreview({ node, ...pos });
   };
@@ -1830,13 +1884,16 @@ export default function MindMap() {
     setIsNodeDragging(false);
   };
 
-  const startGroupDrag = useCallback((clientX: number, clientY: number, groupId: string) => {
-    groupDragRef.current = {
-      groupId,
-      lastClient: { x: clientX, y: clientY },
-    };
-    setIsNodeDragging(true);
-  }, []);
+  const startGroupDrag = useCallback(
+    (clientX: number, clientY: number, groupId: string) => {
+      groupDragRef.current = {
+        groupId,
+        lastClient: { x: clientX, y: clientY },
+      };
+      setIsNodeDragging(true);
+    },
+    [],
+  );
 
   const onGroupMouseDown = useCallback(
     (event: React.MouseEvent, groupId: string) => {
@@ -1845,7 +1902,7 @@ export default function MindMap() {
       selectGroup(groupId);
       startGroupDrag(event.clientX, event.clientY, groupId);
     },
-    [selectGroup, startGroupDrag]
+    [selectGroup, startGroupDrag],
   );
 
   useEffect(() => {
@@ -1908,14 +1965,14 @@ export default function MindMap() {
         typeof target.width === "number"
           ? target.width
           : typeof styleWidth === "number"
-          ? styleWidth
-          : fallbackSize;
+            ? styleWidth
+            : fallbackSize;
       const nodeHeight =
         typeof target.height === "number"
           ? target.height
           : typeof styleHeight === "number"
-          ? styleHeight
-          : fallbackSize;
+            ? styleHeight
+            : fallbackSize;
       const centerX = target.position.x + Math.max(1, nodeWidth) / 2;
       const centerY = target.position.y + Math.max(1, nodeHeight) / 2;
       const zoom =
@@ -1941,7 +1998,13 @@ export default function MindMap() {
     return () => {
       window.removeEventListener("pm-focus-node", onFocusNode as EventListener);
     };
-  }, [rf, activeTab?.id, nodes, settings.appearance.nodeSize, queueViewportSave]);
+  }, [
+    rf,
+    activeTab?.id,
+    nodes,
+    settings.appearance.nodeSize,
+    queueViewportSave,
+  ]);
 
   const onCanvasMouseDown = (event: any) => {
     canvasBodyRef.current?.focus();
@@ -2009,11 +2072,11 @@ export default function MindMap() {
     const flowPos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
     setLastCanvasPosition(flowPos);
     const selectedNode =
-      selectedNodeId && (nodes ?? []).find((node) => node?.id === selectedNodeId);
-    const parentNodeId =
-      isCognitiveNotes
-        ? cognitiveNotesRoot?.id ?? null
-        : selectedNode && isFolderNode(selectedNode)
+      selectedNodeId &&
+      (nodes ?? []).find((node) => node?.id === selectedNodeId);
+    const parentNodeId = isCognitiveNotes
+      ? (cognitiveNotesRoot?.id ?? null)
+      : selectedNode && isFolderNode(selectedNode)
         ? selectedNode.id
         : null;
     if (isCognitiveNotes) {
@@ -2217,7 +2280,7 @@ export default function MindMap() {
 
       const items = event.clipboardData?.items ?? [];
       const imageItem = Array.from(items).find((item) =>
-        item.type.startsWith("image/")
+        item.type.startsWith("image/"),
       );
       if (!imageItem) return;
       const file = imageItem.getAsFile();
@@ -2236,7 +2299,7 @@ export default function MindMap() {
           (selectedNode?.data as any)?.node_type === "fullImageNode" ||
           (selectedNode?.data as any)?.type === "fullImageNode" ||
           selectedNode?.type === "fullImageNode");
-      
+
       if (isSelectedImageNode) {
         // Update the selected image node with the pasted image
         const url = URL.createObjectURL(file);
@@ -2343,9 +2406,7 @@ export default function MindMap() {
         };
         const existing = nodes ?? [];
         const edgeId = `e_${parentNodeId}_${tempNodeId}`;
-        const nextEdges = (edges ?? []).some(
-          (edge: any) => edge?.id === edgeId
-        )
+        const nextEdges = (edges ?? []).some((edge: any) => edge?.id === edgeId)
           ? edges
           : [
               ...(edges ?? []),
@@ -2380,7 +2441,16 @@ export default function MindMap() {
     return () => {
       document.removeEventListener("paste", onPaste);
     };
-  }, [rf, nodes, edges, setNodes, setEdges, selectNode, selectedNodeId, setPendingChildCreation]);
+  }, [
+    rf,
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    selectNode,
+    selectedNodeId,
+    setPendingChildCreation,
+  ]);
 
   /**
    * Effect: Create/replace root node when root folder is selected
@@ -2396,8 +2466,7 @@ export default function MindMap() {
   useEffect(() => {
     if (!rootFolderJson || !rf) return;
 
-    const existing =
-      selectActiveTab(useMindMapStore.getState())?.nodes ?? [];
+    const existing = selectActiveTab(useMindMapStore.getState())?.nodes ?? [];
     const existingRoot = existing.find((n: any) => n?.id === "00");
 
     // If root node already exists, preserve its position; otherwise center it.
@@ -2409,7 +2478,7 @@ export default function MindMap() {
       const rect = el?.getBoundingClientRect();
       const topPadding = Math.max(
         20,
-        Math.round(settings.appearance.nodeSize * 0.2)
+        Math.round(settings.appearance.nodeSize * 0.2),
       );
       const topCenterClient = rect
         ? { x: rect.left + rect.width / 2, y: rect.top + topPadding }
@@ -2417,13 +2486,16 @@ export default function MindMap() {
       rootPosition = rf.screenToFlowPosition(topCenterClient);
     }
 
-    const { nodes: composedNodes, edges: composedEdges, warnings } =
-      composeMindMapGraphFromRoot(rootFolderJson, {
-        rootNodeId: "00",
-        rootPosition,
-        nodeSize: settings.appearance.nodeSize,
-        levelHorizontalGaps: levelGaps,
-      });
+    const {
+      nodes: composedNodes,
+      edges: composedEdges,
+      warnings,
+    } = composeMindMapGraphFromRoot(rootFolderJson, {
+      rootNodeId: "00",
+      rootPosition,
+      nodeSize: settings.appearance.nodeSize,
+      levelHorizontalGaps: levelGaps,
+    });
 
     if (warnings.length > 0) {
       console.warn("[MindMap] Compose warnings:", warnings);
@@ -2433,9 +2505,10 @@ export default function MindMap() {
     const storedPositions =
       hasCustomLayout && rootFolderJson?.node_positions
         ? new Map(
-            Object.entries(rootFolderJson.node_positions).map(
-              ([id, pos]) => [id, pos]
-            )
+            Object.entries(rootFolderJson.node_positions).map(([id, pos]) => [
+              id,
+              pos,
+            ]),
           )
         : new Map<string, { x: number; y: number }>();
 
@@ -2443,7 +2516,7 @@ export default function MindMap() {
       ? new Map(
           existing
             .filter((node: any) => node?.id && node?.position)
-            .map((node: any) => [node.id, node.position])
+            .map((node: any) => [node.id, node.position]),
         )
       : new Map<string, { x: number; y: number }>();
 
@@ -2565,7 +2638,7 @@ export default function MindMap() {
     });
 
     const existingCustomNodes = existing.filter(
-      (node: any) => !!(node?.data as any)?.nonPersistent
+      (node: any) => !!(node?.data as any)?.nonPersistent,
     );
     const customNodes = existingCustomNodes.map((node: any) => ({
       ...node,
@@ -2574,27 +2647,30 @@ export default function MindMap() {
     const mergedNodes = [
       ...withSelection,
       ...flowchartNodeObjects.filter(
-        (node) => !withSelection.some((n) => n.id === node.id)
+        (node) => !withSelection.some((n) => n.id === node.id),
       ),
       ...customNodes.filter(
-        (node: any) => !withSelection.some((n) => n.id === node.id)
+        (node: any) => !withSelection.some((n) => n.id === node.id),
       ),
     ];
 
     setNodes(mergedNodes);
-    const existingEdges = selectActiveTab(useMindMapStore.getState())?.edges ?? [];
+    const existingEdges =
+      selectActiveTab(useMindMapStore.getState())?.edges ?? [];
     const customEdges = (existingEdges ?? []).filter(
-      (edge: any) => !!(edge?.data as any)?.nonPersistent
+      (edge: any) => !!(edge?.data as any)?.nonPersistent,
     );
-    const flowchartEdges = (rootFolderJson.flowchart_edges ?? []).map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      type: "default",
-      sourceHandle: edge.source_handle,
-      targetHandle: edge.target_handle,
-      data: { purpose: edge.purpose ?? "" },
-    }));
+    const flowchartEdges = (rootFolderJson.flowchart_edges ?? []).map(
+      (edge) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: "default",
+        sourceHandle: edge.source_handle,
+        targetHandle: edge.target_handle,
+        data: { purpose: edge.purpose ?? "" },
+      }),
+    );
     const composedIds = new Set((composedEdges ?? []).map((edge) => edge.id));
     const allIds = new Set<string>(composedIds);
     flowchartEdges.forEach((edge) => allIds.add(edge.id));
@@ -2626,7 +2702,9 @@ export default function MindMap() {
     }
     if (lastFocusedNodeIdRef.current === selectedNodeId) return;
 
-    const selectedNode = (nodes ?? []).find((node) => node?.id === selectedNodeId);
+    const selectedNode = (nodes ?? []).find(
+      (node) => node?.id === selectedNodeId,
+    );
     if (!selectedNode?.position) return;
 
     const fallbackSize = settings.appearance.nodeSize;
@@ -2636,14 +2714,14 @@ export default function MindMap() {
       typeof selectedNode.width === "number"
         ? selectedNode.width
         : typeof styleWidth === "number"
-        ? styleWidth
-        : fallbackSize;
+          ? styleWidth
+          : fallbackSize;
     const nodeHeight =
       typeof selectedNode.height === "number"
         ? selectedNode.height
         : typeof styleHeight === "number"
-        ? styleHeight
-        : fallbackSize;
+          ? styleHeight
+          : fallbackSize;
     const centerX = selectedNode.position.x + Math.max(1, nodeWidth) / 2;
     const centerY = selectedNode.position.y + Math.max(1, nodeHeight) / 2;
     const zoom = rf.getZoom();
@@ -2677,7 +2755,7 @@ export default function MindMap() {
       queueViewportSave(viewport);
       setViewport(viewport);
     },
-    [queueViewportSave]
+    [queueViewportSave],
   );
 
   return (
@@ -2701,7 +2779,9 @@ export default function MindMap() {
                   onClick={() => void saveCognitiveNotesCanvas()}
                   aria-label={uiText.buttons.save}
                   title={uiText.buttons.save}
-                  disabled={!cognitiveNotesDirty || canvasSaveStatus === "saving"}
+                  disabled={
+                    !cognitiveNotesDirty || canvasSaveStatus === "saving"
+                  }
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -2720,15 +2800,19 @@ export default function MindMap() {
                         ? "default"
                         : "pointer",
                     opacity:
-                      !cognitiveNotesDirty || canvasSaveStatus === "saving" ? 0.5 : 1,
+                      !cognitiveNotesDirty || canvasSaveStatus === "saving"
+                        ? 0.5
+                        : 1,
                   }}
                   onMouseEnter={(e) => {
-                    if (!cognitiveNotesDirty || canvasSaveStatus === "saving") return;
+                    if (!cognitiveNotesDirty || canvasSaveStatus === "saving")
+                      return;
                     (e.currentTarget as HTMLButtonElement).style.background =
                       "var(--surface-2)";
                   }}
                   onMouseLeave={(e) => {
-                    if (!cognitiveNotesDirty || canvasSaveStatus === "saving") return;
+                    if (!cognitiveNotesDirty || canvasSaveStatus === "saving")
+                      return;
                     (e.currentTarget as HTMLButtonElement).style.background =
                       "var(--surface-1)";
                   }}
@@ -2809,7 +2893,9 @@ export default function MindMap() {
                         borderRadius: 999,
                         border: "1px solid var(--border)",
                         background: selectedNodeColor ?? "transparent",
-                        boxShadow: selectedNodeColor ? "0 0 0 1px rgba(0,0,0,0.1)" : "none",
+                        boxShadow: selectedNodeColor
+                          ? "0 0 0 1px rgba(0,0,0,0.1)"
+                          : "none",
                       }}
                     />
                   </button>
@@ -2832,7 +2918,9 @@ export default function MindMap() {
                     >
                       <input
                         type="color"
-                        value={isValidHexColor(colorDraft) ? colorDraft : "#64748b"}
+                        value={
+                          isValidHexColor(colorDraft) ? colorDraft : "#64748b"
+                        }
                         onChange={(e) => {
                           const nextValue = e.target.value;
                           setColorDraft(nextValue);
@@ -3000,7 +3088,13 @@ export default function MindMap() {
                 xmlns="http://www.w3.org/2000/svg"
                 aria-hidden="true"
               >
-                <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="2" />
+                <circle
+                  cx="10"
+                  cy="10"
+                  r="7"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
                 <rect
                   x="7"
                   y="7"
@@ -3035,7 +3129,9 @@ export default function MindMap() {
                 width: "var(--control-size-sm)",
                 borderRadius: "var(--radius-md)",
                 border: "none",
-                background: showDetailsActive ? "var(--surface-1)" : "transparent",
+                background: showDetailsActive
+                  ? "var(--surface-1)"
+                  : "transparent",
                 color: "var(--text)",
                 cursor: "pointer",
               }}
@@ -3327,12 +3423,12 @@ export default function MindMap() {
                     if (rootDirectoryHandle) {
                       await fileManager.writeRootFolderJson(
                         rootDirectoryHandle,
-                        cleared
+                        cleared,
                       );
                     } else if (rootFolderJson.path) {
                       await fileManager.writeRootFolderJsonFromPath(
                         rootFolderJson.path,
-                        cleared
+                        cleared,
                       );
                     }
                   } catch (err) {
@@ -3666,9 +3762,13 @@ export default function MindMap() {
                     }}
                   >
                     <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>
-                      {group.name?.trim() ? group.name : uiText.grouping.groupedNodes}
+                      {group.name?.trim()
+                        ? group.name
+                        : uiText.grouping.groupedNodes}
                     </span>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <div
+                      style={{ display: "flex", gap: 6, alignItems: "center" }}
+                    >
                       <button
                         type="button"
                         aria-label={uiText.tooltips.groupScaleDown}
@@ -3691,7 +3791,9 @@ export default function MindMap() {
                           background: "transparent",
                           color: "inherit",
                           cursor:
-                            (group.scale ?? 1) <= 0.5 ? "not-allowed" : "pointer",
+                            (group.scale ?? 1) <= 0.5
+                              ? "not-allowed"
+                              : "pointer",
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -3701,12 +3803,14 @@ export default function MindMap() {
                         }}
                         onMouseEnter={(e) => {
                           if ((group.scale ?? 1) <= 0.5) return;
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            "rgba(255,255,255,0.12)";
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "rgba(255,255,255,0.12)";
                         }}
                         onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            "transparent";
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "transparent";
                         }}
                       >
                         −
@@ -3743,12 +3847,14 @@ export default function MindMap() {
                         }}
                         onMouseEnter={(e) => {
                           if ((group.scale ?? 1) >= 2) return;
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            "rgba(255,255,255,0.12)";
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "rgba(255,255,255,0.12)";
                         }}
                         onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            "transparent";
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "transparent";
                         }}
                       >
                         +
@@ -3781,12 +3887,14 @@ export default function MindMap() {
                           lineHeight: 1,
                         }}
                         onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            "rgba(255,255,255,0.12)";
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "rgba(255,255,255,0.12)";
                         }}
                         onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLButtonElement).style.background =
-                            "transparent";
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "transparent";
                         }}
                       >
                         ×
@@ -3853,7 +3961,7 @@ export default function MindMap() {
               const delta = isZoomingOut ? 0.8 : 1.2;
               const clampedZoom = Math.max(
                 minFitZoom,
-                Math.min(maxZoom, zoom * delta)
+                Math.min(maxZoom, zoom * delta),
               );
               rf.zoomTo(clampedZoom);
               event.preventDefault();
@@ -3893,7 +4001,7 @@ export default function MindMap() {
                   typeof (detailsPreview.node.data as any)?.level === "number"
                     ? (detailsPreview.node.data as any).level
                     : 0,
-                  "var(--surface-2)"
+                  "var(--surface-2)",
                 ),
                 color: "var(--text)",
                 boxShadow: "0 12px 28px rgba(0,0,0,0.35)",
@@ -4093,10 +4201,9 @@ export default function MindMap() {
 
                   const existing = nodes ?? [];
                   const edgeId = `e_${parentNodeId}_${tempNodeId}`;
-                  const nextEdges =
-                    isCognitiveNotes
-                      ? edges
-                      : (edges ?? []).some((edge: any) => edge?.id === edgeId)
+                  const nextEdges = isCognitiveNotes
+                    ? edges
+                    : (edges ?? []).some((edge: any) => edge?.id === edgeId)
                       ? edges
                       : [
                           ...(edges ?? []),
@@ -4105,7 +4212,10 @@ export default function MindMap() {
                             source: parentNodeId,
                             target: tempNodeId,
                             type: "default",
-                            style: { opacity: 1, transition: "opacity 180ms ease" },
+                            style: {
+                              opacity: 1,
+                              transition: "opacity 180ms ease",
+                            },
                             data: { isDraft: true, nonPersistent: true },
                           },
                         ];
@@ -4194,10 +4304,9 @@ export default function MindMap() {
                       flowPos,
                     });
                   }
-                  const nextEdges =
-                    isCognitiveNotes
-                      ? edges
-                      : (edges ?? []).some((edge: any) => edge?.id === edgeId)
+                  const nextEdges = isCognitiveNotes
+                    ? edges
+                    : (edges ?? []).some((edge: any) => edge?.id === edgeId)
                       ? edges
                       : [
                           ...(edges ?? []),
@@ -4206,7 +4315,10 @@ export default function MindMap() {
                             source: parentNodeId,
                             target: tempNodeId,
                             type: "default",
-                            style: { opacity: 1, transition: "opacity 180ms ease" },
+                            style: {
+                              opacity: 1,
+                              transition: "opacity 180ms ease",
+                            },
                             data: { isDraft: true, nonPersistent: true },
                           },
                         ];
@@ -4364,7 +4476,7 @@ export default function MindMap() {
                   const existing = nodes ?? [];
                   const edgeId = `e_${parentNodeId}_${tempNodeId}`;
                   const nextEdges = (edges ?? []).some(
-                    (edge: any) => edge?.id === edgeId
+                    (edge: any) => edge?.id === edgeId,
                   )
                     ? edges
                     : [
@@ -4374,7 +4486,10 @@ export default function MindMap() {
                           source: parentNodeId,
                           target: tempNodeId,
                           type: "default",
-                          style: { opacity: 1, transition: "opacity 180ms ease" },
+                          style: {
+                            opacity: 1,
+                            transition: "opacity 180ms ease",
+                          },
                           data: { isDraft: true, nonPersistent: true },
                         },
                       ];
@@ -4405,10 +4520,7 @@ export default function MindMap() {
                   fontFamily: "var(--font-family)",
                   whiteSpace: "normal",
                   overflowWrap: "anywhere",
-                  opacity:
-                    paneMenu.parentNodeId && !isCognitiveNotes
-                      ? 1
-                      : 0.5,
+                  opacity: paneMenu.parentNodeId && !isCognitiveNotes ? 1 : 0.5,
                 }}
                 onMouseEnter={(e) => {
                   if (!paneMenu.parentNodeId || isCognitiveNotes) return;
@@ -4477,201 +4589,19 @@ export default function MindMap() {
                 </button>
               ) : (
                 <>
-              {canShowSubtreeNotes(contextMenu.node) && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      const node = contextMenu.node;
-                      closeContextMenu();
-                      if (!node || !activeTab?.id) return;
-                      window.dispatchEvent(
-                        new CustomEvent("pm-open-notes-feed", {
-                          detail: { tabId: activeTab.id, nodeId: node.id },
-                        })
-                      );
-                    }}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "8px 10px",
-                      borderRadius: "var(--radius-sm)",
-                      border: "none",
-                      background: "transparent",
-                      color: "inherit",
-                      cursor: "pointer",
-                      fontFamily: "var(--font-family)",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background =
-                        "var(--surface-1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background =
-                        "transparent";
-                    }}
-                  >
-                    {uiText.contextMenus.node.showSubtreeNotes}
-                  </button>
-                )}
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  const node = contextMenu.node;
-                  closeContextMenu();
-                  if (!node) return;
-                  updateNodeData(node.id, { moveChildrenOnDrag: false });
-                }}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "8px 10px",
-                  borderRadius: "var(--radius-sm)",
-                  border: "none",
-                  background: "transparent",
-                  color: "inherit",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-family)",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "var(--surface-1)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "transparent";
-                }}
-              >
-                {uiText.contextMenus.node.moveNode}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  const node = contextMenu.node;
-                  closeContextMenu();
-                  if (!node) return;
-                  if (!hasMoveChildrenTargets(node)) return;
-                  updateNodeData(node.id, { moveChildrenOnDrag: true });
-                }}
-                disabled={!hasMoveChildrenTargets(contextMenu.node)}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "8px 10px",
-                  borderRadius: "var(--radius-sm)",
-                  border: "none",
-                  background: "transparent",
-                  color: "inherit",
-                  cursor: hasMoveChildrenTargets(contextMenu.node)
-                    ? "pointer"
-                    : "not-allowed",
-                  fontFamily: "var(--font-family)",
-                  opacity: hasMoveChildrenTargets(contextMenu.node) ? 1 : 0.5,
-                }}
-                onMouseEnter={(e) => {
-                  if (!hasMoveChildrenTargets(contextMenu.node)) return;
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "var(--surface-1)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "transparent";
-                }}
-              >
-                {uiText.contextMenus.node.moveWithChildren}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setShowParentPath((prev) => !prev);
-                  closeContextMenu();
-                }}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "8px 10px",
-                  borderRadius: "var(--radius-sm)",
-                  border: "none",
-                  background: "transparent",
-                  color: "inherit",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-family)",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "var(--surface-1)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "transparent";
-                }}
-              >
-                {showParentPath
-                  ? uiText.contextMenus.node.hideParentPath
-                  : uiText.contextMenus.node.showParentPath}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setShowChildrenPath((prev) => !prev);
-                  closeContextMenu();
-                }}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "8px 10px",
-                  borderRadius: "var(--radius-sm)",
-                  border: "none",
-                  background: "transparent",
-                  color: "inherit",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-family)",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "var(--surface-1)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "transparent";
-                }}
-              >
-                {showChildrenPath
-                  ? uiText.contextMenus.node.hideChildren
-                  : uiText.contextMenus.node.showChildren}
-              </button>
-              {contextMenu.node && isFolderNode(contextMenu.node) && (
-                <>
-                  {contextMenu.node.id !== "00" && (
+                  {canShowSubtreeNotes(contextMenu.node) && (
                     <button
                       type="button"
                       role="menuitem"
                       onClick={() => {
                         const node = contextMenu.node;
                         closeContextMenu();
-                        if (!node || !rootFolderJson) return;
-                        if (!isFolderNode(node) || node.id === "00") return;
-                        const isCollapsed =
-                          (node.data as any)?.isTreeCollapsed === true;
-                        const nextRoot = updateFolderNodeInRoot(
-                          rootFolderJson,
-                          node.id,
-                          (item) => {
-                            const nextNode = { ...(item as any) };
-                            if (!isCollapsed) {
-                              nextNode.isTreeCollapsed = true;
-                            } else {
-                              delete nextNode.isTreeCollapsed;
-                            }
-                            return nextNode as IndexNode;
-                          }
+                        if (!node || !activeTab?.id) return;
+                        window.dispatchEvent(
+                          new CustomEvent("pm-open-notes-feed", {
+                            detail: { tabId: activeTab.id, nodeId: node.id },
+                          }),
                         );
-                        if (nextRoot === rootFolderJson) return;
-                        void persistRootFolderJson(nextRoot);
                       }}
                       style={{
                         width: "100%",
@@ -4685,155 +4615,27 @@ export default function MindMap() {
                         fontFamily: "var(--font-family)",
                       }}
                       onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "var(--surface-1)";
+                        (
+                          e.currentTarget as HTMLButtonElement
+                        ).style.background = "var(--surface-1)";
                       }}
                       onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "transparent";
+                        (
+                          e.currentTarget as HTMLButtonElement
+                        ).style.background = "transparent";
                       }}
                     >
-                      {(contextMenu.node.data as any)?.isTreeCollapsed === true
-                        ? uiText.contextMenus.folder.openTree
-                        : uiText.contextMenus.folder.closeTree}
+                      {uiText.contextMenus.node.showSubtreeNotes}
                     </button>
                   )}
-                  {isTauri() && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={async () => {
-                        const node = contextMenu.node;
-                        closeContextMenu();
-                        if (!node) return;
-                        if (!isFolderNode(node)) return;
-                        const path = getNodeFolderPath(node);
-                        if (!path) return;
-                        try {
-                          const { openPath } = await import(
-                            "@tauri-apps/plugin-opener"
-                          );
-                          await openPath(path);
-                        } catch (err) {
-                          // Keep UX silent (no alerts/toasts), but log for debugging.
-                          console.error(
-                            "[MindMap] Context menu open failed:",
-                            err
-                          );
-                        }
-                      }}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "8px 10px",
-                        borderRadius: "var(--radius-sm)",
-                        border: "none",
-                        background: "transparent",
-                        color: "inherit",
-                        cursor: "pointer",
-                        fontFamily: "var(--font-family)",
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "var(--surface-1)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "transparent";
-                      }}
-                    >
-                      {uiText.contextMenus.folder.openFolder}
-                    </button>
-                  )}
-                  {isTauri() && getNodeFolderPath(contextMenu.node) && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={async () => {
-                        const node = contextMenu.node;
-                        closeContextMenu();
-                        if (!node) return;
-                        if (!isFolderNode(node)) return;
-                        const path = getNodeFolderPath(node);
-                        if (!path) return;
-
-                        const match = tabs.find(
-                          (tab) => tab.rootFolderJson?.path === path
-                        );
-                        if (match) {
-                          setActiveTab(match.id);
-                          return;
-                        }
-
-                        createTab();
-                        try {
-                          const result =
-                            await fileManager.loadOrCreateRootFolderJsonFromPath(
-                              path
-                            );
-                          if (!result.created) {
-                            // TODO: define the "existing root" flow (e.g., merge, refresh, or re-scan)
-                            // when a <root>_rootIndex.json file already exists in the chosen folder.
-                          }
-                          setRoot(null, result.root);
-                          selectNode("00");
-                        } catch (err) {
-                          // Keep UX silent (no alerts/toasts), but log for debugging.
-                          console.error(
-                            "[MindMap] Open in new tab failed:",
-                            err
-                          );
-                        }
-                      }}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "8px 10px",
-                        borderRadius: "var(--radius-sm)",
-                        border: "none",
-                        background: "transparent",
-                        color: "inherit",
-                        cursor: "pointer",
-                        fontFamily: "var(--font-family)",
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "var(--surface-1)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background =
-                          "transparent";
-                      }}
-                    >
-                      {uiText.contextMenus.folder.openInNewTab}
-                    </button>
-                  )}
-                </>
-              )}
-              {contextMenu.node &&
-                !isFolderNode(contextMenu.node) &&
-                isTauri() && (
                   <button
                     type="button"
                     role="menuitem"
-                    onClick={async () => {
+                    onClick={() => {
                       const node = contextMenu.node;
                       closeContextMenu();
                       if (!node) return;
-                      if (isFolderNode(node)) return;
-                      const path = (node?.data as any)?.path;
-                      if (typeof path !== "string" || !path) return;
-                      try {
-                        const { openPath } = await import(
-                          "@tauri-apps/plugin-opener"
-                        );
-                        await openPath(path);
-                      } catch (err) {
-                        console.error(
-                          "[MindMap] Context menu open file failed:",
-                          err
-                        );
-                      }
+                      updateNodeData(node.id, { moveChildrenOnDrag: false });
                     }}
                     style={{
                       width: "100%",
@@ -4855,9 +4657,330 @@ export default function MindMap() {
                         "transparent";
                     }}
                   >
-                    {uiText.contextMenus.file.openFile}
+                    {uiText.contextMenus.node.moveNode}
                   </button>
-                )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      const node = contextMenu.node;
+                      closeContextMenu();
+                      if (!node) return;
+                      if (!hasMoveChildrenTargets(node)) return;
+                      updateNodeData(node.id, { moveChildrenOnDrag: true });
+                    }}
+                    disabled={!hasMoveChildrenTargets(contextMenu.node)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "none",
+                      background: "transparent",
+                      color: "inherit",
+                      cursor: hasMoveChildrenTargets(contextMenu.node)
+                        ? "pointer"
+                        : "not-allowed",
+                      fontFamily: "var(--font-family)",
+                      opacity: hasMoveChildrenTargets(contextMenu.node)
+                        ? 1
+                        : 0.5,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!hasMoveChildrenTargets(contextMenu.node)) return;
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "transparent";
+                    }}
+                  >
+                    {uiText.contextMenus.node.moveWithChildren}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setShowParentPath((prev) => !prev);
+                      closeContextMenu();
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "none",
+                      background: "transparent",
+                      color: "inherit",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-family)",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "transparent";
+                    }}
+                  >
+                    {showParentPath
+                      ? uiText.contextMenus.node.hideParentPath
+                      : uiText.contextMenus.node.showParentPath}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setShowChildrenPath((prev) => !prev);
+                      closeContextMenu();
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "none",
+                      background: "transparent",
+                      color: "inherit",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-family)",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "var(--surface-1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "transparent";
+                    }}
+                  >
+                    {showChildrenPath
+                      ? uiText.contextMenus.node.hideChildren
+                      : uiText.contextMenus.node.showChildren}
+                  </button>
+                  {contextMenu.node && isFolderNode(contextMenu.node) && (
+                    <>
+                      {contextMenu.node.id !== "00" && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            const node = contextMenu.node;
+                            closeContextMenu();
+                            if (!node || !rootFolderJson) return;
+                            if (!isFolderNode(node) || node.id === "00") return;
+                            const isCollapsed =
+                              (node.data as any)?.isTreeCollapsed === true;
+                            const nextRoot = updateFolderNodeInRoot(
+                              rootFolderJson,
+                              node.id,
+                              (item) => {
+                                const nextNode = { ...(item as any) };
+                                if (!isCollapsed) {
+                                  nextNode.isTreeCollapsed = true;
+                                } else {
+                                  delete nextNode.isTreeCollapsed;
+                                }
+                                return nextNode as IndexNode;
+                              },
+                            );
+                            if (nextRoot === rootFolderJson) return;
+                            void persistRootFolderJson(nextRoot);
+                          }}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "8px 10px",
+                            borderRadius: "var(--radius-sm)",
+                            border: "none",
+                            background: "transparent",
+                            color: "inherit",
+                            cursor: "pointer",
+                            fontFamily: "var(--font-family)",
+                          }}
+                          onMouseEnter={(e) => {
+                            (
+                              e.currentTarget as HTMLButtonElement
+                            ).style.background = "var(--surface-1)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (
+                              e.currentTarget as HTMLButtonElement
+                            ).style.background = "transparent";
+                          }}
+                        >
+                          {(contextMenu.node.data as any)?.isTreeCollapsed ===
+                          true
+                            ? uiText.contextMenus.folder.openTree
+                            : uiText.contextMenus.folder.closeTree}
+                        </button>
+                      )}
+                      {isTauri() && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={async () => {
+                            const node = contextMenu.node;
+                            closeContextMenu();
+                            if (!node) return;
+                            if (!isFolderNode(node)) return;
+                            const path = getNodeFolderPath(node);
+                            if (!path) return;
+                            try {
+                              const { openPath } =
+                                await import("@tauri-apps/plugin-opener");
+                              await openPath(path);
+                            } catch (err) {
+                              // Keep UX silent (no alerts/toasts), but log for debugging.
+                              console.error(
+                                "[MindMap] Context menu open failed:",
+                                err,
+                              );
+                            }
+                          }}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "8px 10px",
+                            borderRadius: "var(--radius-sm)",
+                            border: "none",
+                            background: "transparent",
+                            color: "inherit",
+                            cursor: "pointer",
+                            fontFamily: "var(--font-family)",
+                          }}
+                          onMouseEnter={(e) => {
+                            (
+                              e.currentTarget as HTMLButtonElement
+                            ).style.background = "var(--surface-1)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (
+                              e.currentTarget as HTMLButtonElement
+                            ).style.background = "transparent";
+                          }}
+                        >
+                          {uiText.contextMenus.folder.openFolder}
+                        </button>
+                      )}
+                      {isTauri() && getNodeFolderPath(contextMenu.node) && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={async () => {
+                            const node = contextMenu.node;
+                            closeContextMenu();
+                            if (!node) return;
+                            if (!isFolderNode(node)) return;
+                            const path = getNodeFolderPath(node);
+                            if (!path) return;
+
+                            const match = tabs.find(
+                              (tab) => tab.rootFolderJson?.path === path,
+                            );
+                            if (match) {
+                              setActiveTab(match.id);
+                              return;
+                            }
+
+                            createTab();
+                            try {
+                              const result =
+                                await fileManager.loadOrCreateRootFolderJsonFromPath(
+                                  path,
+                                );
+                              if (!result.created) {
+                                // TODO: define the "existing root" flow (e.g., merge, refresh, or re-scan)
+                                // when a <root>_rootIndex.json file already exists in the chosen folder.
+                              }
+                              setRoot(null, result.root);
+                              selectNode("00");
+                            } catch (err) {
+                              // Keep UX silent (no alerts/toasts), but log for debugging.
+                              console.error(
+                                "[MindMap] Open in new tab failed:",
+                                err,
+                              );
+                            }
+                          }}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "8px 10px",
+                            borderRadius: "var(--radius-sm)",
+                            border: "none",
+                            background: "transparent",
+                            color: "inherit",
+                            cursor: "pointer",
+                            fontFamily: "var(--font-family)",
+                          }}
+                          onMouseEnter={(e) => {
+                            (
+                              e.currentTarget as HTMLButtonElement
+                            ).style.background = "var(--surface-1)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (
+                              e.currentTarget as HTMLButtonElement
+                            ).style.background = "transparent";
+                          }}
+                        >
+                          {uiText.contextMenus.folder.openInNewTab}
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {contextMenu.node &&
+                    !isFolderNode(contextMenu.node) &&
+                    isTauri() && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={async () => {
+                          const node = contextMenu.node;
+                          closeContextMenu();
+                          if (!node) return;
+                          if (isFolderNode(node)) return;
+                          const path = (node?.data as any)?.path;
+                          if (typeof path !== "string" || !path) return;
+                          try {
+                            const { openPath } =
+                              await import("@tauri-apps/plugin-opener");
+                            await openPath(path);
+                          } catch (err) {
+                            console.error(
+                              "[MindMap] Context menu open file failed:",
+                              err,
+                            );
+                          }
+                        }}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "8px 10px",
+                          borderRadius: "var(--radius-sm)",
+                          border: "none",
+                          background: "transparent",
+                          color: "inherit",
+                          cursor: "pointer",
+                          fontFamily: "var(--font-family)",
+                        }}
+                        onMouseEnter={(e) => {
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "var(--surface-1)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "transparent";
+                        }}
+                      >
+                        {uiText.contextMenus.file.openFile}
+                      </button>
+                    )}
                 </>
               )}
             </div>

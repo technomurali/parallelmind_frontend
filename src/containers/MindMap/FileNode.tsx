@@ -46,7 +46,6 @@ export default function FileNode({
       ? `${nodePurpose.slice(0, 250)}...`
       : nodePurpose;
 
-
   const stroke = selected ? "var(--primary-color)" : "var(--border)";
   const strokeWidth = selected ? 6 : 4;
   const levelValue =
@@ -57,7 +56,7 @@ export default function FileNode({
       ? (data as any).node_color.trim()
       : null;
   const fillColor = isCognitiveNotes
-    ? customNodeColor ?? "var(--surface-2)"
+    ? (customNodeColor ?? "var(--surface-2)")
     : getNodeFillColor(settings, levelValue, "var(--surface-2)", {
         variant: "file",
       });
@@ -99,7 +98,7 @@ export default function FileNode({
   const bodyRightX = 320;
   const bodyCornerRadius = Math.max(
     0,
-    Math.min(12, (bodyBottomY - bodyTopY) / 2)
+    Math.min(12, (bodyBottomY - bodyTopY) / 2),
   );
   const toSvgPx = (y: number) =>
     Math.round(((y - viewBoxMinY) / viewBoxHeight) * svgHeight);
@@ -133,6 +132,11 @@ export default function FileNode({
     dragging && typeof xPos === "number" ? Math.round(xPos) - xPos : 0;
   const snapOffsetY =
     dragging && typeof yPos === "number" ? Math.round(yPos) - yPos : 0;
+  const contentPadding = Math.max(4, Math.round(8 * sizeScale));
+  const contentPaddingTop = Math.max(6, Math.round(13 * sizeScale));
+  const headerRightPadding = Math.max(18, Math.round(26 * sizeScale));
+  const pctX = (x: number) => `${((x - viewBoxMinX) / viewBoxWidth) * 100}%`;
+  const pctY = (y: number) => `${((y - viewBoxMinY) / viewBoxHeight) * 100}%`;
 
   const persistNodeSize = async (nextSize: number) => {
     if (!rootFolderJson) return;
@@ -155,7 +159,7 @@ export default function FileNode({
       } else if (rootFolderJson.path) {
         await fileManager.writeRootFolderJsonFromPath(
           rootFolderJson.path,
-          nextRoot
+          nextRoot,
         );
       }
     } catch (err) {
@@ -202,7 +206,9 @@ export default function FileNode({
           padding: 0,
           boxSizing: "border-box",
           gap: "6px",
-          transition: dragging ? "none" : "border-color 0.15s ease, box-shadow 0.15s ease",
+          transition: dragging
+            ? "none"
+            : "border-color 0.15s ease, box-shadow 0.15s ease",
         }}
         aria-hidden="true"
       >
@@ -343,9 +349,6 @@ export default function FileNode({
             style={{
               position: "absolute",
               inset: 0,
-              padding: `${Math.max(4, Math.round(8 * sizeScale))}px`,
-              paddingTop: `${Math.max(6, Math.round(13 * sizeScale))}px`,
-              paddingRight: Math.max(18, Math.round(26 * sizeScale)), // leave space under the fold + controls
               display: "flex",
               flexDirection: "column",
               gap: Math.max(2, Math.round(4 * sizeScale)),
@@ -374,7 +377,7 @@ export default function FileNode({
                   borderRadius: 0,
                   border: "none",
                   background: "transparent",
-                color: nodeTextColor,
+                  color: nodeTextColor,
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
@@ -400,7 +403,7 @@ export default function FileNode({
                   borderRadius: 0,
                   border: "none",
                   background: "transparent",
-                color: nodeTextColor,
+                  color: nodeTextColor,
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
@@ -415,52 +418,72 @@ export default function FileNode({
                 -
               </button>
             </div>
-            {/* File Name label: Displays the "File Name" header text in small, non-bold font */}
             <div
               style={{
-                fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
-                fontWeight: 400,
-                letterSpacing: "0.02em",
-                opacity: 0.85,
+                position: "absolute",
+                left: pctX(bodyLeftX),
+                right: `calc(100% - ${pctX(bodyRightX)})`,
+                top: pctY(pathTopY),
+                height: `calc(${pctY(bodyTopY)} - ${pctY(pathTopY)})`,
+                paddingTop: `${contentPaddingTop}px`,
+                paddingLeft: `${contentPadding}px`,
+                paddingRight: `${headerRightPadding}px`,
               }}
             >
-              File Name
-            </div>
+              {/* File Name label: Displays the "File Name" header text in small, non-bold font */}
+              <div
+                style={{
+                  fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
+                  fontWeight: 400,
+                  letterSpacing: "0.02em",
+                  opacity: 0.85,
+                }}
+              >
+                File Name
+              </div>
 
-            {/* File Name value: Displays the actual file name in bold, larger font with word wrapping support */}
-            <div
-              style={{
-                fontWeight: 700,
-                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
-                lineHeight: "1.2",
-                wordBreak: "break-word",
-                overflowWrap: "break-word",
-                whiteSpace: "pre-wrap",
-                marginBottom: `${Math.max(1, Math.round(2 * sizeScale))}px`,
-              }}
-            >
-              {nodeName ?? "(no name)"}
+              {/* File Name value: Displays the actual file name in bold, larger font with word wrapping support */}
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+                  lineHeight: "1.2",
+                  wordBreak: "break-word",
+                  overflowWrap: "break-word",
+                  whiteSpace: "pre-wrap",
+                  marginBottom: `${Math.max(1, Math.round(2 * sizeScale))}px`,
+                }}
+              >
+                {nodeName ?? "(no name)"}
+              </div>
             </div>
 
             {/* Purpose section wrapper: Collapsible container that shows/hides the Purpose section based on expand/collapse state with smooth animation */}
             <div
               style={{
+                position: "absolute",
+                left: pctX(bodyLeftX),
+                right: `calc(100% - ${pctX(bodyRightX)})`,
+                top: pctY(bodyTopY),
                 opacity: isExpanded ? 1 : 0,
                 maxHeight: isExpanded ? "200px" : "0px",
                 overflow: "hidden",
                 transition: dragging
                   ? "none"
                   : "opacity 180ms ease, max-height 180ms ease",
+                paddingLeft: `${contentPadding}px`,
+                paddingRight: `${contentPadding}px`,
+                paddingBottom: `${contentPadding}px`,
               }}
             >
               {/* Purpose label: Displays the "Purpose" header text in small, non-bold font */}
               <div
                 style={{
-                fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
+                  fontSize: `${Math.max(4, Math.round(5 * sizeScale))}px`,
                   fontWeight: 400,
                   letterSpacing: "0.02em",
                   opacity: 0.85,
-                marginTop: `${Math.max(1, Math.round(3 * sizeScale))}px`,
+                  marginTop: `${Math.max(1, Math.round(3 * sizeScale))}px`,
                 }}
               >
                 Purpose
@@ -468,7 +491,7 @@ export default function FileNode({
               {/* Purpose value: Displays the actual purpose text with word wrapping support and slight vertical offset */}
               <div
                 style={{
-                fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
+                  fontSize: `${Math.max(5, Math.round(7 * sizeScale))}px`,
                   lineHeight: "1.25",
                   wordBreak: "break-word",
                   overflowWrap: "break-word",
@@ -486,4 +509,3 @@ export default function FileNode({
     </div>
   );
 }
-

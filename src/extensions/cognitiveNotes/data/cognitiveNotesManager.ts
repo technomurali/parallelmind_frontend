@@ -147,12 +147,6 @@ export class CognitiveNotesManager {
     return this.getIndexFileName(this.baseNameFromPath(rootPath));
   }
 
-  private buildMarkerFileName(prefix: "start" | "end", rootName: string): string {
-    const trimmed = (rootName ?? "").trim();
-    const safeRoot = trimmed || "root";
-    return `${prefix}_${safeRoot}.md`;
-  }
-
   private shouldSkipFileName(fileName: string): boolean {
     if (!fileName || typeof fileName !== "string") return true;
     return (
@@ -810,41 +804,6 @@ export class CognitiveNotesManager {
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return null;
       return null;
-    }
-  }
-
-  private async ensureMarkerFilesFromHandle(
-    dirHandle: FileSystemDirectoryHandle,
-    rootName: string
-  ): Promise<void> {
-    const startFile = this.buildMarkerFileName("start", rootName);
-    const endFile = this.buildMarkerFileName("end", rootName);
-    for (const fileName of [startFile, endFile]) {
-      try {
-        await dirHandle.getFileHandle(fileName, { create: false });
-        continue;
-      } catch (err) {
-        if (err instanceof DOMException && err.name !== "NotFoundError") {
-          throw err;
-        }
-      }
-      const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-      const writable = await (fileHandle as any).createWritable?.();
-      if (writable) {
-        await writable.write("");
-        await writable.close();
-      }
-    }
-  }
-
-  private async ensureMarkerFilesFromPath(dirPath: string, rootName: string): Promise<void> {
-    const startFile = this.buildMarkerFileName("start", rootName);
-    const endFile = this.buildMarkerFileName("end", rootName);
-    const { exists, writeTextFile } = await import("@tauri-apps/plugin-fs");
-    for (const fileName of [startFile, endFile]) {
-      const filePath = this.joinPath(dirPath, fileName);
-      if (await exists(filePath)) continue;
-      await writeTextFile(filePath, "", { create: true });
     }
   }
 

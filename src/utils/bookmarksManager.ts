@@ -218,12 +218,6 @@ const getDirPath = (filePath: string): string | null => {
   return parts.join(trimmed.includes("\\") ? "\\" : "/");
 };
 
-const getFileNameFromPath = (filePath: string): string => {
-  const trimmed = filePath.replace(/[\\/]+$/, "");
-  const parts = trimmed.split(/[\\/]/);
-  return parts[parts.length - 1] ?? trimmed;
-};
-
 export const reconcileBookmarksOnStartup = async (args: {
   settings: AppSettings;
 }): Promise<{ updated: boolean }> => {

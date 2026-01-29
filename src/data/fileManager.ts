@@ -172,10 +172,6 @@ export class FileManager {
     return this.getIndexFileName(this.baseNameFromPath(rootPath));
   }
 
-  private getLegacyIndexFileNameFromPath(rootPath: string): string {
-    return this.getLegacyIndexFileName(this.baseNameFromPath(rootPath));
-  }
-
   private folderTypeForLevel(level: number): FolderTypeByLevel {
     if (level === 1) return "folder_A";
     if (level === 2) return "folder_B";
